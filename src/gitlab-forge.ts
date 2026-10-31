@@ -5,13 +5,16 @@ import type { Fetch } from "./fetch.ts";
 import { type Forge, type PullTarget, TrackerError } from "./ports.ts";
 import { pullKey } from "./ticket-key.ts";
 
-export const gitlabHost = "gitlab.com";
-
 export const missingGitlabToken =
-	"GITLAB_TOKEN is missing: set GITLAB_TOKEN to read GitLab PRs.";
+	"GITLAB_TOKEN is missing: set GITLAB_TOKEN to read GitLab.";
 
 export const rejectedGitlabToken =
 	"GITLAB_TOKEN was rejected by GitLab (HTTP 401): set a valid token.";
+
+/** GitLab numbers merge requests apart from issues, and writes their key as `repo!number`. */
+const mark = "!";
+
+const gitlabPullKey = (target: PullTarget) => pullKey({ ...target, mark });
 
 /** The merged PRs of a repo that the expected bots come from. */
 const mergedHistorySize = 10;
@@ -260,7 +263,7 @@ export function gitlabForge(
 		request: MergeRequest,
 	): Promise<PullRequest> => {
 		const merged = request.merged_at !== null;
-		const key = pullKey({ repo, number: request.iid });
+		const key = gitlabPullKey({ repo, number: request.iid });
 		const evidence =
 			(merged ? mergedEvidence.get(key) : undefined) ??
 			(await evidenceOf(repo, request));
@@ -270,6 +273,7 @@ export function gitlabForge(
 		return {
 			repo,
 			number: request.iid,
+			mark,
 			url: request.web_url,
 			title: request.title,
 			draft: request.draft,
@@ -346,7 +350,7 @@ export function gitlabForge(
 			}
 			const listed = new Map(pulls.map((pull) => [pullKey(pull), pull]));
 			for (const link of links) {
-				const key = pullKey(link);
+				const key = gitlabPullKey(link);
 				const pull =
 					listed.get(key) ?? (await linkedPull(link).catch(unseen(null)));
 				if (pull === null) {

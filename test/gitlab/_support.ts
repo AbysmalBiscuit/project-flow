@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import type { ProjectReport } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
 import approvals from "../fixtures/gitlab/approvals.json";
@@ -5,6 +7,8 @@ import branches from "../fixtures/gitlab/branches.json";
 import jobs from "../fixtures/gitlab/jobs.json";
 import opened from "../fixtures/gitlab/merge-requests-opened.json";
 import pipelines from "../fixtures/gitlab/pipelines.json";
+import scratchProject from "../fixtures/gitlab/project.json";
+import workItems from "../fixtures/gitlab/work-items.json";
 import { withServer } from "../support/app.ts";
 import { json, urlOf } from "../support/fetch.ts";
 import { linearFake } from "../support/linear.ts";
@@ -32,6 +36,12 @@ export type GitlabFake = {
 	jobs?: Record<string, unknown[]>;
 	/** The HTTP status of `GET /user`. */
 	userStatus?: number;
+	/**
+	 * The link type of a work item to another, by the iid of each end. GitLab
+	 * refuses blocker links on the tier of the scratch repo, which links its
+	 * tickets as `relates_to`. A test sets the type of a recorded link here.
+	 */
+	linkTypes?: Record<string, Record<string, string>>;
 	/** Each GitLab request URL that the app sent. */
 	sent?: string[];
 };
@@ -41,6 +51,46 @@ function byKey<Value>(
 	key: string | undefined,
 ): Value | undefined {
 	return key === undefined ? undefined : record?.[key];
+}
+
+type WorkItemState = keyof typeof workItems;
+
+const workItemsBody = z.object({
+	variables: z.object({ state: z.enum(["opened", "closed"]) }),
+});
+
+/** The recorded work items of one state, with the link types of `linkTypes`. */
+function workItemsOf(
+	state: WorkItemState,
+	linkTypes: GitlabFake["linkTypes"] = {},
+) {
+	const recorded = workItems[state];
+	return {
+		data: {
+			project: {
+				workItems: {
+					...recorded.data.project.workItems,
+					nodes: recorded.data.project.workItems.nodes.map((item) => ({
+						...item,
+						widgets: item.widgets.map((widget) =>
+							"linkedItems" in widget && widget.linkedItems !== undefined
+								? {
+										linkedItems: {
+											nodes: widget.linkedItems.nodes.map((link) => ({
+												...link,
+												linkType:
+													linkTypes[item.iid]?.[link.workItem.iid] ??
+													link.linkType,
+											})),
+										},
+									}
+								: widget,
+						),
+					})),
+				},
+			},
+		},
+	};
 }
 
 /**
@@ -53,11 +103,23 @@ export function gitlabFake(options: GitlabFake = {}): Fetch {
 		...options.open?.[request.iid],
 	}));
 	const merged = options.merged ?? [];
-	return async (input) => {
+	return async (input, init) => {
 		const url = new URL(urlOf(input));
 		options.sent?.push(url.href);
 		if (url.href === "https://gitlab.com/api/v4/user") {
 			return json({ id: 2274988, username: "lev" }, options.userStatus ?? 200);
+		}
+		if (url.href === "https://gitlab.com/api/graphql") {
+			const { variables } = workItemsBody.parse(
+				JSON.parse(String(init?.body ?? "")),
+			);
+			return json(workItemsOf(variables.state, options.linkTypes));
+		}
+		if (
+			url.pathname === "/api/v4/projects" &&
+			url.searchParams.get("membership") === "true"
+		) {
+			return json([scratchProject]);
 		}
 		const path = url.pathname.slice(new URL(api).pathname.length);
 		if (!url.href.startsWith(api)) {
@@ -133,6 +195,11 @@ export function linearWithGitlab(
 			? gitlab(input, init)
 			: linear(input, init);
 }
+
+export const gitlabPin = {
+	tracker: "gitlab" as const,
+	repo: gitlabRepo,
+};
 
 export const linearPin = {
 	tracker: "linear" as const,

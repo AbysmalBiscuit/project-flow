@@ -1,4 +1,5 @@
 import type { ProjectGroup, Ticket, TicketRef } from "./domain.ts";
+import { type RefScope, repoScopes } from "./ref-scope.ts";
 import {
 	asRef,
 	indexTickets,
@@ -63,7 +64,7 @@ function trimPunctuation(token: string): string {
 
 function parseLine(
 	line: string,
-	repo: string | null,
+	scope: RefScope,
 	direction: "blockedBy" | "blocks",
 ): TicketRef[] {
 	const matched = line.trim().match(label);
@@ -83,7 +84,7 @@ function parseLine(
 		if (token === "" || token.toLowerCase() === "none") {
 			continue;
 		}
-		const ref = parseTicketRef(token, repo);
+		const ref = parseTicketRef(token, scope);
 		if (ref !== null && !refs.some((item) => sameRef(item, ref))) {
 			refs.push(ref);
 		}
@@ -93,12 +94,12 @@ function parseLine(
 
 export function bodyBlockers(
 	ticket: Ticket,
-	repo: string | null,
+	scope: RefScope,
 	direction: "blockedBy" | "blocks",
 ): TicketRef[] {
 	const refs: TicketRef[] = [];
 	for (const line of ticket.body.split("\n")) {
-		for (const ref of parseLine(line, repo, direction)) {
+		for (const ref of parseLine(line, scope, direction)) {
 			if (!refs.some((item) => sameRef(item, ref))) {
 				refs.push(ref);
 			}
@@ -140,7 +141,7 @@ export function bodyLines(donor: Ticket | undefined, ticket: Ticket): string {
 
 /** The repo that a bare `#number` in a ticket body names. */
 export function bodyRepo(ticket: Ticket, repo: string | null): string | null {
-	if (repo !== null || ticket.tracker !== "github" || ticket.key === null) {
+	if (repo !== null || ticket.key === null) {
 		return repo;
 	}
 	return keyRepo(ticket.key);
@@ -148,12 +149,13 @@ export function bodyRepo(ticket: Ticket, repo: string | null): string | null {
 
 export function parseBodies(groups: ProjectGroup[]): ParsedBodies {
 	const parsed: ParsedBodies = new Map();
+	const scopeOf = repoScopes(groups);
 	for (const group of groups) {
 		for (const ticket of group.tickets) {
 			const key = parseKey(ticket);
-			const repo = bodyRepo(ticket, group.repo);
-			const blockedBy = bodyBlockers(ticket, repo, "blockedBy");
-			const blocks = bodyBlockers(ticket, repo, "blocks");
+			const scope = scopeOf(bodyRepo(ticket, group.repo));
+			const blockedBy = bodyBlockers(ticket, scope, "blockedBy");
+			const blocks = bodyBlockers(ticket, scope, "blocks");
 			const earlier = parsed.get(key);
 			if (earlier === undefined) {
 				parsed.set(key, { blockedBy, blocks });
@@ -310,7 +312,7 @@ export function blockerProject(
 	if (ref?.project !== undefined && ref.project !== "") {
 		return ref.project;
 	}
-	if (blocker.tracker === "github" && blocker.key !== null) {
+	if (blocker.key !== null) {
 		return keyRepo(blocker.key) ?? "";
 	}
 	return "";

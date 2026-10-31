@@ -87,7 +87,7 @@ describe("a project that links a PR on a forge with no token", () => {
 				expect(await projectError(base)).toBe(missingToken);
 				expect(await ticketOf(base, "WID-1")).toMatchObject({
 					state: "awaitingMerge",
-					pull: `${gitlabRepo}#1`,
+					pull: `${gitlabRepo}!1`,
 				});
 				expect(await ticketOf(base, "WID-2")).toBeDefined();
 			},

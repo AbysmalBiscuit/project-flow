@@ -25,6 +25,7 @@ import { z } from "zod";
 
 import { forgeKinds } from "./domain.ts";
 import { githubHost, githubPin } from "./github-pin.ts";
+import { gitlabHost, gitlabPin } from "./gitlab-pin.ts";
 import { runResults, runStatusKinds, statusTypes } from "./kinds.ts";
 import { knownBots } from "./known-bots.ts";
 import { defaultStates } from "./lanes.ts";
@@ -50,12 +51,13 @@ import {
 export const projectRef = z.discriminatedUnion("tracker", [
 	githubPin,
 	linearPin,
+	gitlabPin,
 ]);
 
 export type ProjectPin = z.infer<typeof projectRef>;
 
 /** The home hosts of the forges, which a configuration cannot declare. */
-const knownHosts: readonly string[] = [githubHost, "gitlab.com"];
+const knownHosts: readonly string[] = [githubHost, gitlabHost];
 
 const declaredHost = z.strictObject({
 	host: z

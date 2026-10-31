@@ -1,7 +1,7 @@
 import type { ProjectPin } from "./configuration.ts";
 import type { TrackerKind } from "./domain.ts";
 
-// GitHub owner and repo names compare without case. Linear keys compare as
+// GitHub and GitLab repo paths compare without case. Linear keys compare as
 // they are.
 
 /**
@@ -11,6 +11,7 @@ import type { TrackerKind } from "./domain.ts";
 export type ProjectRef =
 	| { kind: "linear-project"; tracker: "linear"; key: string }
 	| { kind: "github-repo"; tracker: "github"; key: string; host?: string }
+	| { kind: "gitlab-repo"; tracker: "gitlab"; key: string }
 	| {
 			kind: "github-project";
 			tracker: "github";
@@ -67,6 +68,9 @@ export function pinRef(pin: ProjectPin): ProjectRef {
 	if (pin.tracker === "linear") {
 		return { kind: "linear-project", tracker: "linear", key: pin.project };
 	}
+	if (pin.tracker === "gitlab") {
+		return { kind: "gitlab-repo", tracker: "gitlab", key: pin.repo };
+	}
 	if ("repo" in pin) {
 		return githubRepo(pin.repo, "host" in pin ? pin.host : undefined);
 	}
@@ -77,6 +81,9 @@ export function pinRef(pin: ProjectPin): ProjectRef {
 export function listedRef(project: ListedRef): ProjectRef {
 	if (project.tracker === "linear") {
 		return { kind: "linear-project", tracker: "linear", key: project.key };
+	}
+	if (project.tracker === "gitlab") {
+		return { kind: "gitlab-repo", tracker: "gitlab", key: project.key };
 	}
 	if (project.owner !== undefined && project.number !== undefined) {
 		return githubProject(project.owner, project.number);
@@ -127,12 +134,16 @@ export function refPin(ref: ProjectRef): ProjectPin {
 			};
 		case "github-project":
 			return { tracker: "github", owner: ref.owner, project: ref.number };
+		case "gitlab-repo":
+			return { tracker: "gitlab", repo: ref.key };
 	}
 }
 
-/** The repo of a GitHub repo project, or null for any other kind. */
+/** The repo of a project that is one repo, or null for any other kind. */
 export function refRepo(ref: ProjectRef): string | null {
-	return ref.kind === "github-repo" ? ref.key : null;
+	return ref.kind === "github-repo" || ref.kind === "gitlab-repo"
+		? ref.key
+		: null;
 }
 
 /** The owner and number of a project on a board, or null for any other kind. */
@@ -144,7 +155,7 @@ export function refBoard(
 
 /** A string that two ProjectRefs share when they name the same project. */
 export function projectId(ref: ProjectRef): string {
-	const key = ref.tracker === "github" ? ref.key.toLowerCase() : ref.key;
+	const key = ref.tracker === "linear" ? ref.key : ref.key.toLowerCase();
 	const host = refHost(ref);
 	return host === undefined
 		? `${ref.kind}:${key}`

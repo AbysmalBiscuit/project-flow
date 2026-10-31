@@ -53,7 +53,7 @@ describe("a Linear ticket that links a GitLab PR the token cannot read", () => {
 				async (base) => {
 					expect(await ticketOf(base, "WID-1")).toMatchObject({
 						state: "awaitingMerge",
-						pull: `${gitlabRepo}#1`,
+						pull: `${gitlabRepo}!1`,
 					});
 					const unread = await ticketOf(base, "WID-2");
 					expect(unread).toBeDefined();
@@ -85,7 +85,7 @@ describe("a GitLab read that fails for another reason than a missing PR", () => 
 				},
 				3600,
 				async (base) => {
-					const linked = { state: "awaitingMerge", pull: `${gitlabRepo}#1` };
+					const linked = { state: "awaitingMerge", pull: `${gitlabRepo}!1` };
 					expect(await ticketOf(base, "WID-1")).toMatchObject(linked);
 					failing = true;
 					await refreshed(base, () => reads);

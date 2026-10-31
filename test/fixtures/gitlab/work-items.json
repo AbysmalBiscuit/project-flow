@@ -1,0 +1,499 @@
+{
+	"opened": {
+		"data": {
+			"project": {
+				"workItems": {
+					"pageInfo": {
+						"hasNextPage": false,
+						"endCursor": "eyJjcmVhdGVkX2F0IjoiMjAyNi0xMC0zMCAxNToyMzo1OC44NzExMTgwMDAgKzAwMDAiLCJpZCI6IjIwODU5MzIzMyJ9"
+					},
+					"nodes": [
+						{
+							"iid": "8",
+							"title": "feat(app): ticket with a pushed branch",
+							"state": "OPEN",
+							"webUrl": "https://gitlab.com/AbysmalBiscuit/project-flow-scratch/-/work_items/8",
+							"description": null,
+							"createdAt": "2026-10-30T15:24:05Z",
+							"updatedAt": "2026-10-30T15:24:05Z",
+							"closedAt": null,
+							"widgets": [
+								{
+									"assignees": {
+										"nodes": []
+									}
+								},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{
+									"parent": null
+								},
+								{
+									"labels": {
+										"nodes": []
+									}
+								},
+								{
+									"linkedItems": {
+										"nodes": []
+									}
+								},
+								{
+									"milestone": null
+								},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{}
+							]
+						},
+						{
+							"iid": "7",
+							"title": "feat(app): ticket with a draft PR",
+							"state": "OPEN",
+							"webUrl": "https://gitlab.com/AbysmalBiscuit/project-flow-scratch/-/work_items/7",
+							"description": null,
+							"createdAt": "2026-10-30T15:24:04Z",
+							"updatedAt": "2026-10-30T15:24:04Z",
+							"closedAt": null,
+							"widgets": [
+								{
+									"assignees": {
+										"nodes": []
+									}
+								},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{
+									"parent": null
+								},
+								{
+									"labels": {
+										"nodes": []
+									}
+								},
+								{
+									"linkedItems": {
+										"nodes": []
+									}
+								},
+								{
+									"milestone": null
+								},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{}
+							]
+						},
+						{
+							"iid": "6",
+							"title": "feat(app): ticket with a PR",
+							"state": "OPEN",
+							"webUrl": "https://gitlab.com/AbysmalBiscuit/project-flow-scratch/-/work_items/6",
+							"description": null,
+							"createdAt": "2026-10-30T15:24:03Z",
+							"updatedAt": "2026-10-30T15:24:03Z",
+							"closedAt": null,
+							"widgets": [
+								{
+									"assignees": {
+										"nodes": []
+									}
+								},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{
+									"parent": null
+								},
+								{
+									"labels": {
+										"nodes": []
+									}
+								},
+								{
+									"linkedItems": {
+										"nodes": []
+									}
+								},
+								{
+									"milestone": {
+										"title": "Workstream A"
+									}
+								},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{}
+							]
+						},
+						{
+							"iid": "5",
+							"title": "feat(app): blocked ticket",
+							"state": "OPEN",
+							"webUrl": "https://gitlab.com/AbysmalBiscuit/project-flow-scratch/-/work_items/5",
+							"description": null,
+							"createdAt": "2026-10-30T15:24:02Z",
+							"updatedAt": "2026-10-30T15:24:02Z",
+							"closedAt": null,
+							"widgets": [
+								{
+									"assignees": {
+										"nodes": []
+									}
+								},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{
+									"parent": null
+								},
+								{
+									"labels": {
+										"nodes": []
+									}
+								},
+								{
+									"linkedItems": {
+										"nodes": [
+											{
+												"linkType": "relates_to",
+												"workItem": {
+													"iid": "4",
+													"title": "fix(app): blocker ticket",
+													"state": "OPEN",
+													"namespace": {
+														"fullPath": "AbysmalBiscuit/project-flow-scratch"
+													}
+												}
+											}
+										]
+									}
+								},
+								{
+									"milestone": {
+										"title": "Workstream A"
+									}
+								},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{}
+							]
+						},
+						{
+							"iid": "4",
+							"title": "fix(app): blocker ticket",
+							"state": "OPEN",
+							"webUrl": "https://gitlab.com/AbysmalBiscuit/project-flow-scratch/-/work_items/4",
+							"description": null,
+							"createdAt": "2026-10-30T15:24:01Z",
+							"updatedAt": "2026-10-30T15:24:01Z",
+							"closedAt": null,
+							"widgets": [
+								{
+									"assignees": {
+										"nodes": []
+									}
+								},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{
+									"parent": null
+								},
+								{
+									"labels": {
+										"nodes": []
+									}
+								},
+								{
+									"linkedItems": {
+										"nodes": [
+											{
+												"linkType": "relates_to",
+												"workItem": {
+													"iid": "5",
+													"title": "feat(app): blocked ticket",
+													"state": "OPEN",
+													"namespace": {
+														"fullPath": "AbysmalBiscuit/project-flow-scratch"
+													}
+												}
+											}
+										]
+									}
+								},
+								{
+									"milestone": {
+										"title": "Workstream A"
+									}
+								},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{}
+							]
+						},
+						{
+							"iid": "3",
+							"title": "feat(app): second sub-ticket",
+							"state": "OPEN",
+							"webUrl": "https://gitlab.com/AbysmalBiscuit/project-flow-scratch/-/work_items/3",
+							"description": null,
+							"createdAt": "2026-10-30T15:24:00Z",
+							"updatedAt": "2026-10-30T15:24:10Z",
+							"closedAt": null,
+							"widgets": [
+								{
+									"assignees": {
+										"nodes": []
+									}
+								},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{
+									"parent": {
+										"iid": "1",
+										"title": "feat(app): parent ticket",
+										"state": "OPEN",
+										"webUrl": "https://gitlab.com/AbysmalBiscuit/project-flow-scratch/-/work_items/1",
+										"namespace": {
+											"fullPath": "AbysmalBiscuit/project-flow-scratch"
+										}
+									}
+								},
+								{
+									"labels": {
+										"nodes": []
+									}
+								},
+								{
+									"linkedItems": {
+										"nodes": []
+									}
+								},
+								{},
+								{
+									"milestone": {
+										"title": "Workstream A"
+									}
+								},
+								{},
+								{},
+								{},
+								{},
+								{}
+							]
+						},
+						{
+							"iid": "2",
+							"title": "feat(app): first sub-ticket",
+							"state": "OPEN",
+							"webUrl": "https://gitlab.com/AbysmalBiscuit/project-flow-scratch/-/work_items/2",
+							"description": null,
+							"createdAt": "2026-10-30T15:23:59Z",
+							"updatedAt": "2026-10-30T15:24:09Z",
+							"closedAt": null,
+							"widgets": [
+								{
+									"assignees": {
+										"nodes": []
+									}
+								},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{
+									"parent": {
+										"iid": "1",
+										"title": "feat(app): parent ticket",
+										"state": "OPEN",
+										"webUrl": "https://gitlab.com/AbysmalBiscuit/project-flow-scratch/-/work_items/1",
+										"namespace": {
+											"fullPath": "AbysmalBiscuit/project-flow-scratch"
+										}
+									}
+								},
+								{
+									"labels": {
+										"nodes": []
+									}
+								},
+								{
+									"linkedItems": {
+										"nodes": []
+									}
+								},
+								{},
+								{
+									"milestone": {
+										"title": "Workstream A"
+									}
+								},
+								{},
+								{},
+								{},
+								{},
+								{}
+							]
+						},
+						{
+							"iid": "1",
+							"title": "feat(app): parent ticket",
+							"state": "OPEN",
+							"webUrl": "https://gitlab.com/AbysmalBiscuit/project-flow-scratch/-/work_items/1",
+							"description": "The parent of the sub-tickets.",
+							"createdAt": "2026-10-30T15:23:58Z",
+							"updatedAt": "2026-10-30T15:23:58Z",
+							"closedAt": null,
+							"widgets": [
+								{
+									"assignees": {
+										"nodes": []
+									}
+								},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{
+									"parent": null
+								},
+								{
+									"labels": {
+										"nodes": []
+									}
+								},
+								{
+									"linkedItems": {
+										"nodes": []
+									}
+								},
+								{
+									"milestone": {
+										"title": "Workstream A"
+									}
+								},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{}
+							]
+						}
+					]
+				}
+			}
+		}
+	},
+	"closed": {
+		"data": {
+			"project": {
+				"workItems": {
+					"pageInfo": {
+						"hasNextPage": false,
+						"endCursor": "eyJ1cGRhdGVkX2F0IjoiMjAyNi0xMC0zMCAxNToyNDowNy4yOTM3NzMwMDAgKzAwMDAiLCJpZCI6IjIwODU5MzI1OSJ9"
+					},
+					"nodes": [
+						{
+							"iid": "9",
+							"title": "chore(app): done ticket",
+							"state": "CLOSED",
+							"webUrl": "https://gitlab.com/AbysmalBiscuit/project-flow-scratch/-/work_items/9",
+							"description": null,
+							"createdAt": "2026-10-30T15:24:06Z",
+							"updatedAt": "2026-10-30T15:24:07Z",
+							"closedAt": "2026-10-30T15:24:07Z",
+							"widgets": [
+								{
+									"assignees": {
+										"nodes": []
+									}
+								},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{
+									"parent": null
+								},
+								{
+									"labels": {
+										"nodes": []
+									}
+								},
+								{
+									"linkedItems": {
+										"nodes": []
+									}
+								},
+								{
+									"milestone": null
+								},
+								{},
+								{},
+								{},
+								{},
+								{},
+								{}
+							]
+						}
+					]
+				}
+			}
+		}
+	}
+}

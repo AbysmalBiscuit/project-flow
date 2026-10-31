@@ -1,4 +1,4 @@
-import type { TicketState, TrackerKind } from "./domain.ts";
+import type { PullRequest, TicketState, TrackerKind } from "./domain.ts";
 import { settingsKey } from "./project-ref.ts";
 
 // Keys compare without case, so every id folds the key to lower case.
@@ -6,23 +6,22 @@ import { settingsKey } from "./project-ref.ts";
 const numberMark = "#";
 const idSeparator = "\n";
 
-const numberedKeyShape = /^([^/\s#]+\/[^/\s#]+)#(\d+)$/;
+/** A repo path of one or more groups and a name, then `#` and a number. */
+const numberedKeyShape = /^([^/\s#]+(?:\/[^/\s#]+)+)#(\d+)$/;
 
 export function numberedKey(repo: string, number: number | string): string {
 	return `${repo}${numberMark}${number}`;
 }
 
-export function pullKey(pull: { repo: string; number: number }): string {
-	return numberedKey(pull.repo, pull.number);
+type PullName = Pick<PullRequest, "repo" | "number" | "mark">;
+
+export function pullKey(pull: PullName): string {
+	return `${pull.repo}${pull.mark ?? numberMark}${pull.number}`;
 }
 
 /** The id of a PR across hosts: the declared host of the PR qualifies its repo. */
-export function pullId(pull: {
-	repo: string;
-	host?: string;
-	number: number;
-}): string {
-	return foldKey(numberedKey(settingsKey(pull.repo, pull.host), pull.number));
+export function pullId(pull: PullName & Pick<PullRequest, "host">): string {
+	return foldKey(pullKey({ ...pull, repo: settingsKey(pull.repo, pull.host) }));
 }
 
 export function teamKey(team: string, number: number | string): string {

@@ -26,7 +26,7 @@ describe("a Linear project that links GitLab PRs", () => {
 			async (base) => {
 				expect(await ticketOf(base, "WID-1")).toMatchObject({
 					state: "inReview",
-					pull: `${gitlabRepo}#1`,
+					pull: `${gitlabRepo}!1`,
 					pullUrl: gitlabPullUrl(1),
 					pullForge: "GitLab",
 				});
@@ -41,7 +41,7 @@ describe("a Linear project that links GitLab PRs", () => {
 		await withLinkedPull({}, async (base) => {
 			expect(await ticketOf(base, "WID-1")).toMatchObject({
 				state: "awaitingMerge",
-				pull: `${gitlabRepo}#1`,
+				pull: `${gitlabRepo}!1`,
 			});
 		});
 	});
@@ -84,7 +84,7 @@ describe("a Linear project that links GitLab PRs", () => {
 
 	test("an open GitLab PR with no ticket shows as an unlinked PR", async () => {
 		await withLinkedPull({}, async (base) => {
-			expect(await ticketOf(base, `${gitlabRepo}#3`)).toMatchObject({
+			expect(await ticketOf(base, `${gitlabRepo}!3`)).toMatchObject({
 				title: "chore(app): add a change with no ticket",
 				unlinkedPr: true,
 				workstream: "Unlinked PRs",

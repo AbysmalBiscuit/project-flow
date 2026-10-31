@@ -2,6 +2,7 @@ import { bodyBlockers, bodyLines, bodyRepo } from "./blockers.ts";
 import type { ListedProject, Snapshot, Ticket, TrackerKind } from "./domain.ts";
 import type { FoundProject, LocalCheckout, Viewer } from "./ports.ts";
 import { listedRef, ownerRepo, refRepo } from "./project-ref.ts";
+import { repoScopes } from "./ref-scope.ts";
 import { mergeBlockedBy } from "./ticket-index.ts";
 import { sameTicketKey, scopedKey, teamKey } from "./ticket-key.ts";
 
@@ -40,6 +41,12 @@ export function projectSnapshots(found: ListedProject[]): Snapshot[] {
 			}
 		}
 	}
+	const scopeOf = repoScopes(
+		shown.map((project) => ({
+			repo: refRepo(listedRef(project)),
+			tracker: project.tracker,
+		})),
+	);
 	const rows = [];
 	for (const project of shown) {
 		const repo = refRepo(listedRef(project));
@@ -58,8 +65,12 @@ export function projectSnapshots(found: ListedProject[]): Snapshot[] {
 						blockedBy: mergeBlockedBy([
 							donor.blockedBy,
 							ticket.blockedBy,
-							bodyBlockers(donor, bodyRepo(donor, repo), "blockedBy"),
-							bodyBlockers(ticket, bodyRepo(ticket, repo), "blockedBy"),
+							bodyBlockers(donor, scopeOf(bodyRepo(donor, repo)), "blockedBy"),
+							bodyBlockers(
+								ticket,
+								scopeOf(bodyRepo(ticket, repo)),
+								"blockedBy",
+							),
 						]),
 					};
 		});
