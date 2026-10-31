@@ -4,7 +4,9 @@ import type { NeedsYouItem, ProjectReport } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
 import { run } from "../../src/main.ts";
 import branches from "../fixtures/forgejo-branches.json";
+import commit10 from "../fixtures/forgejo-commit-10.json";
 import openPulls from "../fixtures/forgejo-open-pulls.json";
+import reactions10 from "../fixtures/forgejo-pull-10-reactions.json";
 import reviews10 from "../fixtures/forgejo-pull-10-reviews.json";
 import status10 from "../fixtures/forgejo-pull-10-status.json";
 import pull10 from "../fixtures/forgejo-pull-10.json";
@@ -22,6 +24,7 @@ import {
 } from "../support/github.ts";
 import { linearFake } from "../support/linear.ts";
 import { readOverview } from "../support/reads.ts";
+import { codex, grok } from "./_support.ts";
 
 const host = "codeberg.org";
 const tokenEnv = "CODEBERG_TOKEN";
@@ -66,6 +69,12 @@ function codeberg(url: string, options: Codeberg): Response | null {
 	)?.[1];
 	if (answer !== undefined) {
 		return answer();
+	}
+	if (path.startsWith("/issues/10/reactions")) {
+		return json(reactions10);
+	}
+	if (path.startsWith(`/git/commits/${commit10.sha}`)) {
+		return json(commit10);
 	}
 	if (path === "/pulls/10") {
 		return json(pull10);
@@ -317,4 +326,71 @@ describe("a Linear project with a Codeberg attachment", () => {
 			);
 		});
 	}
+});
+
+describe("the expected bots of a Codeberg PR", () => {
+	const withBots = (bots: string[]) =>
+		JSON.stringify({
+			hosts,
+			tracked: [{ tracker: "linear", project: linearProject }],
+			expectedBots: { [`${host}/${scratch}`]: bots },
+		});
+
+	test("a Codex reaction on the PR completes the Codex review", async () => {
+		const reaction = {
+			user: { login: codex },
+			content: "+1",
+			created_at: "2026-10-30T17:00:00+01:00",
+		};
+		await withApp(
+			withBots(["codex"]),
+			linearWithCodeberg([], {
+				answers: { "/issues/10/reactions": () => json([reaction]) },
+			}),
+			env,
+			async (base) => {
+				expect(await attachedTicket(base)).toMatchObject({
+					error: null,
+					state: "awaitingMerge",
+				});
+			},
+		);
+	});
+
+	test("a Grok usage limit after the head commit ends the Grok review with a tag", async () => {
+		const limitAt = (createdAt: string) => () =>
+			json([
+				{
+					user: { login: grok },
+					body: "You have reached your Grok usage limit for code reviews.",
+					created_at: createdAt,
+				},
+			]);
+		const read = async (createdAt: string) => {
+			let shown: { state: unknown; tags: unknown } | undefined;
+			await withApp(
+				withBots(["grok"]),
+				linearWithCodeberg([], {
+					answers: { "/issues/10/comments": limitAt(createdAt) },
+				}),
+				env,
+				async (base) => {
+					const project = (await readOverview(base)).projects[0];
+					shown = {
+						state: (await attachedTicket(base)).state,
+						tags: (project as { tags?: unknown } | undefined)?.tags,
+					};
+				},
+			);
+			return shown;
+		};
+		expect(await read("2026-10-30T17:00:00+01:00")).toEqual({
+			state: "awaitingMerge",
+			tags: ["grok usage limit"],
+		});
+		expect(await read("2026-10-30T16:00:00+01:00")).toEqual({
+			state: "inReview",
+			tags: [],
+		});
+	});
 });

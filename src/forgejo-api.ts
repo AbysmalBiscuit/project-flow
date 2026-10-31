@@ -34,6 +34,18 @@ const forgejoReview = z.object({
 	dismissed: z.boolean().optional(),
 });
 
+const forgejoReaction = z.object({
+	user: login,
+	content: z.string(),
+	created_at: z.string().optional(),
+});
+
+const forgejoCommit = z.object({
+	commit: z.object({
+		committer: z.object({ date: z.string() }).nullable(),
+	}),
+});
+
 const forgejoComment = z.object({
 	user: login,
 	body: z.string(),
@@ -138,14 +150,14 @@ const reviewStates: Record<string, BotReview["state"]> = {
 	PENDING: "PENDING",
 };
 
-/** The checks, reviews and comments of a PR at its head. Forgejo gives no reactions. */
+/** The checks, reviews, comments and reactions of a PR at its head. */
 export async function readEvidence(
 	client: ForgejoClient,
 	repo: string,
 	pull: ForgejoPull,
 ): Promise<ReviewEvidence> {
 	const base = `${client.api}/repos/${repo}`;
-	const [status, reviews, comments] = await Promise.all([
+	const [status, reviews, comments, reactions] = await Promise.all([
 		client
 			.get(`${base}/commits/${pull.head.sha}/status`, "read status")
 			.then(async (response) => combinedStatus.parse(await response.json())),
@@ -159,6 +171,14 @@ export async function readEvidence(
 			"list comments",
 			forgejoComment,
 		),
+		client
+			.get(`${base}/issues/${pull.number}/reactions`, "list reactions")
+			.then(async (response) =>
+				z
+					.array(forgejoReaction)
+					.nullable()
+					.parse(await response.json()),
+			),
 	]);
 	return {
 		checks: (status.statuses ?? []).map(({ context, status }) =>
@@ -175,6 +195,25 @@ export async function readEvidence(
 				? []
 				: [{ login: user.login, body, createdAt: created_at ?? null }],
 		),
-		reactions: [],
+		reactions: (reactions ?? []).flatMap(({ user, content, created_at }) =>
+			user === null
+				? []
+				: [{ login: user.login, content, createdAt: created_at ?? null }],
+		),
 	};
+}
+
+/** The committer date of a commit, or null when the host gives none. */
+export async function readCommittedAt(
+	client: ForgejoClient,
+	repo: string,
+	sha: string,
+): Promise<string | null> {
+	const response = await client.get(
+		`${client.api}/repos/${repo}/git/commits/${sha}?stat=false&files=false&verification=false`,
+		"read commit",
+	);
+	return (
+		forgejoCommit.parse(await response.json()).commit.committer?.date ?? null
+	);
 }
