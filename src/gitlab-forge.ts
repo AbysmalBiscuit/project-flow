@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import type { BotCheck, PullRequest } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
+import { gitlabPullMark } from "./gitlab-pin.ts";
 import { type Forge, type PullTarget, TrackerError } from "./ports.ts";
 import { pullKey } from "./ticket-key.ts";
 
@@ -11,8 +12,7 @@ export const missingGitlabToken =
 export const rejectedGitlabToken =
 	"GITLAB_TOKEN was rejected by GitLab (HTTP 401): set a valid token.";
 
-/** GitLab numbers merge requests apart from issues, and writes their key as `repo!number`. */
-const mark = "!";
+const mark = gitlabPullMark;
 
 const gitlabPullKey = (target: PullTarget) => pullKey({ ...target, mark });
 
