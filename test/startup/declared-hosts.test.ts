@@ -208,7 +208,11 @@ describe("a project on a declared host", () => {
 						stopped = (async () => {
 							const url = new URL("/api/settings", line);
 							const body = await (await fetch(url)).text();
-							written = await fetch(url, { method: "PUT", body });
+							written = await fetch(url, {
+								method: "PUT",
+								headers: { "content-type": "application/json" },
+								body,
+							});
 							reread = (await written.clone().json()) as Settings;
 						})();
 						release();
@@ -281,6 +285,7 @@ describe("the bot settings of a project on a declared host", () => {
 				).json()) as Record<string, unknown>;
 				const saved = await fetch(settingsUrl(base), {
 					method: "PUT",
+					headers: { "content-type": "application/json" },
 					body: JSON.stringify({
 						...loaded,
 						pmBot: { [hostedKey]: false },
@@ -309,6 +314,7 @@ describe("the bot settings of a project on a declared host", () => {
 			>;
 			const saved = await fetch(settingsUrl(base), {
 				method: "PUT",
+				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
 					...loaded,
 					expectedBots: { "acme/widget": ["codex"] },

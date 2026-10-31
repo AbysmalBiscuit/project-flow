@@ -191,6 +191,7 @@ describe("factories", () => {
 			const settings = await fetch(new URL("/api/settings", app.base));
 			const saved = await fetch(new URL("/api/settings", app.base), {
 				method: "PUT",
+				headers: { "content-type": "application/json" },
 				body: JSON.stringify(await settings.json()),
 			});
 			expect(saved.status).toBe(200);
@@ -281,6 +282,7 @@ describe("factories", () => {
 			).json()) as Record<string, unknown>;
 			const saved = await fetch(new URL("/api/settings", app.base), {
 				method: "PUT",
+				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
 					...settings,
 					factories: [{ name: "work hub", url: hubUrl }],
@@ -310,6 +312,7 @@ describe("factories", () => {
 		try {
 			const saved = await fetch(new URL("/api/settings", app.base), {
 				method: "PUT",
+				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
 					factories: [{ name: "ftp", url: "ftp://hub.test" }],
 				}),

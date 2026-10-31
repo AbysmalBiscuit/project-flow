@@ -48,6 +48,7 @@ import { sqliteStore } from "./store.ts";
 import { storeHoldsRead } from "./stored-page.ts";
 import { needsYouSeenId } from "./ticket-key.ts";
 import { projectTrackers } from "./tracker-route.ts";
+import { guardWrites } from "./write-guard.ts";
 
 const elkWorkerFile = Bun.resolveSync(
 	"elkjs/lib/elk-worker.min.js",
@@ -540,157 +541,160 @@ export async function start(options: StartOptions): Promise<Running> {
 			? {}
 			: { idleTimeout: options.idleTimeoutSeconds }),
 		development: false,
-		routes: {
-			"/_page": page,
-			[elkWorkerPath]: () => new Response(Bun.file(elkWorkerFile)),
-			[forceWorkerPath]: forceWorker,
-			"/": pageResponse,
-			"/needs-you": pageResponse,
-			"/inbox": pageResponse,
-			"/projects/*": pageResponse,
-			"/runs": pageResponse,
-			"/runs/*": pageResponse,
-			"/api/overview": {
-				GET: () => {
-					const body = Response.json(
-						runningOverview(pollOptions, configuration),
-					);
-					setTimeout(releaseLists, 0);
-					return body;
+		routes: guardWrites(
+			{
+				"/_page": page,
+				[elkWorkerPath]: () => new Response(Bun.file(elkWorkerFile)),
+				[forceWorkerPath]: forceWorker,
+				"/": pageResponse,
+				"/needs-you": pageResponse,
+				"/inbox": pageResponse,
+				"/projects/*": pageResponse,
+				"/runs": pageResponse,
+				"/runs/*": pageResponse,
+				"/api/overview": {
+					GET: () => {
+						const body = Response.json(
+							runningOverview(pollOptions, configuration),
+						);
+						setTimeout(releaseLists, 0);
+						return body;
+					},
 				},
-			},
-			"/api/events": {
-				GET: (request: Request) => {
-					server.timeout(request, 0);
-					return eventStream(notifier, () =>
-						pollOptions.progress === null
-							? null
-							: {
-									overview: runningOverview(pollOptions, configuration),
-									notifications: [],
-									progress: pollOptions.progress,
-								},
-					);
+				"/api/events": {
+					GET: (request: Request) => {
+						server.timeout(request, 0);
+						return eventStream(notifier, () =>
+							pollOptions.progress === null
+								? null
+								: {
+										overview: runningOverview(pollOptions, configuration),
+										notifications: [],
+										progress: pollOptions.progress,
+									},
+						);
+					},
 				},
-			},
-			"/api/refresh": {
-				POST: () => {
-					queueMicrotask(beginPoll);
-					return new Response(null, { status: 204 });
+				"/api/refresh": {
+					POST: () => {
+						queueMicrotask(beginPoll);
+						return new Response(null, { status: 204 });
+					},
 				},
-			},
-			"/settings": pageResponse,
-			"/api/settings": {
-				GET: () => Response.json(settingsBody()),
-				PUT: async (request: Request) => {
-					const rawText = await request.text();
-					let parsed: Configuration;
-					try {
-						parsed = readSettingsWrite(rawText);
-					} catch (error) {
-						return invalidConfiguration(error);
-					}
-					// The bot key check and a tracked-list write need this poll's catalogue.
-					await discovery;
-					const current = await configurationPort.read();
-					const unknownBot = rejectUnknownBotKeys(
-						parsed,
-						current,
-						opened.store.readTickets(),
-						pollOptions.catalogue,
-					);
-					if (unknownBot !== null) {
-						return Response.json({ error: unknownBot }, { status: 400 });
-					}
-					const merged = mergedSettingsWrite(current, parsed, rawText);
-					const mergedText = JSON.stringify(merged);
-					const trackedChanged = !sameTracked(current.tracked, merged.tracked);
-					const stale = polling;
-					try {
-						configuration = await configurationPort.write(mergedText);
-					} catch (error) {
-						return invalidConfiguration(error);
-					}
-					if (
-						!current.factoryGithubTokens &&
-						configuration.factoryGithubTokens
-					) {
-						void repoFetch.mintNow();
-					}
-					if (viewOnlyChange(current, merged)) {
-						pollOptions.fallback = configuration;
-						notifier.publish({
-							overview: runningOverview(pollOptions, configuration),
-							notifications: [],
-							viewsOnly: true,
-						});
-						return Response.json(settingsBody());
-					}
-					if (trackedChanged) {
-						trackedGeneration += 1;
-					}
-					configuration = await configurationPort.read();
-					pollOptions.fallback = configuration;
-					schedule(configuration.pollIntervalSeconds);
-					releaseLists();
-					if (trackedChanged) {
-						const written = trackedGeneration;
-						awaitingWrite = true;
+				"/settings": pageResponse,
+				"/api/settings": {
+					GET: () => Response.json(settingsBody()),
+					PUT: async (request: Request) => {
+						const rawText = await request.text();
+						let parsed: Configuration;
 						try {
-							while (
-								settledGeneration < written &&
-								!stopped &&
-								!pollOptions.stopped
-							) {
-								await pollAgain();
-							}
-						} finally {
-							awaitingWrite = false;
+							parsed = readSettingsWrite(rawText);
+						} catch (error) {
+							return invalidConfiguration(error);
 						}
-						dropQueuedRefresh();
-					} else {
-						await (stale ?? pollAgain());
-					}
-					await readFactories(factories.settled);
-					return Response.json(settingsBody());
+						// The bot key check and a tracked-list write need this poll's catalogue.
+						await discovery;
+						const current = await configurationPort.read();
+						const unknownBot = rejectUnknownBotKeys(
+							parsed,
+							current,
+							opened.store.readTickets(),
+							pollOptions.catalogue,
+						);
+						if (unknownBot !== null) {
+							return Response.json({ error: unknownBot }, { status: 400 });
+						}
+						const merged = mergedSettingsWrite(current, parsed, rawText);
+						const mergedText = JSON.stringify(merged);
+						const trackedChanged = !sameTracked(
+							current.tracked,
+							merged.tracked,
+						);
+						const stale = polling;
+						try {
+							configuration = await configurationPort.write(mergedText);
+						} catch (error) {
+							return invalidConfiguration(error);
+						}
+						if (
+							!current.factoryGithubTokens &&
+							configuration.factoryGithubTokens
+						) {
+							void repoFetch.mintNow();
+						}
+						if (viewOnlyChange(current, merged)) {
+							pollOptions.fallback = configuration;
+							notifier.publish({
+								overview: runningOverview(pollOptions, configuration),
+								notifications: [],
+								viewsOnly: true,
+							});
+							return Response.json(settingsBody());
+						}
+						if (trackedChanged) {
+							trackedGeneration += 1;
+						}
+						configuration = await configurationPort.read();
+						pollOptions.fallback = configuration;
+						schedule(configuration.pollIntervalSeconds);
+						releaseLists();
+						if (trackedChanged) {
+							const written = trackedGeneration;
+							awaitingWrite = true;
+							try {
+								while (
+									settledGeneration < written &&
+									!stopped &&
+									!pollOptions.stopped
+								) {
+									await pollAgain();
+								}
+							} finally {
+								awaitingWrite = false;
+							}
+							dropQueuedRefresh();
+						} else {
+							await (stale ?? pollAgain());
+						}
+						await readFactories(factories.settled);
+						return Response.json(settingsBody());
+					},
 				},
+				...projectRoutes(pollOptions, () => configuration),
+				...pullRoutes(pollOptions, () => configuration),
+				...inboxRoutes(opened.store, clock),
+				...replyRoutes({
+					trackerOf,
+					pollOptions,
+					notifier,
+					configuration: () => configuration,
+					staleRead,
+					readKey,
+					threadReadLimitMs: options.threadReadLimitMs,
+				}),
+				...runStartRoutes({
+					trackerOf,
+					pollOptions,
+					notifier,
+					configuration: () => configuration,
+					factories,
+					clock,
+					readFactories,
+				}),
+				...factoryRunRoutes({
+					factories,
+					pollOptions,
+					configuration: () => configuration,
+					clock,
+					staleRead,
+					readKey,
+					readFactories,
+					publishOverview,
+				}),
 			},
-			...projectRoutes(pollOptions, () => configuration),
-			...pullRoutes(
-				pollOptions,
-				() => configuration,
-				() => server.url,
-			),
-			...inboxRoutes(opened.store, clock),
-			...replyRoutes({
-				trackerOf,
-				pollOptions,
-				notifier,
-				configuration: () => configuration,
-				staleRead,
-				readKey,
-				threadReadLimitMs: options.threadReadLimitMs,
-			}),
-			...runStartRoutes({
-				trackerOf,
-				pollOptions,
-				notifier,
-				configuration: () => configuration,
-				factories,
-				clock,
-				readFactories,
-			}),
-			...factoryRunRoutes({
-				factories,
-				pollOptions,
-				configuration: () => configuration,
-				clock,
-				staleRead,
-				readKey,
-				readFactories,
-				publishOverview,
-			}),
-		},
+			options.hostname,
+			() => server.url,
+		),
 	});
 	if (hadRows) {
 		setTimeout(releaseLists, 5_000).unref?.();
