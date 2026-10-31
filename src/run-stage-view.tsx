@@ -10,7 +10,7 @@ import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
 import { NotServed } from "./run-checkpoint.tsx";
 import { isRunAt, StageCard, type StageFacts } from "./run-stage.tsx";
-import { stageQuery } from "./stage-queries.ts";
+import { stageQuery, stageVisit } from "./stage-queries.ts";
 import {
 	noRunDataLabel,
 	noTranscriptLabel,
@@ -144,14 +144,16 @@ export function Transcript({
 	runId,
 	stage,
 	live,
+	visit,
 	follow = false,
 }: {
 	runId: string;
 	stage: string;
 	live: boolean;
+	visit: string;
 	follow?: boolean;
 }) {
-	const { data } = useQuery(stageQuery.transcript(runId, stage, live));
+	const { data } = useQuery(stageQuery.transcript(runId, stage, live, visit));
 	const list = useRef<HTMLOListElement>(null);
 	const next = typeof data === "object" ? data.next : null;
 	useEffect(() => {
@@ -267,6 +269,7 @@ export function StageDetail({
 					runId={run.id}
 					stage={facts.stage.id}
 					live={isLiveStage(run, facts)}
+					visit={stageVisit(run.statusKind, facts.stage.visits)}
 				/>
 			)}
 			<RunContext run={run} />
