@@ -1,11 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 
 import type { PullRequest } from "../../src/domain.ts";
-import { sqliteStore } from "../../src/store.ts";
-import { host, hosts, storedPull, withStarted } from "./_support.ts";
+import { host, hosts, storedPull, withStoredRow } from "./_support.ts";
 
 const hostedKey = `${host}/acme/widget`;
 const linearPin = { tracker: "linear", project: "PLAT" };
@@ -18,15 +14,11 @@ type BotRow = {
 };
 
 /** Runs the checks on an app whose store holds a Linear project that links PRs on the declared host. */
-async function withLinkedPulls(
+function withLinkedPulls(
 	pulls: PullRequest[],
-	configuration: Record<string, unknown>,
 	checks: (base: string) => Promise<void>,
 ): Promise<void> {
-	const root = await mkdtemp(join(tmpdir(), "project-flow-hosts-"));
-	const databasePath = join(root, "project-flow.sqlite");
-	const seeded = sqliteStore(databasePath);
-	seeded.store.mergeTickets([
+	return withStoredRow(
 		{
 			key: "PLAT",
 			name: "Platform",
@@ -36,18 +28,9 @@ async function withLinkedPulls(
 			tickets: [],
 			pulls,
 		},
-	]);
-	seeded.close();
-	try {
-		await withStarted(
-			{ hosts, tracked: [linearPin], ...configuration },
-			checks,
-			undefined,
-			databasePath,
-		);
-	} finally {
-		await rm(root, { recursive: true, force: true });
-	}
+		{ hosts, tracked: [linearPin] },
+		checks,
+	);
 }
 
 async function platformRow(response: Response): Promise<BotRow | undefined> {
@@ -77,7 +60,7 @@ describe("the bot settings of a Linear project that links a PR on a declared hos
 	});
 
 	test("key the repo by the host of the PR and infer its bots there", async () => {
-		await withLinkedPulls([reviewedByGrok], {}, async (base) => {
+		await withLinkedPulls([reviewedByGrok], async (base) => {
 			expect(
 				await platformRow(await fetch(new URL("/api/settings", base))),
 			).toMatchObject({
@@ -89,7 +72,7 @@ describe("the bot settings of a Linear project that links a PR on a declared hos
 	});
 
 	test("a settings write saves under the host key and refuses the bare repo key", async () => {
-		await withLinkedPulls([reviewedByGrok], {}, async (base) => {
+		await withLinkedPulls([reviewedByGrok], async (base) => {
 			const bare = await saveBots(base, { "acme/widget": ["codex"] });
 			expect(bare.status).toBe(400);
 			expect(await bare.json()).toEqual({
