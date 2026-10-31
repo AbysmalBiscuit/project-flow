@@ -43,6 +43,35 @@ describe("merge requests from another site", () => {
 		});
 	}
 
+	const sendAs = (base: string, host: string) =>
+		fetch(new URL("/api/pulls/merge", base), {
+			method: "POST",
+			headers: {
+				"content-type": "application/json",
+				host: `${host}:${new URL(base).port}`,
+				origin: `http://${host}:${new URL(base).port}`,
+			},
+			body: JSON.stringify({ url: pullUrl }),
+		});
+
+	test("a merge whose host and origin both name a rebound domain is refused, and GitHub gets no request", async () => {
+		const fake = mergeFake();
+		await withApp(widgetConfig, fake.fetch, githubEnv, async (base) => {
+			const sent = await sendAs(base, "attacker.example");
+			expect(sent.status).toBe(403);
+			expect(fake.merges).toEqual([]);
+		});
+	});
+
+	test("a merge through the localhost name of the server is accepted", async () => {
+		const fake = mergeFake();
+		await withApp(widgetConfig, fake.fetch, githubEnv, async (base) => {
+			const sent = await sendAs(base, "localhost");
+			expect(sent.status).toBe(204);
+			expect(fake.merges).toHaveLength(1);
+		});
+	});
+
 	test("a merge from the page origin is accepted", async () => {
 		const fake = mergeFake();
 		await withApp(widgetConfig, fake.fetch, githubEnv, async (base) => {

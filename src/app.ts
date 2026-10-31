@@ -656,7 +656,11 @@ export async function start(options: StartOptions): Promise<Running> {
 				},
 			},
 			...projectRoutes(pollOptions, () => configuration),
-			...pullRoutes(pollOptions, () => configuration),
+			...pullRoutes(
+				pollOptions,
+				() => configuration,
+				() => server.url,
+			),
 			...inboxRoutes(opened.store, clock),
 			...replyRoutes({
 				trackerOf,
