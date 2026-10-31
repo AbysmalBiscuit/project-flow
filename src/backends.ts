@@ -1,5 +1,7 @@
 import type { Configuration } from "./configuration.ts";
 import {
+	type BackendView,
+	type BackendViews,
 	type ForgeKind,
 	forgeKinds,
 	type TrackerKind,
@@ -64,6 +66,10 @@ type AdapterContext = {
 type Factory<Adapter> = (context: AdapterContext) => Adapter | null;
 
 type Backend<Kind extends BackendKind> = {
+	/** The name that the page shows. */
+	label: string;
+	/** Where the token comes from, as Settings shows it. */
+	hint: string;
 	credential: CredentialRule;
 	/** The host of a project whose pin names no host. */
 	homeHost: string;
@@ -85,6 +91,8 @@ function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 	};
 	return {
 		github: {
+			label: "GitHub",
+			hint: "Token from gh auth token",
 			credential: {
 				env: "GITHUB_TOKEN",
 				fallback: (io) => io.readGhToken(io.env),
@@ -106,6 +114,8 @@ function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 			forge: (context) => githubOf(context)?.forge ?? null,
 		},
 		linear: {
+			label: "Linear",
+			hint: "LINEAR_API_KEY found in the environment",
 			credential: {
 				env: "LINEAR_API_KEY",
 				missing: missingLinearKey,
@@ -193,8 +203,8 @@ export type Backends = {
 	trackers: ReadonlyMap<TrackerKind, Tracker>;
 	/** The forge of each host that a PR reference can name. */
 	forges: ReadonlyMap<string, Forge>;
-	/** Whether each tracker kind has a token. */
-	configured: Record<TrackerKind, boolean>;
+	/** Each tracker and forge kind with its label and whether it has a token. */
+	views: BackendViews;
 	/** The tracker that reads the project of `ref`, or the error to show on it. */
 	readerOf: (ref: ProjectRef, hosts: Configuration["hosts"]) => ProjectReader;
 	/** The forge that holds the repo of the project of `ref`. */
@@ -219,6 +229,13 @@ export function buildBackends(options: {
 			? null
 			: { host: registry[kind].homeHost, token, fetch, repoFetch };
 	};
+	const view = <Kind extends BackendKind>(kind: Kind): BackendView<Kind> => ({
+		kind,
+		label: registry[kind].label,
+		host: registry[kind].homeHost,
+		hint: registry[kind].hint,
+		credential: credentials[kind] === null ? "missing" : "present",
+	});
 	const trackers = new Map<TrackerKind, Tracker>();
 	for (const kind of trackerKinds) {
 		const context = homeContext(kind);
@@ -267,7 +284,10 @@ export function buildBackends(options: {
 	return {
 		trackers,
 		forges,
-		configured: byKind(trackerKinds, (kind) => credentials[kind] !== null),
+		views: {
+			trackers: trackerKinds.map((kind) => view(kind)),
+			forges: forgeKinds.map((kind) => view(kind)),
+		},
 		readerOf(ref, hosts) {
 			const host = refHost(ref);
 			if (host !== undefined) {

@@ -6,6 +6,7 @@ import type {
 	Queued,
 	RunStart,
 	Ticket,
+	TrackerKind,
 } from "./domain.ts";
 import type { FactoryEntry } from "./factories.ts";
 import { foldKey } from "./ticket-key.ts";
@@ -34,6 +35,11 @@ type StartTicket = Pick<
 >;
 
 type Refused = { refused: string };
+
+/** True when a factory can claim a ticket of `tracker`: a claimed start needs the repo of a GitHub ticket. */
+export function takesClaimedStart(tracker: TrackerKind): boolean {
+	return tracker === "github";
+}
 
 /**
  * True when a factory takes a claimed start: it answers, it reports its run slots,
@@ -93,7 +99,7 @@ export function runStartOf(
 	if (factory?.readyLabel === undefined) {
 		return factories.length > 0 &&
 			ticket.key !== null &&
-			ticket.tracker === "github"
+			takesClaimedStart(ticket.tracker)
 			? claimWaits
 				? { requested: true }
 				: {}

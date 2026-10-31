@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { useForgeLabel } from "./backend-labels.ts";
 import { board, runDotTone } from "./board-styles.ts";
 import { Button } from "./button.tsx";
 import { Choice } from "./choice.tsx";
@@ -23,7 +24,8 @@ import {
 	hubQueueLabel,
 	mergeFactLabel,
 	noStartLabel,
-	openOnGitHubLabel,
+	openOnLabel,
+	openPrLabel,
 	openRunLabel,
 	pullStatusLabel,
 	runFactLabel,
@@ -41,6 +43,10 @@ export function commentTime(value: string): string {
 		return "";
 	}
 	return parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function pullLinkLabel(forge: string | undefined): string {
+	return forge === undefined ? openPrLabel : openOnLabel(forge);
 }
 
 export function CommentTree({
@@ -138,6 +144,7 @@ export function RunSection({
 	pullUrl: string | undefined;
 }) {
 	const span = elapsed(run);
+	const pullLink = pullLinkLabel(useForgeLabel(pullUrl));
 	return (
 		<section
 			className={clsx(panel.section)}
@@ -168,7 +175,7 @@ export function RunSection({
 				{pullUrl === undefined ? null : (
 					<RunFact label={runFactLabel.pr}>
 						<a className={clsx(panel.factLink, ...textControl)} href={pullUrl}>
-							{pull ?? openOnGitHubLabel}
+							{pull ?? pullLink}
 						</a>
 					</RunFact>
 				)}
@@ -266,6 +273,7 @@ export function WhySection({
 	const question = askInThread ? undefined : item.question;
 	const options = item.options ?? [];
 	const pull = item.pull;
+	const pullLink = pullLinkLabel(useForgeLabel(pull?.url));
 	if (question === undefined && pull === undefined && options.length === 0) {
 		return null;
 	}
@@ -283,9 +291,9 @@ export function WhySection({
 							<a
 								className={clsx(panel.factLink, ...textControl)}
 								href={pull.url}
-								aria-label={`${openOnGitHubLabel}, PR #${pull.number}`}
+								aria-label={`${pullLink}, PR #${pull.number}`}
 							>
-								{openOnGitHubLabel}
+								{pullLink}
 							</a>
 							<span>
 								#{pull.number} {pull.title}

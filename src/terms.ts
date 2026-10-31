@@ -203,11 +203,16 @@ export const collapsePanelLabel = "Collapse panel";
 
 export const closePanelLabel = "Close";
 
-export const openOnGitHubLabel = "Open on GitHub";
+/** The name of a link to a page on a tracker or a forge. */
+export const openOnLabel = (backend: string) => `Open on ${backend}`;
+
+/** The name of a PR link while the forge of the PR is not known. */
+export const openPrLabel = "Open the PR";
 
 export const pullButtonLabel = "PR";
 
-export const openPullLabel = "Open the PR on GitHub";
+export const openPullLabel = (forge: string | undefined) =>
+	forge === undefined ? openPrLabel : `${openPrLabel} on ${forge}`;
 
 export const runSectionLabel = "Factory run";
 
@@ -268,7 +273,7 @@ export const runStartCopy = {
 	title: "Start a run?",
 	body: (factory: string, label: string) =>
 		`Project Flow adds the label ${label} to the ticket. Then the factory ${factory} starts a run of it.`,
-	linearBody: (factory: string, { state, add, remove }: LinearShown) =>
+	stateBody: (factory: string, { state, add, remove }: LinearShown) =>
 		[
 			`Project Flow moves the ticket to the workflow state ${state}.`,
 			...(add.length === 0 ? [] : [`It adds ${labelList(add)}.`]),
@@ -676,11 +681,6 @@ export const overviewSortLabel = {
 	blockedBy: "Blocked by",
 } as const;
 
-export const trackerLabel = {
-	github: "GitHub",
-	linear: "Linear",
-} as const;
-
 export const tableColumnLabel = {
 	project: "Project",
 	tracker: "Tracker",
@@ -902,10 +902,6 @@ export const settingsCopy = {
 	blocked: "Blocked",
 	asking: "Not asked",
 	trackersLead: "Project Flow never stores a token.",
-	github: "GitHub",
-	githubHint: "Token from gh auth token",
-	linear: "Linear",
-	linearHint: "LINEAR_API_KEY found in the environment",
 	connected: "Connected",
 	missing: "Missing",
 	discard: "Discard",

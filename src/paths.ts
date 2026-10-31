@@ -1,3 +1,4 @@
+import { trackerKinds } from "./domain.ts";
 import type { TicketRef } from "./ticket-key.ts";
 
 const projectPrefix = "/projects/";
@@ -37,8 +38,9 @@ export function urlTicket(
 	if (key === "" || project === "") {
 		return null;
 	}
-	const tracker = params.get("panelTracker") === "linear" ? "linear" : "github";
-	return { tracker, project, key };
+	const named = params.get("panelTracker");
+	const tracker = trackerKinds.find((kind) => kind === named);
+	return tracker === undefined ? null : { tracker, project, key };
 }
 
 export function projectPath(name: string, ticket?: TicketRef): string {

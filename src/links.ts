@@ -27,6 +27,7 @@ import {
 	sameTicketKey,
 	ticketId,
 } from "./ticket-key.ts";
+import { ticketUrl } from "./ticket-ref.ts";
 
 function outsideOf(
 	blocker: Ticket,
@@ -326,6 +327,7 @@ export function shownGraph(
 		key,
 		tracker,
 		title,
+		...ticketUrl(tracker, key),
 		...(state === undefined ? {} : { state }),
 	});
 	const push = (from: GraphEnd, to: GraphEnd, done: boolean) => {

@@ -328,6 +328,7 @@ describe("GET /api/projects/:name", () => {
 							key: `${githubRepo}#8`,
 							tracker: "github",
 							title: "Open the gate",
+							url: `https://github.com/${githubRepo}/issues/8`,
 							state: "done",
 						},
 						to: {
@@ -335,6 +336,7 @@ describe("GET /api/projects/:name", () => {
 							key: `${otherRepo}#11`,
 							tracker: "github",
 							title: "Hold the platform",
+							url: `https://github.com/${otherRepo}/issues/11`,
 							state: "backlog",
 						},
 						done: true,

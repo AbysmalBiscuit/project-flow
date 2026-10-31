@@ -8,6 +8,7 @@ import {
 import { readSettings, type SettingsRead } from "./client-settings.ts";
 import type { Configuration } from "./configuration.ts";
 import {
+	type BackendViews,
 	type InboxEntry,
 	liveRunStatusKinds,
 	type NeedsYouItem,
@@ -45,7 +46,7 @@ import { storedObject } from "./stored-page.ts";
 type SettingsPage = {
 	settings: Configuration;
 	projects: SettingsProject[];
-	trackers: Record<TrackerKind, boolean>;
+	backends: BackendViews;
 	factoryTokenReports: FactoryTokenReport[];
 	factoryEntries: FactoryEntry[];
 	stateSources: StateSource[];
@@ -223,6 +224,7 @@ export function configurationOf(
 	}
 	const {
 		trackers: _trackers,
+		forges: _forges,
 		projects: _projects,
 		factoryEntries: _factoryEntries,
 		stateSources: _stateSources,
@@ -237,7 +239,7 @@ export function settingsPageOf(body: SettingsRead | null): SettingsPage {
 		throw new Error("settings failed");
 	}
 	return {
-		trackers: body.trackers ?? { github: false, linear: false },
+		backends: { trackers: body.trackers ?? [], forges: body.forges ?? [] },
 		projects: body.projects ?? [],
 		factoryTokenReports: body.factoryTokenReports ?? [],
 		factoryEntries: body.factoryEntries ?? [],
@@ -605,7 +607,7 @@ export function useSaveSettings({
 			}
 			const written: SettingsRead = {
 				...settings,
-				trackers: saved.trackers,
+				...saved.backends,
 				projects: saved.projects,
 				factoryTokenReports: saved.factoryTokenReports,
 			};

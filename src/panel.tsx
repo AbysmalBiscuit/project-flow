@@ -8,6 +8,7 @@ import {
 	useSyncExternalStore,
 } from "react";
 
+import { useForgeLabel, useTrackerLabel } from "./backend-labels.ts";
 import { board } from "./board-styles.ts";
 import { Button } from "./button.tsx";
 import type {
@@ -39,6 +40,7 @@ import {
 	closePanelLabel,
 	collapsePanelLabel,
 	expandPanelLabel,
+	openOnLabel,
 	openPullLabel,
 	projectPageLabel,
 	pullButtonLabel,
@@ -48,23 +50,13 @@ import {
 	threadMissingLabel,
 	threadRetryLabel,
 } from "./terms.ts";
-import { githubIssueUrl, sameTicketKey, type TicketRef } from "./ticket-key.ts";
+import { sameTicketKey, type TicketRef } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 
 type ReplyTarget = {
 	parentId?: string;
 	kind: ThreadComment["kind"];
 };
-
-function trackerUrl(ticket: TicketRef): string | undefined {
-	if (ticket.tracker === "github") {
-		return githubIssueUrl(ticket.key);
-	}
-	if (ticket.tracker === "linear") {
-		return `https://linear.app/issue/${ticket.key}`;
-	}
-	return undefined;
-}
 
 function needsYouItem(
 	report: ProjectReport | null,
@@ -231,8 +223,9 @@ export function TicketPanel({
 			setError(cause instanceof Error ? cause.message : "Reply failed");
 		}
 	}
-	const trackerName = tracker === "linear" ? "Linear" : "GitHub";
-	const href = thread?.url ?? trackerUrl(ticket);
+	const trackerName = useTrackerLabel()(tracker);
+	const pullForge = useForgeLabel(view?.pullUrl);
+	const href = thread?.url ?? known?.url;
 	const projectHref =
 		report === null || pathProject(window.location.pathname) === project
 			? undefined
@@ -327,7 +320,7 @@ export function TicketPanel({
 								icon="external-link"
 								iconSide="right"
 								label={trackerName}
-								name={`Open on ${trackerName}`}
+								name={openOnLabel(trackerName)}
 							/>
 						)}
 						{view?.pullUrl === undefined ? null : (
@@ -337,7 +330,7 @@ export function TicketPanel({
 								icon="external-link"
 								iconSide="right"
 								label={pullButtonLabel}
-								name={openPullLabel}
+								name={openPullLabel(pullForge)}
 							/>
 						)}
 					</span>
@@ -413,7 +406,7 @@ export function TicketPanel({
 			{thread === null ? null : (
 				<CommentTree
 					comments={thread.comments}
-					nested={tracker === "linear"}
+					nested={thread.threaded}
 					onReply={(comment) =>
 						setReplyTo({
 							parentId: comment.parentId ?? comment.id,

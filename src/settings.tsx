@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
+import { useTrackerLabel } from "./backend-labels.ts";
 import { Button } from "./button.tsx";
 import { Chip } from "./chip.tsx";
 import type { Configuration, ProjectPin } from "./configuration.ts";
-import type { SettingsProject } from "./domain.ts";
+import type { BackendViews, SettingsProject, TrackerKind } from "./domain.ts";
 import type { FactoryEntry } from "./factories.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { KnownBot } from "./known-bots.ts";
@@ -15,13 +16,7 @@ import { repoKey, samePin } from "./project-ref.ts";
 import { pageQuery, useSaveSettings } from "./queries.ts";
 import { Select } from "./select.tsx";
 import { FactoriesSection } from "./settings-factories.tsx";
-import {
-	sections,
-	type stateFilters,
-	Switch,
-	trackerFilters,
-	type Trackers,
-} from "./settings-parts.tsx";
+import { sections, type stateFilters, Switch } from "./settings-parts.tsx";
 import {
 	ContentsNav,
 	GeneralSection,
@@ -102,7 +97,7 @@ function sameValue(left: unknown, right: unknown): boolean {
 
 function Menu({
 	loaded,
-	trackers,
+	backends,
 	projects,
 	factoryTokenReports,
 	factoryEntries,
@@ -112,7 +107,7 @@ function Menu({
 	onResetStates,
 }: {
 	loaded: Configuration;
-	trackers: Trackers;
+	backends: BackendViews;
 	projects: SettingsProject[];
 	factoryTokenReports: FactoryTokenReport[];
 	factoryEntries: FactoryEntry[];
@@ -215,14 +210,19 @@ function Menu({
 							void onResetClick();
 						}}
 					/>
-					<ProjectsTable projects={projects} draft={draft} onChange={patch} />
+					<ProjectsTable
+						projects={projects}
+						trackers={backends.trackers}
+						draft={draft}
+						onChange={patch}
+					/>
 					<ReviewSection draft={draft} onChange={patch} />
 					<NotificationsSection
 						draft={draft}
 						permission={permission}
 						onChange={patch}
 					/>
-					<TrackersSection trackers={trackers} />
+					<TrackersSection backends={backends} />
 					<FactoriesSection
 						draft={draft}
 						entries={factoryEntries}
@@ -342,17 +342,19 @@ function setPmBot(
 	if (match !== undefined) {
 		delete next[match];
 	}
-	const implied = tracker === "github";
+	const implied = projectHasPmBot({}, key, tracker);
 	if (on !== implied) {
 		next[key] = on;
 	}
 	return next;
 }
 
+type TrackerFilter = "all" | TrackerKind;
+
 function projectMatches(
 	project: SettingsProject,
 	query: string,
-	tracker: (typeof trackerFilters)[number],
+	tracker: TrackerFilter,
 	state: (typeof stateFilters)[number],
 	draft: Configuration,
 ): boolean {
@@ -377,16 +379,21 @@ function projectMatches(
 
 function ProjectsTable({
 	projects,
+	trackers,
 	draft,
 	onChange,
 }: {
 	projects: SettingsProject[];
+	trackers: BackendViews["trackers"];
 	draft: Configuration;
 	onChange: (next: Partial<Configuration>) => void;
 }) {
+	const filters: { kind: TrackerFilter; label: string }[] = [
+		{ kind: "all", label: settingsCopy.all },
+		...trackers.filter(({ credential }) => credential === "present"),
+	];
 	const [query, setQuery] = useState("");
-	const [tracker, setTracker] =
-		useState<(typeof trackerFilters)[number]>("all");
+	const [tracker, setTracker] = useState<TrackerFilter>("all");
 	const [state, setState] = useState<(typeof stateFilters)[number]>("all");
 	const [filtersOpen, setFiltersOpen] = useState(false);
 	useEffect(() => {
@@ -441,13 +448,13 @@ function ProjectsTable({
 				<div id="project-filters" className={clsx(fields.filterPanel)}>
 					<div id="tracker-filter" className={clsx(fields.filterLabel)}>
 						<span>{settingsCopy.tracker}</span>
-						{trackerFilters.map((value) => (
+						{filters.map(({ kind, label }) => (
 							<Button
-								key={value}
-								id={`tracker-${value}`}
-								label={settingsCopy[value]}
-								pressed={tracker === value}
-								onClick={() => setTracker(value)}
+								key={kind}
+								id={`tracker-${kind}`}
+								label={label}
+								pressed={tracker === kind}
+								onClick={() => setTracker(kind)}
 							/>
 						))}
 					</div>
@@ -506,6 +513,7 @@ function ProjectRow({
 	onChange: (next: Partial<Configuration>) => void;
 }) {
 	const id = `${project.tracker}-${project.key.replace(/[^A-Za-z0-9]+/g, "-")}`;
+	const trackerLabel = useTrackerLabel();
 	const repos = project.repos;
 	const pmBot = projectHasPmBot(draft.pmBot, project.key, project.tracker);
 	const tracked = draft.tracked.some((ref) => samePin(ref, project.ref));
@@ -514,9 +522,7 @@ function ProjectRow({
 			<td className={clsx(fields.cell)}>
 				<div className={clsx(fields.projectName)}>{project.name}</div>
 				<div className={clsx(fields.projectMeta)}>
-					{project.tracker === "github"
-						? settingsCopy.github
-						: settingsCopy.linear}
+					{trackerLabel(project.tracker)}
 					{", "}
 					{project.key}
 				</div>
@@ -629,7 +635,7 @@ export function Page() {
 	return (
 		<Menu
 			loaded={loaded.settings}
-			trackers={loaded.trackers}
+			backends={loaded.backends}
 			projects={loaded.projects}
 			factoryTokenReports={loaded.factoryTokenReports}
 			factoryEntries={loaded.factoryEntries}

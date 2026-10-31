@@ -159,6 +159,7 @@ export async function fetchGithubThread(
 	);
 	return {
 		tracker: "github",
+		threaded: false,
 		project,
 		key,
 		title: issue.title,

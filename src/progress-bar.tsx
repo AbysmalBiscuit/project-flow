@@ -16,10 +16,6 @@ export function ticketTotal(project: ProjectCounts): number {
 	);
 }
 
-export function trackerName(tracker: ProjectCounts["tracker"]): string {
-	return tracker === "linear" ? "Linear" : "GitHub";
-}
-
 const barSegments = [
 	{ key: "done", tone: stateTones.done },
 	{ key: "inProgress", tone: stateTones.inProgress },

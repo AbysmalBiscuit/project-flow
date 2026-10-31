@@ -80,13 +80,6 @@ export function outsideKey(project: string, key: string): string {
 	return githubKey(project, number);
 }
 
-export function githubIssueUrl(key: string): string | undefined {
-	const parts = githubKeyParts(key);
-	return parts === null
-		? undefined
-		: `https://github.com/${parts.repo}/issues/${parts.number}`;
-}
-
 function id(...parts: string[]): string {
 	return parts.join(idSeparator);
 }

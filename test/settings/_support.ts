@@ -672,3 +672,27 @@ export async function withApp(
 		await cleanup();
 	}
 }
+
+/** The trackers and forges that a settings read lists when every credential is in `credential`. */
+export function listedBackends(credential: "present" | "missing") {
+	const github = {
+		kind: "github",
+		label: "GitHub",
+		host: "github.com",
+		hint: "Token from gh auth token",
+		credential,
+	};
+	return {
+		trackers: [
+			github,
+			{
+				kind: "linear",
+				label: "Linear",
+				host: "linear.app",
+				hint: "LINEAR_API_KEY found in the environment",
+				credential,
+			},
+		],
+		forges: [github],
+	};
+}

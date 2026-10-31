@@ -1,6 +1,8 @@
+import { backendRows } from "./backend-labels.ts";
 import { Button } from "./button.tsx";
 import type { Configuration, UserState } from "./configuration.ts";
 import { control } from "./control-styles.ts";
+import type { BackendViews } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { FactoryTokenRow, PollIntervalRow } from "./factory-token-row.tsx";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
@@ -16,7 +18,6 @@ import {
 	Row,
 	sections,
 	Switch,
-	type Trackers,
 } from "./settings-parts.tsx";
 import { settings as fields } from "./settings-styles.ts";
 import { tonedProps } from "./state-tone.ts";
@@ -389,17 +390,19 @@ export function NotificationsSection({
 	);
 }
 
-export function TrackersSection({ trackers }: { trackers: Trackers }) {
+export function TrackersSection({ backends }: { backends: BackendViews }) {
 	return (
 		<section id="trackers" className={clsx(fields.card)}>
 			<h2 className={clsx(fields.cardTitle)}>{settingsSection.trackers}</h2>
 			<p className={clsx(fields.hint)}>{settingsCopy.trackersLead}</p>
-			<Row title={settingsCopy.github} hint={settingsCopy.githubHint}>
-				<Credential id="github-status" present={trackers.github} />
-			</Row>
-			<Row title={settingsCopy.linear} hint={settingsCopy.linearHint}>
-				<Credential id="linear-status" present={trackers.linear} />
-			</Row>
+			{backendRows(backends).map((backend) => (
+				<Row key={backend.kind} title={backend.label} hint={backend.hint}>
+					<Credential
+						id={`${backend.kind}-status`}
+						present={backend.credential === "present"}
+					/>
+				</Row>
+			))}
 		</section>
 	);
 }

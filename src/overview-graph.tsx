@@ -1,6 +1,7 @@
 import { BaseEdge, EdgeLabelRenderer } from "@xyflow/react";
 import { useEffect, useMemo, useRef } from "react";
 
+import { useTrackerLabel } from "./backend-labels.ts";
 import { board } from "./board-styles.ts";
 import { control } from "./control-styles.ts";
 import type { CrossProjectBlocker, ProjectCounts } from "./domain.ts";
@@ -19,7 +20,7 @@ import {
 import { focusChain } from "./links.ts";
 import { Loading } from "./loading.tsx";
 import { openProject, projectPath } from "./paths.ts";
-import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
+import { SegmentedBar, ticketTotal } from "./progress-bar.tsx";
 import { overviewControlLabel } from "./terms.ts";
 import { linkId, ticketRefId } from "./ticket-key.ts";
 import { cards } from "./ui-styles.ts";
@@ -78,6 +79,7 @@ type BlockerLink = {
 
 function ProjectNode({ id, data }: CardProps<ProjectCard>) {
 	const { project } = data;
+	const trackerName = useTrackerLabel();
 	return (
 		<a
 			className={clsx(

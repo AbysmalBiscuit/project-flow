@@ -1,5 +1,5 @@
 import type { TicketRef } from "./domain.ts";
-import { githubKey } from "./ticket-key.ts";
+import { githubKey, githubKeyParts } from "./ticket-key.ts";
 
 const urlShape =
 	/^https?:\/\/github\.com\/([^/\s]+\/[^/\s]+)\/(?:issues|pull)\/(\d+)$/i;
@@ -28,4 +28,12 @@ export function githubTicketRef(
 		project: repo,
 		key: githubKey(repo, bareNumber),
 	};
+}
+
+/** The web page of the GitHub ticket with `key`, or undefined for a key of another shape. */
+export function githubTicketUrl(key: string): string | undefined {
+	const parts = githubKeyParts(key);
+	return parts === null
+		? undefined
+		: `https://github.com/${parts.repo}/issues/${parts.number}`;
 }

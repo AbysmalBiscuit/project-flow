@@ -14,6 +14,22 @@ export const forgeKinds = ["github"] as const;
 
 export type ForgeKind = (typeof forgeKinds)[number];
 
+/** A tracker or forge as the API lists it: its kind, its name, its home host and whether its token is set. */
+export type BackendView<Kind extends TrackerKind | ForgeKind> = {
+	kind: Kind;
+	label: string;
+	host: string;
+	/** Where the token comes from. */
+	hint: string;
+	credential: "present" | "missing";
+};
+
+/** The trackers and forges that the app knows, as the settings read lists them. */
+export type BackendViews = {
+	trackers: BackendView<TrackerKind>[];
+	forges: BackendView<ForgeKind>[];
+};
+
 export type WorkcellRun = {
 	key: string;
 	status: "running" | "failed";
@@ -529,6 +545,8 @@ export type GraphEnd = {
 	key: string;
 	tracker: TrackerKind;
 	title: string;
+	/** The ticket's page on its tracker. */
+	url?: string;
 	state?: TicketState;
 };
 
@@ -541,6 +559,8 @@ export type ShownGraphLink = {
 export type TicketView = {
 	key: string | null;
 	title: string;
+	/** The page of the ticket on its tracker, or of the PR for an unlinked PR. */
+	url?: string;
 	state: TicketState;
 	blockers: string[];
 	/** Each open blocker, resolved to its project and title. */
@@ -710,6 +730,8 @@ export type Thread = {
 	key: string;
 	title: string;
 	url: string;
+	/** True when a reply can answer any comment, so each comment takes an answer. */
+	threaded: boolean;
 	comments: ThreadComment[];
 };
 

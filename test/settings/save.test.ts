@@ -20,6 +20,7 @@ import { settledOverview } from "../support/reads.ts";
 import {
 	checkoutFor,
 	fetching,
+	listedBackends,
 	quiet,
 	recorded,
 	savedRepo,
@@ -475,9 +476,11 @@ describe("settings", () => {
 			const before = (await (
 				await fetch(new URL("/api/settings", base))
 			).json()) as Configuration & {
-				trackers: { github: boolean; linear: boolean };
+				trackers: unknown;
+				forges: unknown;
 			};
-			expect(before.trackers).toEqual({ github: true, linear: true });
+			const { trackers, forges } = before;
+			expect({ trackers, forges }).toEqual(listedBackends("present"));
 			expect(JSON.stringify(before)).not.toContain("recorded-token");
 			expect(JSON.stringify(before)).not.toContain("recorded-linear-key");
 
@@ -542,7 +545,8 @@ describe("settings", () => {
 				const again = (await (
 					await fetch(new URL("/api/settings", restarted))
 				).json()) as Configuration & {
-					trackers: { github: boolean; linear: boolean };
+					trackers: unknown;
+					forges: unknown;
 				};
 				expect(again.tracked).toEqual([{ tracker: "github", repo: shown }]);
 				expect(again.pollIntervalSeconds).toBe(60);
@@ -553,7 +557,9 @@ describe("settings", () => {
 				expect(again.needsYouLabels).toEqual(["needs-human"]);
 				expect(again.viewerLogins).toEqual(["AbysmalBiscuit"]);
 				expect(again.notificationTriggers.blockerCleared).toBe(false);
-				expect(again.trackers).toEqual({ github: true, linear: true });
+				expect({ trackers: again.trackers, forges: again.forges }).toEqual(
+					listedBackends("present"),
+				);
 				expect(JSON.stringify(again)).not.toContain("recorded-linear-key");
 			});
 		});

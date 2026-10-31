@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
+import { useTrackerLabel } from "./backend-labels.ts";
 import type { NeedsYouItem } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { Loading } from "./loading.tsx";
@@ -81,10 +82,6 @@ function groupName(group: NeedsGroup, item: NeedsYouItem): string {
 	return "";
 }
 
-function trackerName(tracker: NeedsYouItem["tracker"]): string {
-	return tracker === "linear" ? "Linear" : "GitHub";
-}
-
 function NeedsGroups({
 	items,
 	group,
@@ -96,6 +93,7 @@ function NeedsGroups({
 	selected: string | null;
 	onOpen: (item: NeedsYouItem) => void;
 }) {
+	const trackerName = useTrackerLabel();
 	if (items.length === 0) {
 		return <p className={clsx(needs.empty)}>Nothing needs you</p>;
 	}

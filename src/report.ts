@@ -15,6 +15,7 @@ import { placeTickets } from "./grouping.ts";
 import { shownGraph, type ticketRelations } from "./links.ts";
 import type { HidingFilter } from "./terms.ts";
 import { foldKey, pullKey } from "./ticket-key.ts";
+import { ticketUrl } from "./ticket-ref.ts";
 import {
 	laneAgeCap,
 	savedProjectView,
@@ -129,8 +130,10 @@ export function projectReport(
 			view.key === null ? undefined : runByKey.get(foldKey(view.key));
 		const placedItem =
 			view.key === null ? undefined : placedByKey.get(foldKey(view.key));
+		const source = view.key === null ? undefined : ticketsByKey.get(view.key);
 		return {
 			...view,
+			...(source === undefined ? {} : ticketUrl(source.tracker, source.key)),
 			...(placedItem === undefined
 				? {}
 				: {
@@ -160,11 +163,13 @@ export function projectReport(
 	});
 	const boardTickets = [
 		...ticketViews,
-		...unlinkedPrs.map((view) =>
-			view.key !== null && needsKeys.has(foldKey(view.key))
-				? { ...view, needsYou: true as const }
-				: view,
-		),
+		...unlinkedPrs.map((view) => ({
+			...view,
+			...(view.pullUrl === undefined ? {} : { url: view.pullUrl }),
+			...(view.key !== null && needsKeys.has(foldKey(view.key))
+				? { needsYou: true as const }
+				: {}),
+		})),
 	];
 	const doneTickets = boardTickets.filter(
 		(ticket) => ticket.statusType === "done",

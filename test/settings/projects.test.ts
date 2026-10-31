@@ -10,6 +10,7 @@ import { tempConfig, testIo } from "../support/app.ts";
 import {
 	checkoutFor,
 	fetching,
+	listedBackends,
 	quiet,
 	savedRepo,
 	savedRoot,
@@ -83,10 +84,11 @@ describe("settings", () => {
 				fetch(new URL("/api/settings", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						const body = (await response.json()) as {
-							trackers: { github: boolean; linear: boolean };
+						const { trackers, forges } = (await response.json()) as {
+							trackers: unknown;
+							forges: unknown;
 						};
-						expect(body.trackers).toEqual({ github: false, linear: false });
+						expect({ trackers, forges }).toEqual(listedBackends("missing"));
 						resolve();
 					})
 					.catch(reject);
