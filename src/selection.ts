@@ -60,6 +60,11 @@ function unresolvedLink(): ShownLink["unresolved"] {
 	return shownLink().unresolved;
 }
 
+/** True when the page URL names a ticket, also before the API names its tracker. */
+export function hasTicketLink(): boolean {
+	return activeTicket() !== null || unresolvedLink() !== null;
+}
+
 function writeTicket(
 	ticket: TicketRef | null,
 	history: "push" | "replace",

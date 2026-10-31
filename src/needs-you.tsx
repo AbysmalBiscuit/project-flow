@@ -12,8 +12,8 @@ import { postRefresh, RefreshButton } from "./poll-freshness.tsx";
 import { pageQuery } from "./queries.ts";
 import { Segment } from "./segment.tsx";
 import {
-	activeTicket,
 	closeTicket,
+	hasTicketLink,
 	openTicket,
 	useActiveTicket,
 } from "./selection.ts";
@@ -184,7 +184,7 @@ function NeedsList({
 	);
 	useEffect(() => {
 		const first = items[0];
-		if (seeded.current || first === undefined || activeTicket() !== null) {
+		if (seeded.current || first === undefined || hasTicketLink()) {
 			seeded.current = true;
 			return;
 		}
