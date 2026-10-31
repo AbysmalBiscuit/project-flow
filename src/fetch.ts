@@ -17,6 +17,7 @@ function isTrackerRequest(input: string | URL | Request): boolean {
 	const url = urlOf(input);
 	return (
 		url.startsWith("https://api.github.com/") ||
+		url.startsWith("https://gitlab.com/api/v4/") ||
 		url.startsWith("https://api.linear.app/")
 	);
 }

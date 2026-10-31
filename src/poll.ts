@@ -198,8 +198,15 @@ async function listPulls(
 ): Promise<{ forge: Forge; pulls: PullRequest[] }[]> {
 	const refs = await tracker.pullRefs?.(project, since);
 	if (refs !== undefined) {
+		const { links: byForge, missing } = linksByForge(
+			refs,
+			options.backends.linkOf,
+		);
+		if (missing !== null) {
+			throw new Error(missing);
+		}
 		const lists: { forge: Forge; pulls: PullRequest[] }[] = [];
-		for (const [forge, links] of linksByForge(refs, options.backends.forges)) {
+		for (const [forge, links] of byForge) {
 			const repos = links.map((link) => link.repo);
 			lists.push({ forge, pulls: await forge.listLinkedPulls(links, repos) });
 		}
@@ -243,9 +250,9 @@ async function readListed(
 	const repo = refRepo(project.ref);
 	const branches =
 		repo !== null && forge !== null ? await forge.listBranches(repo) : [];
-	const { declaredHostOf } = options.backends;
+	const { keyHostOf } = options.backends;
 	const pulls = lists.flatMap((list) => {
-		const host = declaredHostOf(list.forge);
+		const host = keyHostOf(list.forge);
 		return host === undefined
 			? list.pulls
 			: list.pulls.map((pull) => ({ ...pull, host }));
@@ -255,14 +262,14 @@ async function readListed(
 			list.pulls.map(
 				(pull) =>
 					[
-						settingsKey(pull.repo, declaredHostOf(list.forge)),
+						settingsKey(pull.repo, keyHostOf(list.forge)),
 						{ repo: pull.repo, forge: list.forge },
 					] as const,
 			),
 		),
 	);
 	if (repo !== null && forge !== null) {
-		repoReads.set(settingsKey(repo, declaredHostOf(forge)), { repo, forge });
+		repoReads.set(settingsKey(repo, keyHostOf(forge)), { repo, forge });
 	}
 	for (const [id, read] of repoReads) {
 		if (readRepos.has(id)) {

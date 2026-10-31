@@ -1,0 +1,27 @@
+{
+	"12": [
+		{
+			"id": 1500012,
+			"iid": 41,
+			"project_id": 61442217,
+			"sha": "6d1f0c3b2a9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c",
+			"ref": "launch-page",
+			"status": "success",
+			"source": "merge_request_event",
+			"web_url": "https://gitlab.com/acme/widget/-/pipelines/1500012"
+		}
+	],
+	"13": [],
+	"9": [
+		{
+			"id": 1500009,
+			"iid": 38,
+			"project_id": 61442217,
+			"sha": "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e",
+			"ref": "pipeline",
+			"status": "success",
+			"source": "merge_request_event",
+			"web_url": "https://gitlab.com/acme/widget/-/pipelines/1500009"
+		}
+	]
+}
