@@ -390,7 +390,7 @@ function ProjectsTable({
 }) {
 	const filters: { kind: TrackerFilter; label: string }[] = [
 		{ kind: "all", label: settingsCopy.all },
-		...trackers.filter(({ credential }) => credential === "present"),
+		...trackers,
 	];
 	const [query, setQuery] = useState("");
 	const [tracker, setTracker] = useState<TrackerFilter>("all");
