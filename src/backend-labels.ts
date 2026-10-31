@@ -26,17 +26,3 @@ export function useTrackerLabel(): (kind: TrackerKind) => string {
 		[trackers],
 	);
 }
-
-/** The label of the forge whose home host or declared host serves `url`, or undefined. */
-export function useForgeLabel(url: string | undefined): string | undefined {
-	const settings = useQuery(pageQuery.settings).data;
-	const host = url === undefined ? undefined : URL.parse(url)?.hostname;
-	if (host === undefined || settings === null || settings === undefined) {
-		return undefined;
-	}
-	const forges = settings.forges ?? [];
-	const kind =
-		forges.find((forge) => forge.host === host)?.kind ??
-		settings.hosts.find((declared) => declared.host === host)?.forge;
-	return forges.find((forge) => forge.kind === kind)?.label;
-}

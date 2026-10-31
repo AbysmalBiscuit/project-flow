@@ -59,6 +59,9 @@ function summaryLine(counts: ProjectBody): string {
 	return `${counts.name}: ${counts.done} done, ${counts.dropped} dropped, ${counts.blocked} blocked, ${counts.inProgress} in progress, ${counts.backlog} backlog.`;
 }
 
+/** The name of the forge that holds the PR at `url`. */
+export type ForgeLabelOf = (url: string) => string | undefined;
+
 export function projectReport(
 	counts: ProjectBody,
 	tickets: Ticket[],
@@ -71,7 +74,19 @@ export function projectReport(
 	outsideParents: OutsideParent[] = [],
 	unlinkedPrs: TicketView[] = [],
 	knownUrl: KnownTicketUrl = () => undefined,
+	forgeLabelOf: ForgeLabelOf = () => undefined,
 ): ProjectReport {
+	const forgeOfPull = (url: string | undefined) => {
+		const pullForge = url === undefined ? undefined : forgeLabelOf(url);
+		return pullForge === undefined ? {} : { pullForge };
+	};
+	const shownNeeds = needs.map((item) => {
+		const forge =
+			item.pull === undefined ? undefined : forgeLabelOf(item.pull.url);
+		return item.pull === undefined || forge === undefined
+			? item
+			: { ...item, pull: { ...item.pull, forge } };
+	});
 	const placed = placeTickets(
 		tickets,
 		counts.tickets,
@@ -113,7 +128,7 @@ export function projectReport(
 		{
 			id: "needsYou",
 			title: "Needs you",
-			needsYou: needs,
+			needsYou: shownNeeds,
 		},
 		{ id: "backlog", title: "Backlog", items: backlog },
 	];
@@ -159,7 +174,9 @@ export function projectReport(
 			...(relations === undefined || relations.blocks.length === 0
 				? {}
 				: { blocks: relations.blocks }),
-			...(pull === undefined ? {} : { pull: pullKey(pull), pullUrl: pull.url }),
+			...(pull === undefined
+				? {}
+				: { pull: pullKey(pull), pullUrl: pull.url, ...forgeOfPull(pull.url) }),
 			...(view.key !== null && needsKeys.has(foldKey(view.key))
 				? { needsYou: true as const }
 				: {}),
@@ -170,6 +187,7 @@ export function projectReport(
 		...unlinkedPrs.map((view) => ({
 			...view,
 			...(view.pullUrl === undefined ? {} : { url: view.pullUrl }),
+			...forgeOfPull(view.pullUrl),
 			...(view.key !== null && needsKeys.has(foldKey(view.key))
 				? { needsYou: true as const }
 				: {}),

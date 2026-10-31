@@ -8,7 +8,7 @@ import {
 	useSyncExternalStore,
 } from "react";
 
-import { useForgeLabel, useTrackerLabel } from "./backend-labels.ts";
+import { useTrackerLabel } from "./backend-labels.ts";
 import { board } from "./board-styles.ts";
 import { Button } from "./button.tsx";
 import type {
@@ -224,7 +224,6 @@ export function TicketPanel({
 		}
 	}
 	const trackerName = useTrackerLabel()(tracker);
-	const pullForge = useForgeLabel(view?.pullUrl);
 	const href = thread?.url ?? known?.url;
 	const projectHref =
 		report === null || pathProject(window.location.pathname) === project
@@ -330,7 +329,7 @@ export function TicketPanel({
 								icon="external-link"
 								iconSide="right"
 								label={pullButtonLabel}
-								name={openPullLabel(pullForge)}
+								name={openPullLabel(view.pullForge)}
 							/>
 						)}
 					</span>
@@ -388,6 +387,7 @@ export function TicketPanel({
 					earlier={view.earlierFactoryRuns ?? []}
 					pull={view.pull}
 					pullUrl={view.pullUrl}
+					pullForge={view.pullForge}
 				/>
 			)}
 			{view?.factoryRun === undefined ? null : (

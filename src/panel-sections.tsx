@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 
-import { useForgeLabel } from "./backend-labels.ts";
 import { board, runDotTone } from "./board-styles.ts";
 import { Button } from "./button.tsx";
 import { Choice } from "./choice.tsx";
@@ -137,14 +136,15 @@ export function RunSection({
 	earlier,
 	pull,
 	pullUrl,
+	pullForge,
 }: {
 	run: ShownFactoryRun;
 	earlier: EarlierFactoryRun[];
 	pull: string | undefined;
 	pullUrl: string | undefined;
+	pullForge: string | undefined;
 }) {
 	const span = elapsed(run);
-	const pullLink = pullLinkLabel(useForgeLabel(pullUrl));
 	return (
 		<section
 			className={clsx(panel.section)}
@@ -175,7 +175,7 @@ export function RunSection({
 				{pullUrl === undefined ? null : (
 					<RunFact label={runFactLabel.pr}>
 						<a className={clsx(panel.factLink, ...textControl)} href={pullUrl}>
-							{pull ?? pullLink}
+							{pull ?? pullLinkLabel(pullForge)}
 						</a>
 					</RunFact>
 				)}
@@ -273,7 +273,6 @@ export function WhySection({
 	const question = askInThread ? undefined : item.question;
 	const options = item.options ?? [];
 	const pull = item.pull;
-	const pullLink = pullLinkLabel(useForgeLabel(pull?.url));
 	if (question === undefined && pull === undefined && options.length === 0) {
 		return null;
 	}
@@ -291,9 +290,9 @@ export function WhySection({
 							<a
 								className={clsx(panel.factLink, ...textControl)}
 								href={pull.url}
-								aria-label={`${pullLink}, PR #${pull.number}`}
+								aria-label={`${pullLinkLabel(pull.forge)}, PR #${pull.number}`}
 							>
-								{pullLink}
+								{pullLinkLabel(pull.forge)}
 							</a>
 							<span>
 								#{pull.number} {pull.title}

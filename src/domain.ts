@@ -14,11 +14,10 @@ export const forgeKinds = ["github"] as const;
 
 export type ForgeKind = (typeof forgeKinds)[number];
 
-/** A tracker or forge as the API lists it: its kind, its name, its home host and whether its token is set. */
+/** A tracker or forge as the API lists it: its kind, its name and whether its token is set. */
 export type BackendView<Kind extends TrackerKind | ForgeKind> = {
 	kind: Kind;
 	label: string;
-	host: string;
 	/** Where the token comes from. */
 	hint: string;
 	credential: "present" | "missing";
@@ -580,6 +579,8 @@ export type TicketView = {
 	chips?: string[];
 	pull?: string;
 	pullUrl?: string;
+	/** The name of the forge that holds the PR at `pullUrl`. */
+	pullForge?: string;
 	needsYou?: boolean;
 	enteredStateAt?: string;
 	run?: LiveRun;
@@ -766,6 +767,8 @@ export type PullStatus = {
 	number: number;
 	title: string;
 	url: string;
+	/** The name of the forge that holds the PR. */
+	forge?: string;
 	ci: "passing" | "failing" | "pending" | "none";
 	review: "approved" | "changes" | "completed" | "pending" | "none";
 };

@@ -33,7 +33,7 @@ import {
 import { ticketRelations } from "./links.ts";
 import { staleView } from "./poll-merge.ts";
 import { linked } from "./pull-links.ts";
-import { projectReport } from "./report.ts";
+import { type ForgeLabelOf, projectReport } from "./report.ts";
 import {
 	type AutoMergeSources,
 	mergesOnItsOwn,
@@ -107,6 +107,7 @@ export function projectCounts(
 	rules: NeedsYouRules,
 	mappings: Pick<Configuration, "laneMappings" | "states" | "stateMappings">,
 	runStarts: RunStarts,
+	forgeLabelOf: ForgeLabelOf,
 	now: Date,
 	board?: Board,
 ): {
@@ -344,6 +345,7 @@ export function projectCounts(
 		outsideParents(tickets, graph.groups),
 		unlinkedViews,
 		(ticket) => known(index, ticket)?.url,
+		forgeLabelOf,
 	);
 	return {
 		counts: project,

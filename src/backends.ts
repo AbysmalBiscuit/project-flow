@@ -207,6 +207,11 @@ export type Backends = {
 	views: BackendViews;
 	/** The tracker that reads the project of `ref`, or the error to show on it. */
 	readerOf: (ref: ProjectRef, hosts: Configuration["hosts"]) => ProjectReader;
+	/** The name of the forge on the host of `url`, or undefined when no forge serves that host. */
+	forgeLabelOf: (
+		url: string,
+		hosts: Configuration["hosts"],
+	) => string | undefined;
 	/** The forge that holds the repo of the project of `ref`. */
 	forgeOf: (ref: ProjectRef) => Forge | null;
 	/** The declared host of a forge, or undefined for a forge on its own home host. */
@@ -232,7 +237,6 @@ export function buildBackends(options: {
 	const view = <Kind extends BackendKind>(kind: Kind): BackendView<Kind> => ({
 		kind,
 		label: registry[kind].label,
-		host: registry[kind].homeHost,
 		hint: registry[kind].hint,
 		credential: credentials[kind] === null ? "missing" : "present",
 	});
@@ -297,6 +301,13 @@ export function buildBackends(options: {
 			return tracker === undefined
 				? unreadable(registry[ref.tracker].credential.missing)
 				: { tracker };
+		},
+		forgeLabelOf(url, hosts) {
+			const host = URL.parse(url)?.host;
+			const kind =
+				forgeKinds.find((forge) => registry[forge].homeHost === host) ??
+				hosts.find((declared) => declared.host === host)?.forge;
+			return kind === undefined ? undefined : registry[kind].label;
 		},
 		forgeOf: (ref) =>
 			forges.get(refHost(ref) ?? registry[ref.tracker].homeHost) ?? null,

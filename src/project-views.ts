@@ -128,6 +128,7 @@ function computeProjectView(
 			linearSources: options.linearSources(),
 			requests: options.runStartRequests,
 		},
+		(url) => options.backends.forgeLabelOf(url, configuration.hosts),
 		new Date(status.fetchedAt ?? 0),
 		row.board,
 	);

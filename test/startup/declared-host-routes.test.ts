@@ -310,7 +310,7 @@ describe("the pages of a project on a declared host with a port", () => {
 		url: `${page}/issues/${number}`,
 	});
 
-	test("a ticket, its graph ends and its PR keep the host", async () => {
+	test("a ticket, its graph ends and its PR keep the host and the forge label", async () => {
 		await withHostedRow(
 			{
 				tickets: [ticket(1, ""), ticket(2, "Blocked by: #1")],
@@ -339,6 +339,11 @@ describe("the pages of a project on a declared host with a port", () => {
 				);
 				expect(second?.url).toBe(`${page}/issues/2`);
 				expect(second?.pullUrl).toBe(`${page}/pull/7`);
+				expect(second?.pullForge).toBe("GitHub");
+				const needs = report.sections.find(
+					(section) => section.id === "needsYou",
+				)?.needsYou;
+				expect(needs?.[0]?.pull?.forge).toBe("GitHub");
 				const link = report.graphLinks[0];
 				expect(link?.from.url).toBe(`${page}/issues/1`);
 				expect(link?.to.url).toBe(`${page}/issues/2`);
