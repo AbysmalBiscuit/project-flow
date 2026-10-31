@@ -154,6 +154,8 @@ proc = Bun.spawn([gh, "auth", "token"], {
 
 The app reads `GITLAB_TOKEN` from the environment to read PRs on gitlab.com. A blank value does not count. GitLab has no CLI fallback. With no token, a project that links a gitlab.com PR shows an error that names `GITLAB_TOKEN`. That project keeps its tickets, and the PRs of each forge that has a token. A rejected token stops the start. A self-hosted GitLab host does not read PRs yet.
 
+GitLab has no repo auto-merge setting that the app reads. The auto-merge of a GitLab PR comes from the `autoMerge` configuration, the workcell keys and the "merge when the pipeline succeeds" flag of the PR. A merge train does not make a PR merge without a human.
+
 The app reads `LINEAR_API_KEY` from the environment. A blank value does not count. With the key set, the app finds Linear projects. With no key, each Linear project shows an error that names `LINEAR_API_KEY`. The projects of the other tracker poll. A rejected token or key exits and names that credential.
 
 ### Declared hosts
