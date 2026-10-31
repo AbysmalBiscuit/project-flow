@@ -66,19 +66,20 @@ export function sameTicketKey(left: string, right: string): boolean {
 	return foldKey(left) === foldKey(right);
 }
 
-/** The key inside its own project: `#number` for a numbered key, else the whole key. */
+/** A ticket key or a PR key: a repo path, its mark, then a number. */
+const markedKeyShape = new RegExp(`^(${repoPathPattern})([#!]\\d+)$`);
+
+/** The key inside its own project: `#number` or `!number` for a numbered key, else the whole key. */
 export function shortKey(key: string): string {
-	const mark = key.lastIndexOf(numberMark);
-	return mark === -1 ? key : key.slice(mark);
+	return key.match(markedKeyShape)?.[2] ?? key;
 }
 
-/** A pull key as `#number` when the pull is in the repo of the ticket, else the whole key. */
+/** A pull key as `#number` or `!number` when the pull is in the repo of the ticket, else the whole key. */
 export function pullRef(pull: string, ticketKey: string | null): string {
-	const pullRepo = keyRepo(pull);
+	const pullRepo = pull.match(markedKeyShape)?.[1];
+	const ticketRepo = ticketKey?.match(markedKeyShape)?.[1];
 	const sameRepo =
-		pullRepo !== null &&
-		ticketKey !== null &&
-		foldKey(pullRepo) === foldKey(keyRepo(ticketKey));
+		pullRepo !== undefined && foldKey(pullRepo) === foldKey(ticketRepo);
 	return sameRepo ? shortKey(pull) : pull;
 }
 
