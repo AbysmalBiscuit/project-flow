@@ -140,8 +140,9 @@ export function forgejoTracker(
 				const blockedBy =
 					issue.state === "closed"
 						? []
-						: stored?.updatedAt === issue.updated_at
-							? stored.blockedBy
+						: stored?.updatedAt === issue.updated_at &&
+							  stored.blockedBy.length === 0
+							? []
 							: await readBlockers(client, access.host, repo, issue.number);
 				tickets.push(
 					ticketOf(

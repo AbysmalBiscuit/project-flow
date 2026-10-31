@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import type { ProjectReport, SettingsProject } from "../../src/domain.ts";
+import dependencies5 from "../fixtures/forgejo-issue-5-dependencies.json";
 import issues from "../fixtures/forgejo-issues.json";
 import openPulls from "../fixtures/forgejo-open-pulls.json";
 import { withApp } from "../project-harness.ts";
@@ -185,7 +186,7 @@ describe("a tracked Forgejo repo", () => {
 		);
 	});
 
-	test("reads the dependencies of an unchanged ticket once", async () => {
+	test("reads the dependencies of an unchanged ticket again only when it has blockers", async () => {
 		const sent: Sent[] = [];
 		await withApp(
 			tracked,
@@ -195,13 +196,52 @@ describe("a tracked Forgejo repo", () => {
 				await forgejoCard(base);
 				const reads = (start: string) =>
 					sent.filter(({ url }) => url.startsWith(`${repoApi}${start}`)).length;
-				const listed = reads("/issues?");
 				await fetch(new URL("/api/refresh", base), { method: "POST" });
 				await readWhere<{ polling?: true }>(
 					new URL("/api/overview", base),
-					(body) => body.polling !== true && reads("/issues?") > listed,
+					(body) =>
+						body.polling !== true && reads("/issues/5/dependencies") > 1,
 				);
-				expect(reads("/issues/5/dependencies")).toBe(1);
+				expect(reads("/issues/4/dependencies")).toBe(1);
+			},
+		);
+	});
+
+	test("drops a blocker in another repo that closes while the blocked ticket stays unchanged", async () => {
+		const [blocker] = dependencies5;
+		let state = "open";
+		await withApp(
+			tracked,
+			linearWithCodeberg(
+				[],
+				{
+					answers: {
+						"/issues/5/dependencies": () =>
+							json([
+								{
+									...blocker,
+									state,
+									repository: { full_name: "AbysmalBiscuit/other" },
+								},
+							]),
+					},
+				},
+				[],
+			),
+			env,
+			async (base) => {
+				const name = encodeURIComponent(`${host}/${scratch}`);
+				const url = new URL(`/api/projects/${name}?view=all`, base);
+				const blocked = (shown: ProjectReport) =>
+					shown.tickets.find((item) => item.key === keyOf(5))?.blocked;
+				expect(blocked(await report(base))).toBe(true);
+				state = "closed";
+				await fetch(new URL("/api/refresh", base), { method: "POST" });
+				const after = await readWhere<ProjectReport>(
+					url,
+					(shown) => blocked(shown) !== true,
+				);
+				expect(blocked(after)).not.toBe(true);
 			},
 		);
 	});
