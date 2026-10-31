@@ -222,6 +222,8 @@ export function gitlabForge(
 							}),
 						]
 					: jobs.map(statusCheck),
+			// GitLab owns the approval reset policy, and its approvals API gives no
+			// commit for an approval, so each current approval counts on the head.
 			reviews: approved.body.approved_by.map(({ user }) => ({
 				login: user.username,
 				commitId: request.sha ?? "",
