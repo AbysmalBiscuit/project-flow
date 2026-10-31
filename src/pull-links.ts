@@ -1,5 +1,5 @@
 import type { PullRequest, Ticket, TrackerKind } from "./domain.ts";
-import type { Forge, PullLink, PullRef } from "./ports.ts";
+import type { Forge, PullLink, PullRef, PullTarget } from "./ports.ts";
 import {
 	foldKey,
 	keyNumber,
@@ -115,21 +115,33 @@ export function linked(ticket: Ticket, pulls: PullRequest[]): PullRequest[] {
 	return find(ticket.key, ticket.tracker);
 }
 
-/** The links of each forge. The host of a URL selects its forge, and a URL that names no PR on that forge gives no link. */
+/**
+ * The links of each forge. The host of a URL selects its forge, and a URL that
+ * names no PR on that forge gives no link. `missing` holds the first
+ * missing-token message of a URL that names a PR on a forge without a token.
+ */
 export function linksByForge(
 	refs: PullRef[],
-	forges: ReadonlyMap<string, Forge>,
-): Map<Forge, PullLink[]> {
+	linkOf: (
+		url: URL,
+	) => { forge: Forge; target: PullTarget } | { error: string } | null,
+): { links: Map<Forge, PullLink[]>; missing: string | null } {
 	const links = new Map<Forge, PullLink[]>();
+	let missing: string | null = null;
 	for (const { url, ticketKey } of refs) {
 		const parsed = URL.parse(url);
-		const forge = parsed === null ? undefined : forges.get(parsed.host);
-		const target = parsed === null ? null : (forge?.pullOfUrl(parsed) ?? null);
-		if (forge !== undefined && target !== null) {
-			links.set(forge, [...(links.get(forge) ?? []), { ...target, ticketKey }]);
+		const link = parsed === null ? null : linkOf(parsed);
+		if (link === null) {
+			continue;
 		}
+		if ("error" in link) {
+			missing ??= link.error;
+			continue;
+		}
+		const { forge, target } = link;
+		links.set(forge, [...(links.get(forge) ?? []), { ...target, ticketKey }]);
 	}
-	return links;
+	return { links, missing };
 }
 
 export function closesTicket(pull: PullRequest, ticket: Ticket): boolean {

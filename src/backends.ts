@@ -14,6 +14,7 @@ import {
 	installationTokenFetch,
 } from "./factory-tokens.ts";
 import type { Fetch } from "./fetch.ts";
+import { githubPullOfUrl } from "./github-forge.ts";
 import { githubHost } from "./github-pin.ts";
 import {
 	checkToken,
@@ -24,12 +25,25 @@ import {
 	type ValidatorStore,
 } from "./github.ts";
 import {
+	checkGitlabToken,
+	gitlabForge,
+	gitlabHost,
+	gitlabPullOfUrl,
+	missingGitlabToken,
+	rejectedGitlabToken,
+} from "./gitlab-forge.ts";
+import {
 	checkLinearKey,
 	linearTracker,
 	missingLinearKey,
 	rejectedLinearKey,
 } from "./linear.ts";
-import { type Forge, type Tracker, TrackerError } from "./ports.ts";
+import {
+	type Forge,
+	type PullTarget,
+	type Tracker,
+	TrackerError,
+} from "./ports.ts";
 import { type ProjectRef, refHost } from "./project-ref.ts";
 import { takesClaimedStart } from "./run-start.ts";
 
@@ -103,10 +117,18 @@ type Backend<Kind extends BackendKind> = {
 	credential: CredentialRule;
 	/** The host of a project whose pin names no host. */
 	homeHost: string;
+	/** True when the repo keys of the home host carry no host, as configuration files before declared hosts wrote them. */
+	bareKeys?: true;
 	/** Wraps the fetch of the repo reads, such as in a cache of its responses. */
 	prepareFetch?: (fetch: Fetch, context: RepoFetchContext) => RepoFetch;
 } & (Kind extends TrackerKind ? { tracker: Factory<Tracker> } : unknown) &
-	(Kind extends ForgeKind ? { forge: Factory<Forge> } : unknown);
+	(Kind extends ForgeKind
+		? {
+				forge: Factory<Forge>;
+				/** The PR that a URL on the forge names, read without a token. */
+				pullOfUrl: (url: URL) => PullTarget | null;
+			}
+		: unknown);
 
 /** The help texts of Settings that name each backend. */
 const backendHints: BackendViews["hints"] = {
@@ -157,6 +179,7 @@ function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 				},
 			},
 			homeHost: githubHost,
+			bareKeys: true,
 			prepareFetch: (fetchImpl, context) =>
 				installationTokenFetch(
 					conditionalFetch(fetchImpl, context.validators),
@@ -174,6 +197,29 @@ function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 				),
 			tracker: (context) => githubOf(context)?.tracker ?? null,
 			forge: (context) => githubOf(context)?.forge ?? null,
+			pullOfUrl: githubPullOfUrl,
+		},
+		gitlab: {
+			label: "GitLab",
+			hint: "GITLAB_TOKEN found in the environment",
+			credential: {
+				env: "GITLAB_TOKEN",
+				missing: missingGitlabToken,
+				rejected: rejectedGitlabToken,
+				checked: () => true,
+				async check(token, fetchImpl) {
+					const status = await checkGitlabToken(gitlabHost, token, fetchImpl);
+					if (status === 401) {
+						return "rejected";
+					}
+					return status >= 200 && status < 300
+						? "accepted"
+						: { warning: `GitLab token check failed (HTTP ${status}).` };
+				},
+			},
+			homeHost: gitlabHost,
+			forge: ({ host, token, fetch }) => gitlabForge(host, token, fetch),
+			pullOfUrl: gitlabPullOfUrl,
 		},
 		linear: {
 			label: "Linear",
@@ -309,9 +355,16 @@ export type Backends = {
 	) => string | undefined;
 	/** The forge that holds the repo of the project of `ref`. */
 	forgeOf: (ref: ProjectRef) => Forge | null;
-	/** The declared host of a forge, or undefined for a forge on its own home host. */
-	declaredHostOf: (forge: Forge) => string | undefined;
-	/** True for an error that `readerOf` gave: the project waits for a setting and no read failed. */
+	/** The host that the repo keys of a forge carry, or undefined for bare keys. */
+	keyHostOf: (forge: Forge) => string | undefined;
+	/**
+	 * The forge and the PR that a URL names. The missing-token message of the
+	 * forge when the URL names a PR on a home host without a token. Null for any other URL.
+	 */
+	linkOf: (
+		url: URL,
+	) => { forge: Forge; target: PullTarget } | { error: string } | null;
+	/** True for an error that `readerOf` or `linkOf` gave: the project waits for a setting and no read failed. */
 	explains: (error: string) => boolean;
 };
 
@@ -411,14 +464,34 @@ export function buildBackends(options: {
 		},
 		forgeOf: (ref) =>
 			forges.get(refHost(ref) ?? registry[ref.tracker].homeHost) ?? null,
-		declaredHostOf(forge) {
-			const home = new Set(backendKinds.map((kind) => registry[kind].homeHost));
+		keyHostOf(forge) {
+			const bare = new Set(
+				backendKinds.flatMap((kind) =>
+					registry[kind].bareKeys === true ? [registry[kind].homeHost] : [],
+				),
+			);
 			for (const [host, held] of forges) {
-				if (held === forge && !home.has(host)) {
-					return host;
+				if (held === forge) {
+					return bare.has(host) ? undefined : host;
 				}
 			}
 			return undefined;
+		},
+		linkOf(url) {
+			const forge = forges.get(url.host);
+			if (forge !== undefined) {
+				const target = forge.pullOfUrl(url);
+				return target === null ? null : { forge, target };
+			}
+			const kind = forgeKinds.find(
+				(item) => registry[item].homeHost === url.host,
+			);
+			if (kind === undefined || registry[kind].pullOfUrl(url) === null) {
+				return null;
+			}
+			const error = registry[kind].credential.missing;
+			explained.add(error);
+			return { error };
 		},
 		explains: (error) => explained.has(error),
 	};

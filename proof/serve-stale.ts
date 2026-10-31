@@ -42,7 +42,7 @@ const recordedThenFailing: Fetch = async (input, init) => {
 
 const running = await start({
 	configPath: process.argv[2] ?? "",
-	credentials: { github: "recorded-token", linear: null },
+	credentials: { github: "recorded-token", gitlab: null, linear: null },
 	env: {},
 	fetch: answerRecordedRepoRead(recordedThenFailing),
 	databasePath,

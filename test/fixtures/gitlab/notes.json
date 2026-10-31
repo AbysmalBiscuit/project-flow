@@ -1,0 +1,20 @@
+{
+	"12": [
+		{
+			"id": 2200001,
+			"body": "approved this merge request",
+			"author": { "id": 9120442, "username": "ada", "name": "Ada" },
+			"created_at": "2026-10-17T15:02:10.118Z",
+			"system": true
+		},
+		{
+			"id": 2200002,
+			"body": "Looks good to me.",
+			"author": { "id": 9120442, "username": "ada", "name": "Ada" },
+			"created_at": "2026-10-17T15:01:00.000Z",
+			"system": false
+		}
+	],
+	"13": [],
+	"9": []
+}

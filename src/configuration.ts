@@ -54,7 +54,7 @@ export const projectRef = z.discriminatedUnion("tracker", [
 
 export type ProjectPin = z.infer<typeof projectRef>;
 
-/** The public hosts that a configuration cannot declare. gitlab.com stays reserved until its adapter exists. */
+/** The home hosts of the forges, which a configuration cannot declare. */
 const knownHosts: readonly string[] = [githubHost, "gitlab.com"];
 
 const declaredHost = z.strictObject({
