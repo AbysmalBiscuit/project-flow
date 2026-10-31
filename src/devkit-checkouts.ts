@@ -147,9 +147,9 @@ const issueToml = z.object({
 const workcellToml = z
 	.object({
 		merge: z.object({ auto: autoMerge.optional() }).optional(),
-		workflow: z
+		standard: z
 			.object({
-				standard: z.object({ merge_auto: autoMerge.optional() }).optional(),
+				parameters: z.object({ merge_auto: autoMerge.optional() }).optional(),
 			})
 			.optional(),
 	})
@@ -189,7 +189,7 @@ function mergeAuto(text: string): AutoMerge | undefined {
 			return undefined;
 		}
 		return (
-			parsed.data.workflow?.standard?.merge_auto ?? parsed.data.merge?.auto
+			parsed.data.standard?.parameters?.merge_auto ?? parsed.data.merge?.auto
 		);
 	} catch {
 		return undefined;
