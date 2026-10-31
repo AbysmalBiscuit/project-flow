@@ -83,6 +83,19 @@ describe("a tracked Forgejo repo", () => {
 		);
 	});
 
+	test("keeps the project label of a found repo when discovery leaves the pin out", async () => {
+		await withApp(
+			tracked,
+			linearWithCodeberg([], { repos: [] }, []),
+			env,
+			async (base) => {
+				const card = await forgejoCard(base);
+				expect(card?.name).toBe(`${host}/${scratch}`);
+				expect(card?.tickets.length).toBeGreaterThan(0);
+			},
+		);
+	});
+
 	test("groups its tickets by milestone as workstreams", async () => {
 		await withApp(
 			tracked,

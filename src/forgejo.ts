@@ -153,7 +153,7 @@ export function forgejoTracker(
 					),
 				);
 			}
-			return { name: repo, tickets };
+			return { name: settingsKey(repo, access.host), tickets };
 		},
 	};
 }
