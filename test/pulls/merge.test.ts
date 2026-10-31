@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
+import type { TicketView } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
 import recordedPulls from "../fixtures/github-open-pulls.json";
 import recordedTeam from "../fixtures/linear-team-states.json";
@@ -18,11 +19,29 @@ import {
 	mergeFake,
 	passedCheck,
 	pullUrl,
-	readTicket,
 	repo,
-	sendMerge,
 	widgetConfig,
 } from "./_support.ts";
+
+function sendMerge(base: string, url = pullUrl): Promise<Response> {
+	return fetch(new URL("/api/pulls/merge", base), {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ url }),
+	});
+}
+
+async function readTicket(
+	base: string,
+	project: string,
+	key: string,
+): Promise<TicketView | undefined> {
+	const response = await fetch(
+		new URL(`/api/projects/${encodeURIComponent(project)}?view=all`, base),
+	);
+	const report = (await response.json()) as { tickets: TicketView[] };
+	return report.tickets.find((ticket) => ticket.key === key);
+}
 
 const ticketKey = `${repo}#8`;
 

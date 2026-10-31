@@ -1,4 +1,3 @@
-import type { TicketView } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
 import recordedRefusal from "../fixtures/github-pull-merge-refused.json";
 import recordedMerge from "../fixtures/github-pull-merge.json";
@@ -31,7 +30,7 @@ function openPull(body: string, checkRows: unknown[]) {
 	};
 }
 
-export type SentMerge = {
+type SentMerge = {
 	url: string;
 	method: string;
 	authorization: string | null;
@@ -115,23 +114,3 @@ export const widgetConfig = JSON.stringify({
 });
 
 export const githubEnv = { GITHUB_TOKEN: "recorded-token" };
-
-export function sendMerge(base: string, url = pullUrl): Promise<Response> {
-	return fetch(new URL("/api/pulls/merge", base), {
-		method: "POST",
-		headers: { "content-type": "application/json" },
-		body: JSON.stringify({ url }),
-	});
-}
-
-export async function readTicket(
-	base: string,
-	project: string,
-	key: string,
-): Promise<TicketView | undefined> {
-	const response = await fetch(
-		new URL(`/api/projects/${encodeURIComponent(project)}?view=all`, base),
-	);
-	const report = (await response.json()) as { tickets: TicketView[] };
-	return report.tickets.find((ticket) => ticket.key === key);
-}
