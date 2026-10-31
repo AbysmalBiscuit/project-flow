@@ -18,7 +18,7 @@ import type {
 import type { HidingFilter } from "./terms.ts";
 import type { GroupBy } from "./view-settings.ts";
 
-export const trackerKinds = ["github", "linear", "gitlab"] as const;
+export const trackerKinds = ["github", "linear", "gitlab", "forgejo"] as const;
 
 export type TrackerKind = (typeof trackerKinds)[number];
 

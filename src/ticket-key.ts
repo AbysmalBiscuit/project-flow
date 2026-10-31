@@ -74,12 +74,18 @@ export function shortKey(key: string): string {
 	return key.match(markedKeyShape)?.[2] ?? key;
 }
 
-/** A pull key as `#number` or `!number` when the pull is in the repo of the ticket, else the whole key. */
+/**
+ * A pull key as `#number` or `!number` when the pull is in the repo of the
+ * ticket, else the whole key. A ticket key can lead with its host, so a ticket
+ * repo that ends with the pull repo is the same repo.
+ */
 export function pullRef(pull: string, ticketKey: string | null): string {
-	const pullRepo = pull.match(markedKeyShape)?.[1];
-	const ticketRepo = ticketKey?.match(markedKeyShape)?.[1];
+	const pullRepo = foldKey(pull.match(markedKeyShape)?.[1]);
+	const ticketRepo = foldKey(ticketKey?.match(markedKeyShape)?.[1]);
 	const sameRepo =
-		pullRepo !== undefined && foldKey(pullRepo) === foldKey(ticketRepo);
+		pullRepo !== undefined &&
+		ticketRepo !== undefined &&
+		(ticketRepo === pullRepo || ticketRepo.endsWith(`/${pullRepo}`));
 	return sameRepo ? shortKey(pull) : pull;
 }
 

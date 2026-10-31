@@ -1,151 +1,29 @@
 import { describe, expect, test } from "bun:test";
 
 import type { NeedsYouItem, ProjectReport } from "../../src/domain.ts";
-import type { Fetch } from "../../src/fetch.ts";
 import { run } from "../../src/main.ts";
-import branches from "../fixtures/forgejo-branches.json";
-import commit10 from "../fixtures/forgejo-commit-10.json";
-import openPulls from "../fixtures/forgejo-open-pulls.json";
-import reactions10 from "../fixtures/forgejo-pull-10-reactions.json";
 import reviews10 from "../fixtures/forgejo-pull-10-reviews.json";
-import status10 from "../fixtures/forgejo-pull-10-status.json";
 import pull10 from "../fixtures/forgejo-pull-10.json";
-import status11 from "../fixtures/forgejo-pull-11-status.json";
-import status12 from "../fixtures/forgejo-pull-12-status.json";
-import rejectedUser from "../fixtures/forgejo-user-401.json";
 import { withApp } from "../project-harness.ts";
 import { tempConfig, testIo } from "../support/app.ts";
-import { json, urlOf } from "../support/fetch.ts";
+import { json } from "../support/fetch.ts";
 import {
-	codex,
-	page,
-	recordedDiscovery,
-	recordedOrEmpty,
-	unrecorded,
-} from "../support/github.ts";
-import { linearFake } from "../support/linear.ts";
+	attachedIssue,
+	env,
+	host,
+	hosts,
+	linearWithCodeberg,
+	rejected,
+	repoApi,
+	scratch,
+	type Sent,
+	tokenEnv,
+} from "../support/forgejo.ts";
+import { codex } from "../support/github.ts";
 import { readOverview } from "../support/reads.ts";
 import { grok } from "./_support.ts";
 
-const host = "codeberg.org";
-const tokenEnv = "CODEBERG_TOKEN";
-const hosts = [{ host, forge: "forgejo", tokenEnv }];
-const scratch = "AbysmalBiscuit/project-flow-scratch";
-const repoApi = `https://${host}/api/v1/repos/${scratch}`;
 const linearProject = "widget-launch-0d42ae5d46d0";
-
-const env = {
-	GITHUB_TOKEN: "recorded-token",
-	LINEAR_API_KEY: "recorded-linear-key",
-	[tokenEnv]: "recorded-codeberg-token",
-};
-
-const statusBySha = new Map(
-	[status10, status11, status12].map((status) => [status.sha, status]),
-);
-
-type Sent = { url: string; authorization: string | null };
-
-type Codeberg = {
-	userStatus?: number;
-	/** Answers that replace the recorded answer of a repo path, by the start of the path. */
-	answers?: Record<string, () => Response>;
-};
-
-const rejected = () => json(rejectedUser, 401);
-
-/** The recorded answers of the Codeberg scratch repo, or null for a URL on another host. */
-function codeberg(url: string, options: Codeberg): Response | null {
-	if (!url.startsWith(`https://${host}/`)) {
-		return null;
-	}
-	if (url === `https://${host}/api/v1/user`) {
-		return options.userStatus === 401
-			? rejected()
-			: json({ login: "AbysmalBiscuit" });
-	}
-	const path = url.slice(repoApi.length);
-	const answer = Object.entries(options.answers ?? {}).find(([start]) =>
-		path.startsWith(start),
-	)?.[1];
-	if (answer !== undefined) {
-		return answer();
-	}
-	if (path.startsWith("/issues/10/reactions")) {
-		return json(reactions10);
-	}
-	if (path.startsWith(`/git/commits/${commit10.sha}`)) {
-		return json(commit10);
-	}
-	if (path === "/pulls/10") {
-		return json(pull10);
-	}
-	if (path.startsWith("/pulls/10/reviews")) {
-		return json(reviews10);
-	}
-	if (path.startsWith("/pulls?state=open")) {
-		return json(openPulls);
-	}
-	if (path.startsWith("/branches")) {
-		return json(branches);
-	}
-	const sha = path.match(/^\/commits\/([0-9a-f]{40})\/status/)?.[1];
-	if (sha !== undefined) {
-		return json(statusBySha.get(sha) ?? null, statusBySha.has(sha) ? 200 : 404);
-	}
-	if (
-		path.startsWith("/pulls?state=closed") ||
-		/^\/issues\/\d+\/comments/.test(path) ||
-		/^\/pulls\/\d+\/reviews/.test(path)
-	) {
-		return json([]);
-	}
-	return new Response(`unrecorded: ${url}`, { status: 599 });
-}
-
-function attachedIssue(number: number, url: string) {
-	return {
-		identifier: `WID-${number}`,
-		title: `Linear ticket ${number}`,
-		updatedAt: "2026-10-01T00:00:00.000Z",
-		state: { type: "unstarted" },
-		attachments: {
-			nodes: [{ url, title: `Link ${number}`, sourceType: null }],
-		},
-	};
-}
-
-function linearWithCodeberg(
-	sent: Sent[],
-	options: Codeberg = {},
-	issues = [attachedIssue(8, `https://${host}/${scratch}/pulls/10`)],
-): Fetch {
-	const linear = linearFake({
-		issues,
-		github: async (input, init) => {
-			const url = urlOf(input);
-			if (url === "https://api.github.com/user") {
-				return page({ login: "lev" });
-			}
-			if (url.includes("/repos/acme/widget/issues?")) {
-				return page([]);
-			}
-			return (
-				recordedDiscovery(input, init) ??
-				recordedOrEmpty(url) ??
-				unrecorded(input)
-			);
-		},
-	});
-	return async (input, init) => {
-		const url = urlOf(input);
-		sent.push({
-			url,
-			authorization: new Headers(init?.headers).get("authorization"),
-		});
-		return codeberg(url, options) ?? linear(input, init);
-	};
-}
 
 async function attachedTicket(base: string) {
 	const project = (await readOverview(base)).projects[0];

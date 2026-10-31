@@ -398,11 +398,22 @@ export function NotificationsSection({
 	);
 }
 
-export function TrackersSection({ backends }: { backends: BackendViews }) {
+export function TrackersSection({
+	backends,
+	discoveryErrors,
+}: {
+	backends: BackendViews;
+	discoveryErrors: string[];
+}) {
 	return (
 		<section id="trackers" className={clsx(fields.card)}>
 			<h2 className={clsx(fields.cardTitle)}>{settingsSection.trackers}</h2>
 			<p className={clsx(fields.hint)}>{settingsCopy.trackersLead}</p>
+			{discoveryErrors.map((error) => (
+				<p key={error} className={clsx(fields.warning)}>
+					{error}
+				</p>
+			))}
 			{backendRows(backends).map((backend) => (
 				<Row key={backend.kind} title={backend.label} hint={backend.hint}>
 					<Credential

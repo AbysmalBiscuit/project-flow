@@ -45,7 +45,7 @@ _Avoid_: Custom host, enterprise host
 ### Grouping
 
 **Parent ticket**:
-A ticket that other tickets sit under in the tracker. A parent ticket is outside when the project's tickets do not include it.
+A ticket that other tickets sit under in the tracker. A parent ticket is outside when the project's tickets do not include it. Forgejo has no sub-tickets, so a task list item such as `- [ ] #12` in the body of a Forgejo ticket makes that ticket the parent ticket of #12 in the same repo. The first ticket that lists #12 is its parent ticket.
 _Avoid_: Epic (when a parent ticket is meant), parent issue
 
 **Sub-ticket**:

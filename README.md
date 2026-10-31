@@ -179,6 +179,21 @@ The `hosts` list declares each self-hosted host with its forge kind and the env 
 
 A pin with no `host` is on github.com. A pin with `host` set to `github.com` is the same project as a pin with no `host`. The load fails when a pin names a host that `hosts` does not declare. The load also fails when `hosts` declares `github.com`, `gitlab.com` or one host two times. The app knows `gitlab.com` as a tracker and a forge with no declaration. A GitLab pin has no `host`, and reads gitlab.com.
 
+A repo on a declared Forgejo host is a project with the `forgejo` tracker. The pin names the repo and its host:
+
+```json
+{
+	"hosts": [
+		{ "host": "codeberg.org", "forge": "forgejo", "tokenEnv": "CODEBERG_TOKEN" }
+	],
+	"tracked": [
+		{ "tracker": "forgejo", "repo": "owner/repo", "host": "codeberg.org" }
+	]
+}
+```
+
+Codeberg is a Forgejo host with no special case, so it needs a declaration. A Forgejo ticket key carries its host, such as `codeberg.org/owner/repo#12`, so one repo name on two hosts gives two tickets. A reference in a Forgejo ticket body names a ticket only on the host of that ticket. Settings lists each repo that the token of a declared Forgejo host can read. Milestones set the workstreams, and native issue dependencies give the blocker links. Forgejo has no sub-issues, so a task list item such as `- [ ] #12` makes the issue that holds it the parent ticket of #12. A factory cannot start a run on a Forgejo ticket, and the side panel does not read its thread.
+
 With no token in the env var, each project of the host shows an error that names the env var. The projects of other hosts poll. With a token, the project shows an error when no adapter can read the host. The app does not send that token to another host.
 
 `expectedBots`, `pmBot`, `autoMerge` and `stateMappings` keep the settings of a repo on a declared host under `host/owner/name`, such as `git.acme.dev/acme/widget`. The same repo on github.com keeps its own settings under `owner/name`. A bare key does not apply to a repo on a declared host. The app does not copy a bare key to a declared host. Write the `host/owner/name` key for each repo on a declared host.

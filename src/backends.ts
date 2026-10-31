@@ -145,6 +145,8 @@ export type Backends = {
 	forges: ReadonlyMap<string, Forge>;
 	/** Each tracker and forge kind with its label and whether it has a token. A forge without a home shows once a host declares it. */
 	views: (hosts: Hosts) => BackendViews;
+	/** The tracker of each declared host that its forge kind also tracks and whose token is set. */
+	hostedTrackers: (hosts: Hosts) => Tracker[];
 	/** The tracker that reads the project of `ref`, or the error to show on it. */
 	readerOf: (ref: ProjectRef, hosts: Hosts) => ProjectReader;
 	/**
@@ -210,6 +212,9 @@ export function buildBackends(options: {
 			credential: present ? "present" : "missing",
 		};
 	};
+	const listsBackend = (kind: BackendKind, hosts: Hosts): boolean =>
+		registry[kind].home !== undefined ||
+		hosts.some((entry) => entry.forge === kind);
 	const trackers = new Map<TrackerKind, Tracker>();
 	for (const kind of trackerKinds) {
 		const context = homeContext(kind);
@@ -281,7 +286,9 @@ export function buildBackends(options: {
 		if ("error" in hosted) {
 			return unreadable(hosted.error);
 		}
-		const tracker = registry[kind].tracker(hosted.context);
+		const declared = hosts.find((entry) => entry.host === host);
+		const tracker =
+			declared?.forge === kind ? registry[kind].tracker(hosted.context) : null;
 		return tracker === null
 			? unreadable(`the ${kind} tracker cannot read ${host} yet.`)
 			: { tracker };
@@ -289,17 +296,22 @@ export function buildBackends(options: {
 	return {
 		trackers,
 		forges,
+		hostedTrackers: (hosts) =>
+			hosts.flatMap(({ host, forge }) => {
+				const kind = trackerKinds.find((known) => known === forge);
+				const reader =
+					kind === undefined ? null : hostedReader(kind, host, hosts);
+				return reader !== null && "tracker" in reader ? [reader.tracker] : [];
+			}),
 		views: (hosts) => ({
-			trackers: trackerKinds.map((kind) => ({
-				...view(kind, hosts),
-				claimsRuns: takesClaimedStart(kind),
-			})),
+			trackers: trackerKinds
+				.filter((kind) => listsBackend(kind, hosts))
+				.map((kind) => ({
+					...view(kind, hosts),
+					claimsRuns: takesClaimedStart(kind),
+				})),
 			forges: forgeKinds
-				.filter(
-					(kind) =>
-						registry[kind].home !== undefined ||
-						hosts.some((entry) => entry.forge === kind),
-				)
+				.filter((kind) => listsBackend(kind, hosts))
 				.map((kind) => view(kind, hosts)),
 			switches: backendKinds.flatMap((kind) => registry[kind].switches ?? []),
 			hints: backendHints,
@@ -311,7 +323,10 @@ export function buildBackends(options: {
 			}
 			const tracker = trackers.get(ref.tracker);
 			return tracker === undefined
-				? unreadable(registry[ref.tracker].home.credential.missing)
+				? unreadable(
+						registry[ref.tracker].home?.credential.missing ??
+							`the ${ref.tracker} tracker reads only a declared host.`,
+					)
 				: { tracker };
 		},
 		linkOf(url, hosts) {
@@ -353,8 +368,10 @@ export function buildBackends(options: {
 				hosts.find((declared) => declared.host === host)?.forge;
 			return kind === undefined ? undefined : registry[kind].label;
 		},
-		forgeOf: (ref) =>
-			forges.get(refHost(ref) ?? registry[ref.tracker].home.host) ?? null,
+		forgeOf(ref) {
+			const host = refHost(ref) ?? registry[ref.tracker].home?.host;
+			return host === undefined ? null : (forges.get(host) ?? null);
+		},
 		keyHostOf(forge) {
 			for (const [host, held] of forges) {
 				if (held === forge) {

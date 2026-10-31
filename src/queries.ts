@@ -46,6 +46,7 @@ import { storedObject } from "./stored-page.ts";
 type SettingsPage = {
 	settings: Configuration;
 	projects: SettingsProject[];
+	discoveryErrors: string[];
 	backends: BackendViews;
 	factoryTokenReports: FactoryTokenReport[];
 	factoryEntries: FactoryEntry[];
@@ -229,6 +230,7 @@ export function configurationOf(
 		switches: _switches,
 		hints: _hints,
 		projects: _projects,
+		discoveryErrors: _discoveryErrors,
 		factoryEntries: _factoryEntries,
 		stateSources: _stateSources,
 		error: _error,
@@ -249,6 +251,7 @@ export function settingsPageOf(body: SettingsRead | null): SettingsPage {
 			hints: body.hints ?? { runStart: "", laneMappings: "" },
 		},
 		projects: body.projects ?? [],
+		discoveryErrors: body.discoveryErrors ?? [],
 		factoryTokenReports: body.factoryTokenReports ?? [],
 		factoryEntries: body.factoryEntries ?? [],
 		stateSources: body.stateSources ?? [],

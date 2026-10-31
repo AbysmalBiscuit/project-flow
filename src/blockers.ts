@@ -139,8 +139,14 @@ export function bodyLines(donor: Ticket | undefined, ticket: Ticket): string {
 	return lines.join("\n");
 }
 
-/** The repo that a bare `#number` in a ticket body names. */
+/**
+ * The repo that a bare `#number` in a ticket body names. A Forgejo key carries
+ * its host, so the repo of a Forgejo ticket keeps the host too.
+ */
 export function bodyRepo(ticket: Ticket, repo: string | null): string | null {
+	if (ticket.tracker === "forgejo" && ticket.key !== null) {
+		return ticket.key.slice(0, ticket.key.lastIndexOf("#"));
+	}
 	if (repo !== null || ticket.key === null) {
 		return repo;
 	}

@@ -24,6 +24,7 @@ export const defaultFactoryMintCommand = [
 import { z } from "zod";
 
 import { forgeKinds } from "./domain.ts";
+import { forgejoPin } from "./forgejo-pin.ts";
 import { githubHost, githubPin } from "./github-pin.ts";
 import { gitlabHost, gitlabPin } from "./gitlab-pin.ts";
 import { runResults, runStatusKinds, statusTypes } from "./kinds.ts";
@@ -52,6 +53,7 @@ export const projectRef = z.discriminatedUnion("tracker", [
 	githubPin,
 	linearPin,
 	gitlabPin,
+	forgejoPin,
 ]);
 
 export type ProjectPin = z.infer<typeof projectRef>;

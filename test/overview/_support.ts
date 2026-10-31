@@ -3,6 +3,7 @@ import { expect } from "bun:test";
 import type { Overview } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
 import { urlOf } from "../support/fetch.ts";
+import { host, hosts, scratch } from "../support/forgejo.ts";
 import {
 	emptyProjectFields,
 	page,
@@ -11,6 +12,7 @@ import {
 	unrecorded,
 } from "../support/github.ts";
 import { linearFake } from "../support/linear.ts";
+import { readOverview } from "../support/reads.ts";
 import {
 	repoReadFromHandler,
 	repoReadFromLists,
@@ -368,4 +370,16 @@ export function embeddedForRoute(html: string, page: string): unknown {
 	expect(stored).toHaveProperty("overview");
 	expect(stored).toHaveProperty("settings");
 	return (stored as { overview: unknown }).overview;
+}
+
+/** The pin of the Codeberg scratch repo. */
+export const forgejoPin = { tracker: "forgejo", repo: scratch, host };
+
+/** A configuration that declares Codeberg and tracks the scratch repo. */
+export const forgejoTracked = JSON.stringify({ hosts, tracked: [forgejoPin] });
+
+/** The overview card of the tracked Forgejo repo. */
+export async function forgejoCard(base: string) {
+	const { projects } = await readOverview(base);
+	return projects.find((project) => project.tracker === "forgejo");
 }
