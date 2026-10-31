@@ -7,7 +7,7 @@ const numberMark = "#";
 const idSeparator = "\n";
 
 /** The pattern of a repo path: one or more groups, then a name. */
-export const repoPathPattern = String.raw`[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+`;
+export const repoPathPattern = "[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+";
 
 const numberedKeyShape = new RegExp(`^(${repoPathPattern})#(\\d+)$`);
 
