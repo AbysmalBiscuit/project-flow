@@ -137,6 +137,14 @@ function Entry({ entry }: { entry: TranscriptEntry }) {
 }
 
 /**
+ * A pane worker records a steer as it reaches the worker, and the messages of
+ * a turn as the turn runs, so the cursor order can differ from the time order.
+ */
+function byRecordedTime(a: TranscriptEntry, b: TranscriptEntry): number {
+	return Date.parse(a.at) - Date.parse(b.at);
+}
+
+/**
  * The stage transcript of one stage. A live stage reads its new entries again
  * on an interval. With `follow`, the list scrolls to each new entry.
  */
@@ -180,7 +188,7 @@ export function Transcript({
 					data-transcript-next={data.next}
 					data-transcript-ended={data.ended}
 				>
-					{data.entries.map((entry) => (
+					{data.entries.toSorted(byRecordedTime).map((entry) => (
 						<Entry key={entry.id} entry={entry} />
 					))}
 				</ol>
