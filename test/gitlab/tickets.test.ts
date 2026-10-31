@@ -102,6 +102,30 @@ describe("a tracked GitLab repo", () => {
 		});
 	});
 
+	test("frames a sub-ticket under a parent ticket in another repo", async () => {
+		const other = "AbysmalBiscuit/other-repo";
+		await withGitlabRepo(
+			{
+				parents: {
+					2: { repo: other, iid: "11", title: "feat(app): other parent" },
+				},
+			},
+			async (base) => {
+				const report = await reportOf(base, gitlabRepo);
+				expect(viewOf(report, key(2)).parent).toBe(`${other}#11`);
+				expect(viewOf(report, key(1)).subTickets).toBe(1);
+				expect(report.outsideParents).toContainEqual({
+					tracker: "gitlab",
+					project: other,
+					key: `${other}#11`,
+					title: "feat(app): other parent",
+					url: `https://gitlab.com/${other}/-/work_items/11`,
+					tracked: false,
+				});
+			},
+		);
+	});
+
 	test("shows a GitLab blocker link from either end", async () => {
 		await withGitlabRepo(
 			{ linkTypes: { 5: { 4: "is_blocked_by" }, 4: { 5: "blocks" } } },
@@ -146,7 +170,7 @@ describe("a tracked GitLab repo in a subgroup", () => {
 				const report = await reportOf(base, nested);
 				expect(viewOf(report, `${nested}#6`)).toMatchObject({
 					state: "awaitingMerge",
-					pullUrl: `https://gitlab.com/${gitlabRepo}/-/merge_requests/1`,
+					pullUrl: `https://gitlab.com/${nested}/-/merge_requests/1`,
 				});
 			},
 			[{ tracker: "gitlab", repo: nested }],

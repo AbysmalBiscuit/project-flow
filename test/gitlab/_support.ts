@@ -44,6 +44,8 @@ export type GitlabFake = {
 	linkTypes?: Record<string, Record<string, string>>;
 	/** The pages of the member projects. The recorded scratch project is the one page by default. */
 	memberPages?: unknown[][];
+	/** The parent of a work item, by iid, ahead of the recorded one. */
+	parents?: Record<string, { repo: string; iid: string; title: string }>;
 	/** The description of a work item, by iid, ahead of the recorded one. */
 	descriptions?: Record<string, string>;
 	/** Each GitLab request URL that the app sent. */
@@ -60,13 +62,35 @@ function byKey<Value>(
 type WorkItemState = keyof typeof workItems;
 
 const workItemsBody = z.object({
-	variables: z.object({ state: z.enum(["opened", "closed"]) }),
+	variables: z.object({
+		path: z.string(),
+		state: z.enum(["opened", "closed"]),
+	}),
 });
+
+/** A recorded answer as the repo at `repo` would give it. */
+function asRepo<Value>(recorded: Value, repo: string): Value {
+	return JSON.parse(JSON.stringify(recorded).replaceAll(gitlabRepo, repo));
+}
+
+function parentOf({
+	repo,
+	iid,
+	title,
+}: NonNullable<GitlabFake["parents"]>[string]) {
+	return {
+		iid,
+		title,
+		state: "OPEN",
+		webUrl: `https://gitlab.com/${repo}/-/work_items/${iid}`,
+		namespace: { fullPath: repo },
+	};
+}
 
 /** The recorded work items of one state, with the link types and descriptions of the fake. */
 function workItemsOf(
 	state: WorkItemState,
-	{ linkTypes = {}, descriptions = {} }: GitlabFake,
+	{ linkTypes = {}, descriptions = {}, parents = {} }: GitlabFake,
 ) {
 	const recorded = workItems[state];
 	return {
@@ -74,24 +98,29 @@ function workItemsOf(
 			project: {
 				workItems: {
 					...recorded.data.project.workItems,
-					nodes: recorded.data.project.workItems.nodes.map((item) => ({
-						...item,
-						description: descriptions[item.iid] ?? item.description,
-						widgets: item.widgets.map((widget) =>
-							"linkedItems" in widget && widget.linkedItems !== undefined
-								? {
-										linkedItems: {
-											nodes: widget.linkedItems.nodes.map((link) => ({
-												...link,
-												linkType:
-													linkTypes[item.iid]?.[link.workItem.iid] ??
-													link.linkType,
-											})),
-										},
-									}
-								: widget,
-						),
-					})),
+					nodes: recorded.data.project.workItems.nodes.map((item) => {
+						const parent = parents[item.iid];
+						return {
+							...item,
+							description: descriptions[item.iid] ?? item.description,
+							widgets: item.widgets.map((widget) =>
+								"parent" in widget && parent !== undefined
+									? { parent: parentOf(parent) }
+									: "linkedItems" in widget && widget.linkedItems !== undefined
+										? {
+												linkedItems: {
+													nodes: widget.linkedItems.nodes.map((link) => ({
+														...link,
+														linkType:
+															linkTypes[item.iid]?.[link.workItem.iid] ??
+															link.linkType,
+													})),
+												},
+											}
+										: widget,
+							),
+						};
+					}),
 				},
 			},
 		},
@@ -103,12 +132,13 @@ function workItemsOf(
  * recorded. The notes read needs a token to record, so it answers an empty list.
  */
 export function gitlabFake(options: GitlabFake = {}): Fetch {
-	const openRequests = opened.map((request) => ({
+	const repo = options.repo ?? gitlabRepo;
+	const openRequests = asRepo(opened, repo).map((request) => ({
 		...request,
 		...options.open?.[request.iid],
 	}));
 	const merged = options.merged ?? [];
-	const api = `https://gitlab.com/api/v4/projects/${encodeURIComponent(options.repo ?? gitlabRepo)}`;
+	const api = `https://gitlab.com/api/v4/projects/${encodeURIComponent(repo)}`;
 	return async (input, init) => {
 		const url = new URL(urlOf(input));
 		options.sent?.push(url.href);
@@ -119,7 +149,11 @@ export function gitlabFake(options: GitlabFake = {}): Fetch {
 			const { variables } = workItemsBody.parse(
 				JSON.parse(String(init?.body ?? "")),
 			);
-			return json(workItemsOf(variables.state, options));
+			return json(
+				variables.path === repo
+					? asRepo(workItemsOf(variables.state, options), repo)
+					: { data: { project: null } },
+			);
 		}
 		if (
 			url.pathname === "/api/v4/projects" &&
