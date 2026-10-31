@@ -45,6 +45,10 @@ export type RunMessage = {
 	/** The stage that asks, or the person who answers or steers. */
 	sender: string;
 	text: string;
+	/** The markdown of `text`, rendered and sanitized on the server like a ticket comment. */
+	html: string;
+	/** The id of the ask, on an ask message. */
+	question?: string;
 	/** The time of the message as an ISO string. */
 	at: string;
 };

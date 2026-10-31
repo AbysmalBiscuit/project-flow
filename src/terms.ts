@@ -215,7 +215,6 @@ export const runNotLiveLabel = "Not live: the factory is unreachable";
 
 export const earlierRunsLabel = "Earlier runs";
 
-export const runQuestionsLabel = "Run questions";
 export const answerFailed = "Answer failed";
 
 export const steerLabel = "Steer the run";

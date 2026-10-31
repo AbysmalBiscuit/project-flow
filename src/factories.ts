@@ -1,3 +1,4 @@
+import { commentHtml } from "./comment-html.ts";
 import type { Factory } from "./configuration.ts";
 import { factoryUrl } from "./configuration.ts";
 import type {
@@ -129,7 +130,7 @@ export function factoryReader(
 	const threaded = new Set<string>();
 	const addMessage = (
 		runId: string,
-		message: RunMessage,
+		message: Omit<RunMessage, "html">,
 		once?: string,
 	): void => {
 		if (once !== undefined) {
@@ -139,7 +140,10 @@ export function factoryReader(
 			}
 			threaded.add(key);
 		}
-		threads.set(runId, [...(threads.get(runId) ?? []), message]);
+		threads.set(runId, [
+			...(threads.get(runId) ?? []),
+			{ ...message, html: commentHtml(message.text) },
+		]);
 	};
 	/** Each ask and answer that is new to the thread of a run joins it. */
 	const threadAsks = (runId: string, asks: RunAsks): void => {
@@ -151,6 +155,7 @@ export function factoryReader(
 					kind: "ask",
 					sender: ask.node_path ?? "run",
 					text: ask.text,
+					question: ask.id,
 					at: ask.answered_at,
 				},
 				`question ${ask.id}`,
@@ -173,6 +178,7 @@ export function factoryReader(
 					kind: "ask",
 					sender: question.node_path ?? "run",
 					text: question.text,
+					question: question.id,
 					at: now().toISOString(),
 				},
 				`question ${question.id}`,

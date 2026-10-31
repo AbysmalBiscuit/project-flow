@@ -30,8 +30,11 @@ describe("run thread", () => {
 		kind: "steer" as const,
 		sender: steer.sender,
 		text: steer.text,
+		html: "<p>Use the v2 API</p>\n",
 		at: steer.delivered_at,
 	};
+	const scopeAskHtml =
+		"<p>This waits on Lev: the change needs the <code>read:org</code> scope on the factory token. Should the run add the scope, or drop the org check?</p>\n";
 
 	function post(base: string, path: string, body: unknown) {
 		return fetch(new URL(path, base), {
@@ -75,15 +78,74 @@ describe("run thread", () => {
 					kind: "ask",
 					sender: question.node_path,
 					text: question.text,
+					html: scopeAskHtml,
+					question: "7",
 					at: "2026-10-25T14:20:00.000Z",
 				},
 				{
 					kind: "answer",
 					sender: "lev",
 					text: "Add the scope.",
+					html: "<p>Add the scope.</p>\n",
 					at: "2026-10-25T14:25:00.000Z",
 				},
 				steerMessage,
+			]);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("an ask, an answer and a steer give their markdown as sanitized HTML", async () => {
+		const feed = new EventFeed();
+		const markdownAsk = {
+			...question,
+			text: "The run needs a scope.\n\n**Severity:** major\n\n- add `read:org` to `src/token.ts`\n- drop the org check\n\n<script>alert(1)</script>",
+		};
+		const app = await serveRuns(
+			{
+				...hubWith41("blocked"),
+				"/events": feed,
+				[questionsPath]: { questions: [markdownAsk] },
+				[answerPath]: { ...markdownAsk, answer: "Add the **scope**." },
+			},
+			[41],
+		);
+		try {
+			await feed.connected(1);
+			await overviewWhere(
+				app.base,
+				(seen) => factoryRunOf(seen, 41)?.questions !== undefined,
+			);
+			const answered = await post(
+				app.base,
+				`/api/factory-runs/${running41.id}/questions/${question.id}/answer`,
+				{ text: "Add the **scope**." },
+			);
+			expect(answered.status).toBe(200);
+			feed.send({
+				...steerDelivered,
+				item: {
+					...steerDelivered.item,
+					data: { ...steer, text: "Use the `v2` API" },
+				},
+			});
+			const body = await overviewWhere(
+				app.base,
+				(seen) => factoryRunOf(seen, 41)?.thread?.length === 3,
+			);
+			expect(
+				factoryRunOf(body, 41)?.thread?.map(({ kind, html }) => ({
+					kind,
+					html,
+				})),
+			).toEqual([
+				{
+					kind: "ask",
+					html: "<p>The run needs a scope.</p>\n<p><strong>Severity:</strong> major</p>\n<ul>\n<li>add <code>read:org</code> to <code>src/token.ts</code></li>\n<li>drop the org check</li>\n</ul>\n<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>\n",
+				},
+				{ kind: "answer", html: "<p>Add the <strong>scope</strong>.</p>\n" },
+				{ kind: "steer", html: "<p>Use the <code>v2</code> API</p>\n" },
 			]);
 		} finally {
 			await app.stop();
@@ -109,24 +171,30 @@ describe("run thread", () => {
 					kind: "ask",
 					sender: scope.node_path,
 					text: scope.text,
+					html: scopeAskHtml,
+					question: "7",
 					at: "2026-10-25T14:25:00+00:00",
 				},
 				{
 					kind: "answer",
 					sender: "lev",
 					text: "Add the scope.",
+					html: "<p>Add the scope.</p>\n",
 					at: "2026-10-25T14:25:00+00:00",
 				},
 				{
 					kind: "ask",
 					sender: review.node_path,
 					text: review.text,
+					html: "<p>The review found no test for the scope check. Should the run add one?</p>\n",
+					question: "8",
 					at: "2026-10-25T14:40:00+00:00",
 				},
 				{
 					kind: "answer",
 					sender: "someone",
 					text: "Yes, add one.",
+					html: "<p>Yes, add one.</p>\n",
 					at: "2026-10-25T14:40:00+00:00",
 				},
 			]);
