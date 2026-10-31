@@ -2,10 +2,10 @@ import type { PullRequest, Ticket, TrackerKind } from "./domain.ts";
 import type { Forge, PullLink, PullRef } from "./ports.ts";
 import {
 	foldKey,
-	githubKey,
 	keyNumber,
-	linearKey,
+	numberedKey,
 	sameTicketKey,
+	teamKey,
 } from "./ticket-key.ts";
 
 const closing =
@@ -21,11 +21,11 @@ function closingKeys(body: string, repo: string): string[] {
 		const linearNumber = match[5];
 		const key =
 			namedRepo !== undefined && namedNumber !== undefined
-				? githubKey(namedRepo, namedNumber)
+				? numberedKey(namedRepo, namedNumber)
 				: bareNumber !== undefined
-					? githubKey(repo, bareNumber)
+					? numberedKey(repo, bareNumber)
 					: team !== undefined && linearNumber !== undefined
-						? linearKey(team, linearNumber)
+						? teamKey(team, linearNumber)
 						: null;
 		if (key !== null && !keys.includes(key)) {
 			keys.push(key);

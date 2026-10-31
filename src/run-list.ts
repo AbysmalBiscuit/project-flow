@@ -1,6 +1,6 @@
 import type { FactoryRun, PullRequest, RunResult, Ticket } from "./domain.ts";
-import { endedRunStatusKinds } from "./domain.ts";
-import { githubKey } from "./ticket-key.ts";
+import { endedRunStatusKinds } from "./kinds.ts";
+import { numberedKey } from "./ticket-key.ts";
 import { runsFor } from "./workcell.ts";
 
 /** One row of the Runs list: a factory run with the ticket, project, PR and result that it works on. */
@@ -108,7 +108,7 @@ export function runList(
 		}
 		return {
 			...row,
-			key: run.repo === undefined ? run.key : githubKey(run.repo, run.key),
+			key: run.repo === undefined ? run.key : numberedKey(run.repo, run.key),
 			...(run.repo === undefined ? {} : { project: run.repo }),
 		};
 	});

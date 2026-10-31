@@ -6,6 +6,7 @@ import type {
 	Queued,
 	RunStart,
 	Ticket,
+	TrackerKind,
 } from "./domain.ts";
 import type { FactoryEntry } from "./factories.ts";
 import { foldKey } from "./ticket-key.ts";
@@ -35,18 +36,9 @@ type StartTicket = Pick<
 
 type Refused = { refused: string };
 
-/**
- * True when a factory takes a claimed start: it answers, it reports its run slots,
- * and no hub reads its runs, because a box takes its runs from that hub.
- */
-export function takesClaim(
-	entry: Pick<FactoryEntry, "reachable" | "slots" | "alsoReadThroughHub">,
-): boolean {
-	return (
-		entry.reachable === true &&
-		entry.slots !== undefined &&
-		entry.alsoReadThroughHub === undefined
-	);
+/** True when a factory can claim a ticket of `tracker`: a claimed start needs the repo of a GitHub ticket. */
+export function takesClaimedStart(tracker: TrackerKind): boolean {
+	return tracker === "github";
 }
 
 /** Why a ticket cannot start a run: it is closed, or it has a run that did not succeed. */
@@ -93,7 +85,7 @@ export function runStartOf(
 	if (factory?.readyLabel === undefined) {
 		return factories.length > 0 &&
 			ticket.key !== null &&
-			ticket.tracker === "github"
+			takesClaimedStart(ticket.tracker)
 			? claimWaits
 				? { requested: true }
 				: {}

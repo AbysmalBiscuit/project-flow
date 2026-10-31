@@ -140,6 +140,7 @@ export async function fetchLinearThread(
 		});
 	return {
 		tracker: "linear",
+		threaded: true,
 		project,
 		key: issue.identifier,
 		title: issue.title,

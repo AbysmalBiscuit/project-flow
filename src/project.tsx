@@ -16,10 +16,10 @@ import {
 	FilteredEmpty,
 	hidingFiltersOf,
 } from "./filter-clear.tsx";
+import { focusChain } from "./focus-chain.ts";
 import { ClearFocusButton } from "./focus-controls.tsx";
 import { shownSeeds, useFocusView } from "./focus.ts";
 import { graphEdges, projectNodeId } from "./graph-flow.ts";
-import { focusChain } from "./links.ts";
 import { TicketPanel } from "./panel.tsx";
 import { RefreshButton } from "./poll-freshness.tsx";
 import {
@@ -33,7 +33,7 @@ import { ProjectGraph } from "./project-graph.tsx";
 import { TicketTable } from "./project-table.tsx";
 import { ProjectWaiting } from "./project-waiting.tsx";
 import { pageQuery, useRefreshProject, useSaveSettings } from "./queries.ts";
-import { filterProjectReport } from "./report.ts";
+import { filterProjectReport } from "./report-filter.ts";
 import { RunFilterMenu } from "./run-filters.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell } from "./shell.tsx";

@@ -5,6 +5,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { board } from "./board-styles.ts";
 import { useCollapse } from "./collapse.ts";
 import type { ProjectReport, TicketState, TrackerKind } from "./domain.ts";
+import { focusChain } from "./focus-chain.ts";
 import { LegendFrame } from "./graph-core-view.tsx";
 import { type FlowTicket, graphTickets, projectNodeId } from "./graph-flow.ts";
 import { type Anchor, useLaidGraph } from "./graph-laid.tsx";
@@ -24,11 +25,10 @@ import {
 	GraphView,
 	type LinkProps,
 } from "./graph-view.tsx";
-import { parentChip } from "./grouping.ts";
-import { focusChain } from "./links.ts";
 import { pageQuery } from "./queries.ts";
 import { tonedProps } from "./state-tone.ts";
 import { projectGraphLabel } from "./terms.ts";
+import { parentChip } from "./ticket-groups.ts";
 import { outsideKey } from "./ticket-key.ts";
 import {
 	FrameToggleContext,

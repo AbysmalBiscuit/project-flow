@@ -4,7 +4,7 @@
 	"steps": [
 		{ "goto": "/settings" },
 		{ "assert_text": "Factory GitHub tokens" },
-		{ "click": "#factory-github-tokens" },
+		{ "click": "#factoryGithubTokens" },
 		{ "shot": "factory-tokens-on" },
 		{ "click": "#save-settings" },
 		{ "assert_text": "Settings saved" },

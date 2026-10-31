@@ -1,15 +1,14 @@
 import { z } from "zod";
 
-import {
-	type FactoryRun,
-	resumableRunStatusKinds,
-	type RunAgent,
-	type RunCheckpoint,
-	type RunDetail,
-	type RunEvent,
-	type RunGraph,
-	type RunStage,
-	type RunUsage,
+import type {
+	FactoryRun,
+	RunAgent,
+	RunCheckpoint,
+	RunDetail,
+	RunEvent,
+	RunGraph,
+	RunStage,
+	RunUsage,
 } from "./domain.ts";
 import {
 	body,
@@ -20,6 +19,7 @@ import {
 } from "./factory-http.ts";
 import { isLive, type ReadRun, type StatusRows } from "./factory-run-rows.ts";
 import type { Fetch } from "./fetch.ts";
+import { resumableRunStatusKinds } from "./kinds.ts";
 import { runUsage } from "./run-usage.ts";
 
 export type CheckpointRead = RunCheckpoint | "missing" | "not served";

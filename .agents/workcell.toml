@@ -1,6 +1,15 @@
 [merge]
 method = "squash"
 
-[workflow.standard]
+[standard.parameters]
 merge_auto = "yes"
 merge_rebase = "on-conflict"
+
+[change_risk.low]
+approvals = 0
+
+[change_risk.medium]
+approvals = 1
+
+[change_risk.high]
+approvals = 2

@@ -1,46 +1,14 @@
 import type { Configuration, UserState } from "./configuration.ts";
-import {
-	type Board,
-	type Lane,
-	type ProjectReport,
-	type StatusColours,
-	type StatusType,
-	statusTypes,
-	type Ticket,
-	type TicketState,
-	type TicketView,
+import type {
+	Board,
+	Lane,
+	StatusColours,
+	StatusType,
+	Ticket,
+	TicketState,
 } from "./domain.ts";
-
-const laneFallback: Record<TicketState, string> = {
-	done: "Done",
-	dropped: "Dropped",
-	backlog: "Backlog",
-	inProgress: "In progress",
-	inReview: "In review",
-	awaitingMerge: "Awaiting merge",
-};
-
-export function displayedLaneName(ticket: TicketView): string {
-	return ticket.lane ?? laneFallback[ticket.state];
-}
-
-export function doneTicketsForLane(
-	report: ProjectReport,
-	lane: string,
-): TicketView[] {
-	return report.doneTickets.filter(
-		(ticket) => displayedLaneName(ticket) === lane,
-	);
-}
-
-export const appLaneNames: Record<StatusType, string> = {
-	backlog: "Backlog",
-	inProgress: "In progress",
-	inReview: "In review",
-	awaitingMerge: "Awaiting merge",
-	done: "Done",
-	dropped: "Dropped",
-};
+import { statusTypes } from "./kinds.ts";
+import { appLaneNames } from "./lane-views.ts";
 
 const statusTypeOrder: readonly StatusType[] = statusTypes;
 
@@ -82,6 +50,14 @@ const droppedNames = new Set([
 	"won't do",
 	"wont do",
 ]);
+
+export {
+	appLaneNames,
+	categoryColours,
+	defaultStates,
+	displayedLaneName,
+	doneTicketsForLane,
+} from "./lane-views.ts";
 
 function laneName(name: string): string {
 	return name.trim().toLowerCase().replace(/\s+/g, " ");
@@ -348,32 +324,6 @@ export function laterState(
 	const currentAt = statusTypeOrder.indexOf(current);
 	const nextAt = statusTypeOrder.indexOf(next);
 	return nextAt > currentAt ? next : current;
-}
-
-/** One state per category, in category order. */
-export function defaultStates(colours: StatusColours): UserState[] {
-	return statusTypes.map((category) => ({
-		id: category,
-		label: appLaneNames[category],
-		colour: colours[category],
-		categories: [category],
-	}));
-}
-
-/** The first state of each category gives the colour of that category. */
-export function categoryColours(states: readonly UserState[]): StatusColours {
-	const colourOf = (category: StatusType) =>
-		states.find((state) => state.categories.includes(category))?.colour ??
-		states[0]?.colour ??
-		"";
-	return {
-		backlog: colourOf("backlog"),
-		inProgress: colourOf("inProgress"),
-		inReview: colourOf("inReview"),
-		awaitingMerge: colourOf("awaitingMerge"),
-		done: colourOf("done"),
-		dropped: colourOf("dropped"),
-	};
 }
 
 /** The board columns: one lane per user state, in the user's order. */

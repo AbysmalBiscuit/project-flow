@@ -21,6 +21,7 @@ export function card(
 		name: string;
 		tracker: "github";
 		ref: { tracker: "github"; repo: string };
+		displayKey: string;
 		done: number;
 		dropped: number;
 		blocked: number;
@@ -56,6 +57,7 @@ export function card(
 				name: repo,
 				tracker: "github",
 				ref: { tracker: "github", repo },
+				displayKey: repo,
 				done: 0,
 				dropped: 0,
 				blocked: 0,

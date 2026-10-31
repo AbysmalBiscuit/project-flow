@@ -79,6 +79,7 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 		nodes {
 			identifier
 			title
+			url
 			description
 			state { id name type color }
 			updatedAt
@@ -172,6 +173,7 @@ const relatedIssue = z.object({
 const issueNode = z.object({
 	identifier: z.string().optional(),
 	title: z.string().optional(),
+	url: z.string().optional(),
 	description: z.string().nullable().optional(),
 	updatedAt: z.string(),
 	state: z
@@ -398,6 +400,7 @@ function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 		tracker: "linear",
 		key: node.identifier,
 		title: node.title ?? "",
+		...(node.url === undefined ? {} : { url: node.url }),
 		state: mapped.state,
 		stateReason: mapped.stateReason,
 		updatedAt: node.updatedAt,

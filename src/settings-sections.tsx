@@ -1,8 +1,10 @@
+import { backendRows } from "./backend-labels.ts";
 import { Button } from "./button.tsx";
 import type { Configuration, UserState } from "./configuration.ts";
 import { control } from "./control-styles.ts";
+import type { BackendViews } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
-import { FactoryTokenRow, PollIntervalRow } from "./factory-token-row.tsx";
+import { BackendSwitchRow, PollIntervalRow } from "./factory-token-row.tsx";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import { Select } from "./select.tsx";
 import {
@@ -16,7 +18,6 @@ import {
 	Row,
 	sections,
 	Switch,
-	type Trackers,
 } from "./settings-parts.tsx";
 import { settings as fields } from "./settings-styles.ts";
 import { tonedProps } from "./state-tone.ts";
@@ -88,8 +89,10 @@ export function GeneralSection({
 	theme,
 	draft,
 	factoryTokenReports,
+	switches,
 	onChange,
 }: {
+	switches: BackendViews["switches"];
 	theme: string;
 	draft: Configuration;
 	factoryTokenReports: FactoryTokenReport[];
@@ -116,11 +119,15 @@ export function GeneralSection({
 					}
 				/>
 			</Row>
-			<FactoryTokenRow
-				checked={draft.factoryGithubTokens}
-				reports={factoryTokenReports}
-				onChange={onChange}
-			/>
+			{switches.map((row) => (
+				<BackendSwitchRow
+					key={row.setting}
+					row={row}
+					checked={draft[row.setting]}
+					reports={factoryTokenReports}
+					onChange={(next) => onChange({ [row.setting]: next })}
+				/>
+			))}
 			<PollIntervalRow
 				seconds={draft.pollIntervalSeconds}
 				onChange={onChange}
@@ -265,9 +272,11 @@ export function ProjectViewsSection({
 
 export function ReviewSection({
 	draft,
+	laneHint,
 	onChange,
 }: {
 	draft: Configuration;
+	laneHint: string;
 	onChange: (next: Partial<Configuration>) => void;
 }) {
 	return (
@@ -289,7 +298,7 @@ export function ReviewSection({
 					onChange={(viewerLogins) => onChange({ viewerLogins })}
 				/>
 			</Row>
-			<Row title={settingsCopy.laneMappings} hint={settingsCopy.laneHint}>
+			<Row title={settingsCopy.laneMappings} hint={laneHint}>
 				<MappingEditor
 					mappings={draft.laneMappings}
 					onChange={(laneMappings) => onChange({ laneMappings })}
@@ -389,17 +398,19 @@ export function NotificationsSection({
 	);
 }
 
-export function TrackersSection({ trackers }: { trackers: Trackers }) {
+export function TrackersSection({ backends }: { backends: BackendViews }) {
 	return (
 		<section id="trackers" className={clsx(fields.card)}>
 			<h2 className={clsx(fields.cardTitle)}>{settingsSection.trackers}</h2>
 			<p className={clsx(fields.hint)}>{settingsCopy.trackersLead}</p>
-			<Row title={settingsCopy.github} hint={settingsCopy.githubHint}>
-				<Credential id="github-status" present={trackers.github} />
-			</Row>
-			<Row title={settingsCopy.linear} hint={settingsCopy.linearHint}>
-				<Credential id="linear-status" present={trackers.linear} />
-			</Row>
+			{backendRows(backends).map((backend) => (
+				<Row key={backend.kind} title={backend.label} hint={backend.hint}>
+					<Credential
+						id={`${backend.kind}-status`}
+						present={backend.credential === "present"}
+					/>
+				</Row>
+			))}
 		</section>
 	);
 }

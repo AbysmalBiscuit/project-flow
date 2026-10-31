@@ -1,9 +1,17 @@
 import { useSyncExternalStore } from "react";
 
-import { ticketPath, urlTicket } from "./paths.ts";
+import { type TicketLink, ticketPath, urlTicket } from "./paths.ts";
 import { sameTicket, type TicketRef, ticketRefOf } from "./ticket-key.ts";
 
-let shown: { href: string; ticket: TicketRef | null } | null = null;
+type ShownLink = {
+	href: string;
+	ticket: TicketRef | null;
+	/** A ticket link with no tracker that the API names, until the report of its project names one. */
+	unresolved: Omit<TicketLink, "tracker"> | null;
+};
+
+let shown: ShownLink | null = null;
+const knownTrackers = new Set<TicketRef["tracker"]>();
 const listeners = new Set<() => void>();
 
 function publish(): void {
@@ -12,14 +20,53 @@ function publish(): void {
 	}
 }
 
-/** The ticket in the side panel. The page URL holds it, so a reload, the back button and a shared link reopen it. */
-export function activeTicket(): TicketRef | null {
+function shownLink(): ShownLink {
 	const href = `${window.location.pathname}${window.location.search}`;
 	if (shown?.href === href) {
-		return shown.ticket;
+		return shown;
 	}
-	shown = { href, ticket: urlTicket(window.location) };
-	return shown.ticket;
+	const link = urlTicket(window.location);
+	const tracker =
+		[...knownTrackers].find((known) => known === link?.tracker) ?? null;
+	shown = {
+		href,
+		ticket:
+			link === null || tracker === null
+				? null
+				: ticketRefOf({ ...link, tracker }),
+		unresolved:
+			link !== null && tracker === null
+				? {
+						project: link.project,
+						key: link.key,
+						...(link.host === undefined ? {} : { host: link.host }),
+					}
+				: null,
+	};
+	return shown;
+}
+
+/** Adds tracker kinds that the API names. A ticket link can name only these. */
+export function knowTrackers(kinds: readonly TicketRef["tracker"][]): void {
+	for (const kind of kinds) {
+		knownTrackers.add(kind);
+	}
+	shown = null;
+	publish();
+}
+
+/** The ticket in the side panel. The page URL holds it, so a reload, the back button and a shared link reopen it. */
+export function activeTicket(): TicketRef | null {
+	return shownLink().ticket;
+}
+
+function unresolvedLink(): ShownLink["unresolved"] {
+	return shownLink().unresolved;
+}
+
+/** True when the page URL names a ticket, also before the API names its tracker. */
+export function hasTicketLink(): boolean {
+	return activeTicket() !== null || unresolvedLink() !== null;
 }
 
 function writeTicket(
@@ -42,6 +89,8 @@ export function openTicket(
 	ticket: TicketRef,
 	history: "push" | "replace" = "push",
 ): void {
+	knownTrackers.add(ticket.tracker);
+	shown = null;
 	const current = activeTicket();
 	if (current === null || !sameTicket(current, ticket)) {
 		writeTicket(ticketRefOf(ticket), history);
@@ -67,4 +116,8 @@ function subscribe(listener: () => void): () => void {
 
 export function useActiveTicket(): TicketRef | null {
 	return useSyncExternalStore(subscribe, activeTicket, activeTicket);
+}
+
+export function useUnresolvedLink(): ShownLink["unresolved"] {
+	return useSyncExternalStore(subscribe, unresolvedLink, unresolvedLink);
 }

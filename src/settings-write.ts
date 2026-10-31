@@ -7,9 +7,9 @@ import {
 } from "./configuration.ts";
 import { stateSourceKey } from "./counts.ts";
 import type {
+	BackendViews,
 	SettingsProject,
 	SettingsSnapshot,
-	TrackerKind,
 } from "./domain.ts";
 import type { FactoryEntry } from "./factories.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
@@ -19,24 +19,24 @@ import { knownRepos, settingsProjects } from "./settings-catalogue.ts";
 
 export function settingsResponse(
 	configuration: Configuration,
-	configured: Record<TrackerKind, boolean>,
+	backends: BackendViews,
 	catalogue: FoundProject[],
 	snapshots: SettingsSnapshot[],
 	factoryTokenReports: FactoryTokenReport[],
 	factoryEntries: FactoryEntry[],
 	discovering: boolean,
-): Configuration & {
-	trackers: Record<TrackerKind, boolean>;
-	projects: SettingsProject[];
-	factoryTokenReports: FactoryTokenReport[];
-	factoryEntries: FactoryEntry[];
-	stateSources: StateSource[];
-	/** A discovery runs, so `projects` can still change. */
-	discovering?: true;
-} {
+): Configuration &
+	BackendViews & {
+		projects: SettingsProject[];
+		factoryTokenReports: FactoryTokenReport[];
+		factoryEntries: FactoryEntry[];
+		stateSources: StateSource[];
+		/** A discovery runs, so `projects` can still change. */
+		discovering?: true;
+	} {
 	return {
 		...configuration,
-		trackers: configured,
+		...backends,
 		projects: settingsProjects(configuration, catalogue, snapshots),
 		factoryTokenReports,
 		factoryEntries,
@@ -84,6 +84,9 @@ function withoutTrackers(text: string): string {
 	}
 	const {
 		trackers: _trackers,
+		forges: _forges,
+		switches: _switches,
+		hints: _hints,
 		projects: _projects,
 		factoryTokenReports: _factoryTokenReports,
 		factoryEntries: _factoryEntries,

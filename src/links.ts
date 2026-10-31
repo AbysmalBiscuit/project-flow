@@ -1,6 +1,5 @@
 import { blockerProject, type TicketGraph } from "./blockers.ts";
 import type {
-	FocusLink,
 	GraphEnd,
 	GraphLink,
 	ProjectReport,
@@ -268,11 +267,17 @@ function withEndStates(
 	}));
 }
 
+/** The page of a ticket that the store knows, from any project. */
+export type KnownTicketUrl = (
+	ticket: Pick<TicketRelation, "tracker" | "project" | "key">,
+) => string | undefined;
+
 export function shownGraph(
 	name: string,
 	tracker: TrackerKind,
 	views: TicketView[],
 	relationsByKey: Map<string, ReturnType<typeof ticketRelations>>,
+	knownUrl: KnownTicketUrl,
 ): { tickets: TicketView[]; links: ShownGraphLink[] } {
 	const withKey = views.filter(
 		(view): view is TicketView & { key: string } => view.key !== null,
@@ -320,14 +325,24 @@ export function shownGraph(
 		key: string,
 		title: string,
 		tracker: TrackerKind,
+		url: string | undefined,
 		state?: TicketState,
 	): GraphEnd => ({
 		project,
 		key,
 		tracker,
 		title,
+		...(url === undefined ? {} : { url }),
 		...(state === undefined ? {} : { state }),
 	});
+	const outsideEnd = (ticket: TicketRelation): GraphEnd =>
+		endOf(
+			ticket.project,
+			ticket.key,
+			ticket.title,
+			ticket.tracker,
+			knownUrl(ticket),
+		);
 	const push = (from: GraphEnd, to: GraphEnd, done: boolean) => {
 		if (
 			from.project.toLowerCase() === to.project.toLowerCase() &&
@@ -350,7 +365,14 @@ export function shownGraph(
 		if (relations === undefined) {
 			continue;
 		}
-		const target = endOf(name, view.key, view.title, tracker, view.state);
+		const target = endOf(
+			name,
+			view.key,
+			view.title,
+			tracker,
+			view.url,
+			view.state,
+		);
 		for (const link of relations.links) {
 			const outside = link.outside;
 			const holder = local.get(foldKey(link.key));
@@ -361,9 +383,10 @@ export function shownGraph(
 							link.key,
 							holder?.title ?? link.key,
 							tracker,
+							holder?.url,
 							holder?.state,
 						)
-					: endOf(outside.project, outside.key, outside.title, outside.tracker);
+					: outsideEnd(outside);
 			const onGraph = outside !== undefined || holder !== undefined;
 			if (onGraph) {
 				push(source, target, link.done);
@@ -373,11 +396,7 @@ export function shownGraph(
 			if (blocked.project.toLowerCase() === name.toLowerCase()) {
 				continue;
 			}
-			push(
-				target,
-				endOf(blocked.project, blocked.key, blocked.title, blocked.tracker),
-				view.state === "done",
-			);
+			push(target, outsideEnd(blocked), view.state === "done");
 		}
 	}
 	return { tickets: shown, links };
@@ -389,28 +408,4 @@ export function attachGraphStates(reports: ProjectReport[]): ProjectReport[] {
 		...report,
 		graphLinks: withEndStates(report.graphLinks, states),
 	}));
-}
-
-/** The focused ids plus every id upstream or downstream of them through the links. */
-export function focusChain(
-	seeds: ReadonlySet<string>,
-	links: readonly FocusLink[],
-): ReadonlySet<string> {
-	const chain = new Set(seeds);
-	const walk = (next: (id: string) => string[]) => {
-		const queue = [...seeds];
-		const seen = new Set(seeds);
-		for (let id = queue.pop(); id !== undefined; id = queue.pop()) {
-			for (const other of next(id)) {
-				if (!seen.has(other)) {
-					seen.add(other);
-					chain.add(other);
-					queue.push(other);
-				}
-			}
-		}
-	};
-	walk((id) => links.filter((link) => link.to === id).map((link) => link.from));
-	walk((id) => links.filter((link) => link.from === id).map((link) => link.to));
-	return chain;
 }

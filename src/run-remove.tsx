@@ -3,7 +3,8 @@ import { useState } from "react";
 
 import { Button } from "./button.tsx";
 import { ConfirmDialog } from "./confirm-dialog.tsx";
-import { endedRunStatusKinds, type FactoryRun } from "./domain.ts";
+import type { FactoryRun } from "./domain.ts";
+import { endedRunStatusKinds } from "./kinds.ts";
 import { panel } from "./panel-styles.ts";
 import { useRemoveRun } from "./run-mutations.ts";
 import { runRemoveCopy } from "./terms.ts";

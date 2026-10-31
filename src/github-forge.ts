@@ -3,7 +3,7 @@ import { loadLinkedPulls, type ReviewEvidence } from "./github-pulls.ts";
 import type { GithubReads } from "./github-reads.ts";
 import { readAutoMerge } from "./github-repo-query.ts";
 import { type Forge, TrackerError } from "./ports.ts";
-import { githubKey } from "./ticket-key.ts";
+import { numberedKey } from "./ticket-key.ts";
 
 export function githubForge(
 	token: string,
@@ -32,7 +32,7 @@ export function githubForge(
 			const { pulls } = await readOf(repo);
 			for (const pull of pulls) {
 				if (pull.merged) {
-					seenReviews.set(githubKey(repo, pull.number), {
+					seenReviews.set(numberedKey(repo, pull.number), {
 						checks: pull.checks,
 						comments: pull.comments,
 						reviews: pull.reviews,

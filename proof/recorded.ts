@@ -77,6 +77,8 @@ export async function serveRecorded(options: {
 	databasePath?: string;
 	fetch: Fetch;
 	now?: () => Date;
+	/** Replaces the recorded credentials, to show a missing one. */
+	credentials?: Record<string, string>;
 }): Promise<never> {
 	const dir = options.dir ?? (await mkdtemp(join("/var/tmp", options.prefix)));
 	const configPath = options.configPath ?? join(dir, "config.json");
@@ -89,8 +91,10 @@ export async function serveRecorded(options: {
 		["--config", configPath, "--host", "127.0.0.1", "--port", options.port],
 		{
 			env: {
-				GITHUB_TOKEN: "recorded-token",
-				LINEAR_API_KEY: "recorded-linear-key",
+				...(options.credentials ?? {
+					GITHUB_TOKEN: "recorded-token",
+					LINEAR_API_KEY: "recorded-linear-key",
+				}),
 				XDG_DATA_HOME: dir,
 			},
 			fetch: options.fetch,

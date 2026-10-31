@@ -4,8 +4,8 @@ import { useState } from "react";
 
 import { board } from "./board-styles.ts";
 import { textControl } from "./control-styles.ts";
-import { runResults, runStatusKinds } from "./domain.ts";
 import { Dropdown, MultiDropdown } from "./dropdown.tsx";
+import { runResults, runStatusKinds } from "./kinds.ts";
 import { Loading } from "./loading.tsx";
 import { needs } from "./needs-you-styles.ts";
 import { pageQuery } from "./queries.ts";

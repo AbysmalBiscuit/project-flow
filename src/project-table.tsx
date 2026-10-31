@@ -10,12 +10,12 @@ import {
 import { useCollapse } from "./collapse.ts";
 import { control } from "./control-styles.ts";
 import type { ProjectReport, TicketRelation, TicketView } from "./domain.ts";
-import { ticketGroups } from "./grouping.ts";
-import { displayedLaneName } from "./lanes.ts";
+import { displayedLaneName } from "./lane-views.ts";
 import { QueuedChip } from "./run-marks.tsx";
 import { tonedProps } from "./state-tone.ts";
 import { tableTree } from "./table-tree-styles.ts";
 import { navLabel, subTicketsToggleLabel } from "./terms.ts";
+import { ticketGroups } from "./ticket-groups.ts";
 import { cardKey, foldKey, itemId, shortKey } from "./ticket-key.ts";
 import { type TreeRow, treeRows } from "./ticket-tree.ts";
 import { clsx } from "./ui.ts";

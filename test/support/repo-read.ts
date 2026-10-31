@@ -174,6 +174,7 @@ export function githubIssueNode(
 	return {
 		number: item.number,
 		title: item.title ?? `Ticket ${item.number}`,
+		url: item.html_url ?? item.url,
 		state: state === "CLOSED" || state === "OPEN" ? state : "OPEN",
 		stateReason:
 			item.stateReason ??

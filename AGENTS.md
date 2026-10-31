@@ -93,4 +93,4 @@ Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents
 
 ### Workcell roles
 
-`.agents/workcell.toml` sets the role of each workcell agent. The PM is the senior and does the senior review. No senior agent runs. A run posts each senior question on its issue, and the PM answers there.
+The workcell standard workflow sets the agent of each role. `.agents/workcell.toml` sets only the merge policy. A senior agent runs in each run and does the senior review.
