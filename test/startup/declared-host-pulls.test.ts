@@ -3,8 +3,8 @@ import { describe, expect, test } from "bun:test";
 import type { NeedsYouItem, PullRequest, Snapshot } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
 import { githubFetch } from "../review-github-fake.ts";
-import { codex } from "../review/_support.ts";
 import { devkitWorktree } from "../support/checkouts.ts";
+import { codex } from "../support/github.ts";
 import {
 	readOverview,
 	readWhere,
