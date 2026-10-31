@@ -324,7 +324,7 @@ export function focusSeeds(
 
 /**
  * The ELK options that fill a group frame best, from the elkjs spike tables
- * that `proof/elk-spike/measure.ts` prints.
+ * in issue 349.
  *
  * ELK lays out each group alone and ignores the arrows between groups, so the
  * graph routes those arrows itself.

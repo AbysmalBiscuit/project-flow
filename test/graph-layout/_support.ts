@@ -1,5 +1,5 @@
 import type { ProjectReport } from "../../src/domain.ts";
-import { projectNodeId } from "../../src/graph-flow.ts";
+import { flowGap, projectNodeId } from "../../src/graph-flow.ts";
 import {
 	frameId,
 	type GraphLayout,
@@ -11,6 +11,19 @@ import { linearSlug, withApp } from "../project-harness.ts";
 import { type LinearFake, linearFake } from "../support/linear.ts";
 
 export const card = { width: 220, height: 96 };
+
+/** Share of the cells in a frame that hold a card, with one cell per card and gap. */
+export function fillShare(
+	cards: number,
+	inner: { width: number; height: number },
+): number {
+	const gapX = flowGap.along - card.width;
+	const gapY = flowGap.across - card.height;
+	return (
+		(cards * flowGap.along * flowGap.across) /
+		((inner.width + gapX) * (inner.height + gapY))
+	);
+}
 
 /** Measured sizes that make every other card as tall as a card with a long title. */
 export function tallCards(input: LayoutInput): Map<string, NodeSize> {

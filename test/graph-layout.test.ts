@@ -2,7 +2,6 @@ import { afterAll, describe, expect, test } from "bun:test";
 
 import ELK from "elkjs/lib/elk-api.js";
 
-import { fillShare } from "../proof/elk-spike/graph.ts";
 import { focusChain } from "../src/focus-chain.ts";
 import { graphTickets, projectNodeId } from "../src/graph-flow.ts";
 import { grownLayout } from "../src/graph-grow.ts";
@@ -22,6 +21,7 @@ import {
 	cardOf,
 	cardOverlaps,
 	chains,
+	fillShare,
 	frameOverlaps,
 	hierarchyReport,
 	inside,
@@ -128,7 +128,7 @@ function layerOrders(
 
 describe("project graph layout", () => {
 	test("each workcell workstream frame fills at least the share the elkjs spike recorded", async () => {
-		// `proof/elk-spike/measure.ts` prints these shares for ELK `layered` again.
+		// The elkjs spike in issue 349 recorded these shares for ELK `layered`.
 		const recorded: Record<string, number> = {
 			"no workstream": 0.71,
 			"AbysmalBiscuit/workcell#654": 0.42,

@@ -47,6 +47,7 @@ The code is hexagonal.
 - The graph layout runs only in the client. Its layout suite is an exception to the seam: it tests the layout functions on recorded tickets.
 - React components are thin views of the API responses and have no test suite. A browser check of the running app is a proof step for each UI change.
 - Each proof, screenshot or manual run sets `XDG_DATA_HOME` to a temporary folder.
+- Proof media goes into the PR body through `devkit pr create --attach` or `devkit pr edit --attach`. The repo holds no proof files.
 
 #### Test layout
 
