@@ -1,5 +1,11 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import type { PullRequest, Snapshot } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
 import { run } from "../../src/main.ts";
+import { sqliteStore } from "../../src/store.ts";
 import { tempConfig, testIo } from "../support/app.ts";
 import { urlOf } from "../support/fetch.ts";
 import { recordedDiscovery, unrecorded } from "../support/github.ts";
@@ -72,6 +78,31 @@ export const hosts = [{ host, forge: "github", tokenEnv }];
 export const widget = { tracker: "github" as const, repo: "acme/widget" };
 export const hostedWidget = { ...widget, host };
 
+/** A PR of `acme/widget` on the declared host, as a store row holds it. */
+export function storedPull(
+	number: number,
+	extra: Partial<PullRequest>,
+): PullRequest {
+	return {
+		repo: "acme/widget",
+		number,
+		url: `https://${host}/acme/widget/pull/${number}`,
+		title: `Change ${number}`,
+		draft: false,
+		branch: `change-${number}`,
+		body: "",
+		closingKeys: [],
+		headSha: "head",
+		headCommittedAt: null,
+		merged: false,
+		checks: [],
+		comments: [],
+		reviews: [],
+		reactions: [],
+		...extra,
+	};
+}
+
 export function recordingFetch(
 	sent: { url: string; authorization: string | null }[],
 ): Fetch {
@@ -116,5 +147,24 @@ export async function withStarted(
 		await finished;
 	} finally {
 		await cleanup();
+	}
+}
+
+/** Runs the checks on an app whose store holds one row before it starts. */
+export async function withStoredRow(
+	row: Snapshot,
+	configuration: Record<string, unknown>,
+	checks: (base: string) => Promise<void>,
+	fetchImpl?: Fetch,
+): Promise<void> {
+	const root = await mkdtemp(join(tmpdir(), "project-flow-hosts-"));
+	const databasePath = join(root, "project-flow.sqlite");
+	const seeded = sqliteStore(databasePath);
+	seeded.store.mergeTickets([row]);
+	seeded.close();
+	try {
+		await withStarted(configuration, checks, fetchImpl, databasePath);
+	} finally {
+		await rm(root, { recursive: true, force: true });
 	}
 }

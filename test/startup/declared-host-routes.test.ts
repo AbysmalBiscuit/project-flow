@@ -1,56 +1,29 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 
-import type { PullRequest, Snapshot } from "../../src/domain.ts";
+import type { Snapshot } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
 import { pendingStatus } from "../../src/stale-reads.ts";
-import { sqliteStore } from "../../src/store.ts";
 import { devkitWorktree } from "../support/checkouts.ts";
 import {
 	host,
 	hostedWidget,
 	hosts,
 	recordingFetch,
+	storedPull,
 	widget,
-	withStarted,
+	withStoredRow,
 } from "./_support.ts";
 
 const hostedName = `${host}/acme/widget`;
 
-function storedPull(number: number, extra: Partial<PullRequest>): PullRequest {
-	return {
-		repo: "acme/widget",
-		number,
-		url: `https://${host}/acme/widget/pull/${number}`,
-		title: `Change ${number}`,
-		draft: false,
-		branch: `change-${number}`,
-		body: "",
-		closingKeys: [],
-		headSha: "head",
-		headCommittedAt: null,
-		merged: false,
-		checks: [],
-		comments: [],
-		reviews: [],
-		reactions: [],
-		...extra,
-	};
-}
-
 /** Runs the checks on an app whose store holds one row of the declared host. */
-async function withHostedRow(
+function withHostedRow(
 	row: Pick<Snapshot, "pulls" | "tickets">,
 	configuration: Record<string, unknown>,
 	checks: (base: string) => Promise<void>,
 	fetchImpl?: Fetch,
 ): Promise<void> {
-	const root = await mkdtemp(join(tmpdir(), "project-flow-hosts-"));
-	const databasePath = join(root, "project-flow.sqlite");
-	const seeded = sqliteStore(databasePath);
-	seeded.store.mergeTickets([
+	return withStoredRow(
 		{
 			key: "acme/widget",
 			name: hostedName,
@@ -60,18 +33,10 @@ async function withHostedRow(
 			startedKeys: [],
 			...row,
 		},
-	]);
-	seeded.close();
-	try {
-		await withStarted(
-			{ hosts, tracked: [hostedWidget], ...configuration },
-			checks,
-			fetchImpl,
-			databasePath,
-		);
-	} finally {
-		await rm(root, { recursive: true, force: true });
-	}
+		{ hosts, tracked: [hostedWidget], ...configuration },
+		checks,
+		fetchImpl,
+	);
 }
 
 /** The state of each card of the project on the declared host, by the number of its PR. */

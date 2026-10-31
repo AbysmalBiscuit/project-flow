@@ -109,24 +109,6 @@ export function settingsKey(key: string, host: string | undefined): string {
 	return host === undefined ? key : `${host}/${key}`;
 }
 
-/** The entries of a record that `settingsKey` keys, by the name inside the host. */
-export function hostEntries<Value>(
-	record: Readonly<Record<string, Value>>,
-	host: string | undefined,
-): Readonly<Record<string, Value>> {
-	if (host === undefined) {
-		return record;
-	}
-	const prefix = `${host}/`;
-	return Object.fromEntries(
-		Object.entries(record).flatMap(([key, value]) =>
-			key.toLowerCase().startsWith(prefix)
-				? [[key.slice(prefix.length), value]]
-				: [],
-		),
-	);
-}
-
 /** The declared host of a project, or undefined for a project on its tracker's own host. */
 export function refHost(ref: ProjectRef): string | undefined {
 	return ref.kind === "github-repo" ? ref.host : undefined;

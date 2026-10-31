@@ -10,7 +10,6 @@ import { knownBots } from "./known-bots.ts";
 import { emptyStatusTypes } from "./lanes.ts";
 import { projectHasPmBot } from "./open-ask.ts";
 import {
-	hostEntries,
 	listedRef,
 	pinRef,
 	projectId,
@@ -108,37 +107,43 @@ export function pendingProjects(
 	});
 }
 
+type SettingsPull = SettingsSnapshot["pulls"][number];
+
+/** The `settingsKey` of the repo of a PR, on the host of the PR, as the review rules key it. */
+function pullRepoKey(pull: SettingsPull): string {
+	return settingsKey(pull.repo, pull.host);
+}
+
+/** The `settingsKey` of each repo of a project. */
 export function reposFor(
 	project: CatalogueProject,
 	snapshots: readonly SettingsSnapshot[],
 ): string[] {
 	const ref = listedRef(project);
 	const row = snapshots.find((item) => sameProject(listedRef(item), ref));
-	if (row !== undefined && row.pulls.length > 0) {
-		return [...new Set(row.pulls.map((pull) => pull.repo).filter(Boolean))];
+	const pulls = row?.pulls.filter((pull) => pull.repo !== "") ?? [];
+	if (pulls.length > 0) {
+		return [...new Set(pulls.map(pullRepoKey))];
 	}
 	const repo = refRepo(ref);
-	return repo === null ? [] : [repo];
+	return repo === null ? [] : [settingsKey(repo, refHost(ref))];
 }
 
 export function botsFor(
 	repos: readonly string[],
 	expectedBots: Configuration["expectedBots"],
 	pulls: Parameters<typeof expectedBotsByRepo>[0],
-	host: string | undefined,
 ): { expectedBots: KnownBot[]; repoBots: Record<string, KnownBot[]> } {
-	const overrides = hostEntries(expectedBots ?? {}, host);
+	const overrides = expectedBots ?? {};
 	const inferred = expectedBotsByRepo(pulls, {});
 	const repoBots: Record<string, KnownBot[]> = {};
 	for (const repo of repos) {
 		const saved = repoKey(overrides, repo);
 		const source =
 			saved === undefined
-				? (inferred.get(settingsKey(repo, host)) ?? [])
+				? (inferred.get(repo) ?? [])
 				: (overrides[saved] ?? []);
-		repoBots[settingsKey(repo, host)] = knownBots.filter((bot) =>
-			source.includes(bot),
-		);
+		repoBots[repo] = knownBots.filter((bot) => source.includes(bot));
 	}
 	const found = Object.values(repoBots).flat();
 	return {
@@ -150,12 +155,9 @@ export function botsFor(
 function pullsFor(
 	repos: readonly string[],
 	snapshots: readonly SettingsSnapshot[],
-	host: string | undefined,
-): SettingsSnapshot["pulls"] {
+): SettingsPull[] {
 	return snapshots.flatMap((item) =>
-		refHost(listedRef(item)) === host
-			? item.pulls.filter((pull) => repos.includes(pull.repo))
-			: [],
+		item.pulls.filter((pull) => repos.includes(pullRepoKey(pull))),
 	);
 }
 
@@ -166,14 +168,12 @@ function catalogueRow(
 	source: SettingsProject["source"],
 	ref: ProjectPin,
 ): SettingsProject {
-	const host = refHost(listedRef(project));
-	const key = settingsKey(project.key, host);
+	const key = settingsKey(project.key, refHost(listedRef(project)));
 	const repos = reposFor(project, snapshots);
 	const bots = botsFor(
 		repos,
 		configuration.expectedBots,
-		pullsFor(repos, snapshots, host),
-		host,
+		pullsFor(repos, snapshots),
 	);
 	return {
 		name: displayName(project),
@@ -182,7 +182,7 @@ function catalogueRow(
 		source,
 		tracked: configuration.tracked.some((item) => matchesRef(project, item)),
 		pmBot: projectHasPmBot(configuration.pmBot, key, project.tracker),
-		repos: repos.map((repo) => settingsKey(repo, host)),
+		repos,
 		expectedBots: bots.expectedBots,
 		repoBots: bots.repoBots,
 		ref,
@@ -229,16 +229,14 @@ export function knownRepos(
 ): Set<string> {
 	const repos = new Set<string>();
 	for (const project of catalogue) {
-		const host = refHost(listedRef(project));
 		for (const repo of reposFor(project, snapshots)) {
-			repos.add(settingsKey(repo, host));
+			repos.add(repo);
 		}
 	}
 	for (const row of snapshots) {
-		const host = refHost(listedRef(row));
 		for (const pull of row.pulls) {
 			if (pull.repo !== "") {
-				repos.add(settingsKey(pull.repo, host));
+				repos.add(pullRepoKey(pull));
 			}
 		}
 	}

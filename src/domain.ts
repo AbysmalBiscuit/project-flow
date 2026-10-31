@@ -964,7 +964,7 @@ export type SettingsSnapshot = Pick<
 > & {
 	pulls: Pick<
 		PullRequest,
-		"repo" | "merged" | "checks" | "comments" | "reviews" | "reactions"
+		"repo" | "host" | "merged" | "checks" | "comments" | "reviews" | "reactions"
 	>[];
 };
 
