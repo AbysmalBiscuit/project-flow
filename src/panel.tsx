@@ -48,7 +48,12 @@ import {
 	threadMissingLabel,
 	threadRetryLabel,
 } from "./terms.ts";
-import { githubIssueUrl, sameTicketKey, type TicketRef } from "./ticket-key.ts";
+import {
+	githubIssueUrl,
+	namedEntry,
+	sameTicketKey,
+	type TicketRef,
+} from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 
 type ReplyTarget = {
@@ -68,12 +73,10 @@ function trackerUrl(ticket: TicketRef): string | undefined {
 
 function needsYouItem(
 	report: ProjectReport | null,
-	key: string,
+	ticket: TicketRef,
 ): NeedsYouItem | null {
 	const section = report?.sections.find((item) => item.id === "needsYou");
-	return (
-		section?.needsYou?.find((item) => sameTicketKey(item.key, key)) ?? null
-	);
+	return namedEntry(section?.needsYou ?? [], ticket) ?? null;
 }
 
 /**
@@ -117,18 +120,18 @@ export function TicketPanel({
 	onClose: () => void;
 	dock?: boolean;
 }) {
-	const { tracker, project, key: ticketKey } = ticket;
+	const { tracker, project, key: ticketKey, host: pullHost } = ticket;
 	const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
 	const [draft, setDraft] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [picked, setPicked] = useState(false);
 	const [expanded, setExpanded] = useState(false);
-	const threadQuery = useQuery(pageQuery.thread(tracker, project, ticketKey));
+	const threadQuery = useQuery(
+		pageQuery.thread(tracker, project, ticketKey, pullHost),
+	);
 	const reportQuery = useQuery(pageQuery.project(project, "all"));
 	const report = reportQuery.data ?? null;
-	const view = report?.tickets.find(
-		(item) => item.key !== null && sameTicketKey(item.key, ticketKey),
-	);
+	const view = namedEntry(report?.tickets ?? [], ticket);
 	const readOutside = useCallback(() => outsideTicket(ticket), [ticket]);
 	const outside = useSyncExternalStore(
 		subscribeReports,
@@ -136,13 +139,19 @@ export function TicketPanel({
 		readOutside,
 	);
 	const known = view ?? outside;
-	const item = needsYouItem(report, ticketKey);
+	const item = needsYouItem(report, ticket);
 	useEffect(() => {
 		if (report !== null && report.tracker !== tracker) {
 			openTicket({ ...ticket, tracker: report.tracker }, "replace");
 		}
 	}, [report, tracker, ticket]);
-	const reply = usePostReply(tracker, project, ticketKey);
+	const reply = usePostReply(tracker, project, ticketKey, pullHost);
+	const replyTarget = {
+		tracker,
+		project,
+		key: ticketKey,
+		...(pullHost === undefined ? {} : { host: pullHost }),
+	};
 	const pending = reply.isPending;
 	const root = useRef<HTMLElement>(null);
 	const slot = useRef<HTMLDivElement>(null);
@@ -205,7 +214,7 @@ export function TicketPanel({
 		}
 		setError(null);
 		try {
-			await reply.mutateAsync({ tracker, project, key: ticketKey, option });
+			await reply.mutateAsync({ ...replyTarget, option });
 			setPicked(true);
 		} catch (cause) {
 			setError(cause instanceof Error ? cause.message : "Reply failed");
@@ -218,9 +227,7 @@ export function TicketPanel({
 		setError(null);
 		try {
 			await reply.mutateAsync({
-				tracker,
-				project,
-				key: ticketKey,
+				...replyTarget,
 				body: draft,
 				...(target.parentId === undefined ? {} : { parentId: target.parentId }),
 				kind: target.kind,
@@ -232,7 +239,9 @@ export function TicketPanel({
 		}
 	}
 	const trackerName = tracker === "linear" ? "Linear" : "GitHub";
-	const href = thread?.url ?? trackerUrl(ticket);
+	const href =
+		thread?.url ??
+		(pullHost === undefined ? trackerUrl(ticket) : view?.pullUrl);
 	const projectHref =
 		report === null || pathProject(window.location.pathname) === project
 			? undefined

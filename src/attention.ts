@@ -199,7 +199,12 @@ export function notificationsFor(
 	const push = (
 		trigger: NotificationTrigger,
 		key: string,
-		item: { project: string; tracker: TrackerKind; key: string },
+		item: {
+			project: string;
+			tracker: TrackerKind;
+			key: string;
+			host?: string;
+		},
 		text: string,
 	) => {
 		if (seen.has(key)) {
@@ -211,6 +216,7 @@ export function notificationsFor(
 			project: item.project,
 			tracker: item.tracker,
 			key: item.key,
+			...(item.host === undefined ? {} : { host: item.host }),
 			text,
 			at,
 			read: false,

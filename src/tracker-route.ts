@@ -7,11 +7,13 @@ import { namedSnapshot } from "./replies.ts";
 
 /**
  * The tracker of the project that a route names, or null when none can reach it.
- * `declaredHost` is true for a project on a declared host.
+ * `declaredHost` is true for a project on a declared host. A `host` names the
+ * host of a PR, and a project on another host has no tracker for that PR.
  */
 export type TrackerOf = (
 	name: string,
 	project: string,
+	host?: string,
 ) => { tracker: Tracker | null; declaredHost: boolean };
 
 function namedRef(
@@ -41,7 +43,7 @@ export function projectTrackers(
 	rows: () => Snapshot[],
 	hosts: () => Configuration["hosts"],
 ): TrackerOf {
-	return (name, project) => {
+	return (name, project, host) => {
 		const kind = trackerKinds.find((known) => known === name);
 		if (kind === undefined) {
 			return { tracker: null, declaredHost: false };
@@ -49,7 +51,10 @@ export function projectTrackers(
 		const ref = namedRef(rows(), kind, project, hosts());
 		const reader = backends.readerOf(ref, hosts());
 		return {
-			tracker: "tracker" in reader ? reader.tracker : null,
+			tracker:
+				"tracker" in reader && (host === undefined || host === refHost(ref))
+					? reader.tracker
+					: null,
 			declaredHost: refHost(ref) !== undefined,
 		};
 	};

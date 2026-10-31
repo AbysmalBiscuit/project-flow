@@ -26,7 +26,7 @@ import {
 	reasonOrder,
 	reasonTab,
 } from "./terms.ts";
-import { attentionItemId, itemId, ticketRefId } from "./ticket-key.ts";
+import { attentionItemId, ticketRefId } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 
 const allReasons = "all";
@@ -133,7 +133,7 @@ function NeedsGroups({
 								<NeedsItem
 									key={attentionItemId(item)}
 									item={item}
-									selected={selected === itemId(item.project, item.key)}
+									selected={selected === attentionItemId(item)}
 									onOpen={() => onOpen(item)}
 									onAction={() => onOpen(item)}
 								/>
@@ -201,24 +201,13 @@ function NeedsList({
 		) {
 			opener.focus();
 		}
-		openTicket(
-			{
-				tracker: first.tracker,
-				project: first.project,
-				key: first.key,
-			},
-			"replace",
-		);
+		openTicket(first, "replace");
 	}, [items]);
 	const shown = inProject.filter(
 		(item) => reason === allReasons || item.reason === reason,
 	);
 	const choose = (item: NeedsYouItem) => {
-		openTicket({
-			tracker: item.tracker,
-			project: item.project,
-			key: item.key,
-		});
+		openTicket(item);
 	};
 	return (
 		<PageFrame
@@ -271,9 +260,7 @@ function NeedsList({
 					<NeedsGroups
 						items={shown}
 						group={group}
-						selected={
-							ticket === null ? null : itemId(ticket.project, ticket.key)
-						}
+						selected={ticket === null ? null : attentionItemId(ticket)}
 						onOpen={choose}
 					/>
 				</div>

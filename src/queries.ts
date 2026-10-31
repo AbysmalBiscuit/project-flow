@@ -55,6 +55,7 @@ type ReplyBody = {
 	tracker: TrackerKind;
 	project: string;
 	key: string;
+	host?: string;
 	body?: string;
 	option?: number;
 	parentId?: string;
@@ -94,11 +95,11 @@ export const pageQuery = {
 			queryKey: ["project", name, view],
 			queryFn: () => readProject(name, view),
 		}),
-	thread: (tracker: string, project: string, key: string) => {
-		const queryKey = ["thread", tracker, project, key];
+	thread: (tracker: string, project: string, key: string, host?: string) => {
+		const queryKey = ["thread", tracker, project, key, host];
 		return queryOptions({
 			queryKey,
-			queryFn: () => readThread(tracker, project, key, queryKey),
+			queryFn: () => readThread(tracker, project, key, host, queryKey),
 			placeholderData: (previous: ThreadRead | undefined) => previous,
 		});
 	},
@@ -291,9 +292,11 @@ async function readThread(
 	tracker: string,
 	project: string,
 	key: string,
+	host: string | undefined,
 	queryKey: readonly unknown[],
 ): Promise<ThreadRead> {
-	const path = `/api/threads/${tracker}/${encodeURIComponent(key)}?project=${encodeURIComponent(project)}`;
+	const onHost = host === undefined ? "" : `&host=${encodeURIComponent(host)}`;
+	const path = `/api/threads/${tracker}/${encodeURIComponent(key)}?project=${encodeURIComponent(project)}${onHost}`;
 	const response = await fetch(path);
 	if (response.status === pendingStatus) {
 		return heldData<ThreadRead>(queryKey) ?? { status: "pending" };
@@ -620,7 +623,12 @@ export function useSaveSettings({
 	});
 }
 
-export function usePostReply(tracker: string, project: string, key: string) {
+export function usePostReply(
+	tracker: string,
+	project: string,
+	key: string,
+	host?: string,
+) {
 	const queries = useQueryClient();
 	return useMutation({
 		mutationFn: async (body: ReplyBody): Promise<PostedReply> => {
@@ -638,7 +646,9 @@ export function usePostReply(tracker: string, project: string, key: string) {
 			return (await response.json()) as PostedReply;
 		},
 		onSuccess: async () => {
-			await queries.invalidateQueries(pageQuery.thread(tracker, project, key));
+			await queries.invalidateQueries(
+				pageQuery.thread(tracker, project, key, host),
+			);
 			void queries.invalidateQueries(pageQuery.needsYou);
 			void queries.invalidateQueries({ queryKey: ["project"] });
 		},

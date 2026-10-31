@@ -1,7 +1,12 @@
 import type { TicketRef } from "./ticket-key.ts";
 
 const projectPrefix = "/projects/";
-const ticketParams = ["ticket", "panelProject", "panelTracker"] as const;
+const ticketParams = [
+	"ticket",
+	"panelProject",
+	"panelTracker",
+	"panelHost",
+] as const;
 
 /** The project that a project page path names. */
 export function pathProject(pathname: string): string | null {
@@ -22,6 +27,9 @@ export function ticketPath(path: string, ticket: TicketRef | null): string {
 			url.searchParams.set("panelProject", ticket.project);
 		}
 		url.searchParams.set("panelTracker", ticket.tracker);
+		if (ticket.host !== undefined) {
+			url.searchParams.set("panelHost", ticket.host);
+		}
 	}
 	return `${url.pathname}${url.search}${url.hash}`;
 }
@@ -38,7 +46,8 @@ export function urlTicket(
 		return null;
 	}
 	const tracker = params.get("panelTracker") === "linear" ? "linear" : "github";
-	return { tracker, project, key };
+	const host = params.get("panelHost")?.trim() ?? "";
+	return { tracker, project, key, ...(host === "" ? {} : { host }) };
 }
 
 export function projectPath(name: string, ticket?: TicketRef): string {

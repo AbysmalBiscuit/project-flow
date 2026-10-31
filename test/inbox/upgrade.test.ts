@@ -61,11 +61,11 @@ describe("inbox", () => {
 			const response = await fetch(new URL("/api/inbox", base));
 			expect(response.status).toBe(200);
 			const entries = (await response.json()) as InboxEntry[];
-			return entries.map((entry) => [entry.key, entry.tracker]);
+			return entries.map((entry) => [entry.key, entry.tracker, entry.host]);
 		};
 		const stored = [
-			["acme/widget#8", "github"],
-			["PF-1", "linear"],
+			["acme/widget#8", "github", undefined],
+			["PF-1", "linear", undefined],
 		];
 		try {
 			for (let round = 0; round < 2; round += 1) {

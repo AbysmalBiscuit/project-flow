@@ -121,8 +121,9 @@ export function ticketRefId(ref: {
 	project: string;
 	tracker: string;
 	key: string;
+	host?: string;
 }): string {
-	return id(ref.project, ref.tracker, foldKey(ref.key));
+	return id(ref.project, ref.tracker, foldKey(settingsKey(ref.key, ref.host)));
 }
 
 /** An item that Needs you lists. A PR on a declared host carries the host. */
@@ -162,13 +163,44 @@ export type TicketRef = {
 	tracker: TrackerKind;
 	project: string;
 	key: string;
+	/** The declared host of the PR that the ref names. */
+	host?: string;
 };
+
+/** The ref of a ticket or PR, with no other field of the item. */
+export function ticketRefOf(item: TicketRef): TicketRef {
+	const { tracker, project, key, host } = item;
+	return {
+		tracker,
+		project,
+		key,
+		...(host === undefined ? {} : { host }),
+	};
+}
 
 export function sameTicket(left: TicketRef, right: TicketRef): boolean {
 	return (
 		left.tracker === right.tracker &&
 		left.project === right.project &&
+		left.host === right.host &&
 		sameTicketKey(left.key, right.key)
+	);
+}
+
+/**
+ * The entry that a ref names: the entry on the host of the ref. A ref with no
+ * host, such as a stored notification, also names an entry on a declared host.
+ */
+export function namedEntry<Entry extends { key: string | null; host?: string }>(
+	entries: readonly Entry[],
+	ref: { key: string; host?: string },
+): Entry | undefined {
+	const sameKey = entries.filter(
+		(entry) => entry.key !== null && sameTicketKey(entry.key, ref.key),
+	);
+	return (
+		sameKey.find((entry) => entry.host === ref.host) ??
+		(ref.host === undefined ? sameKey[0] : undefined)
 	);
 }
 

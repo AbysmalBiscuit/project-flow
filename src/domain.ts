@@ -778,6 +778,8 @@ export type Notification = {
 	project: string;
 	tracker: TrackerKind;
 	key: string;
+	/** The declared host of the PR that the notification names. */
+	host?: string;
 	text: string;
 	at: string;
 	read: boolean;

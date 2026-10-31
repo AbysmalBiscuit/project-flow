@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { ticketPath, urlTicket } from "./paths.ts";
-import { sameTicket, type TicketRef } from "./ticket-key.ts";
+import { sameTicket, type TicketRef, ticketRefOf } from "./ticket-key.ts";
 
 let shown: { href: string; ticket: TicketRef | null } | null = null;
 const listeners = new Set<() => void>();
@@ -44,10 +44,7 @@ export function openTicket(
 ): void {
 	const current = activeTicket();
 	if (current === null || !sameTicket(current, ticket)) {
-		writeTicket(
-			{ tracker: ticket.tracker, project: ticket.project, key: ticket.key },
-			history,
-		);
+		writeTicket(ticketRefOf(ticket), history);
 	}
 	publish();
 }
