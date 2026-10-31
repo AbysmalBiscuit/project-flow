@@ -23,17 +23,16 @@ import type {
 	Overview,
 	PollProgress,
 	ProjectPoll,
-	PullRequest,
 	Snapshot,
 	TrackerKind,
 	WorkcellRun,
 } from "./domain.ts";
 import { reconcilePoll } from "./poll-merge.ts";
+import { listPulls } from "./poll-pulls.ts";
 import type {
 	CheckoutSource,
 	Clock,
 	ConfigurationPort,
-	Forge,
 	FoundProject,
 	Notifier,
 	Store,
@@ -58,7 +57,6 @@ import {
 	seededForProjects,
 	viewerLogins,
 } from "./project-views.ts";
-import { linksByForge } from "./pull-links.ts";
 import type { StartRequest } from "./run-start.ts";
 import { needsYouSeenId } from "./ticket-key.ts";
 
@@ -189,58 +187,6 @@ function readSince(
 	return full ? null : lastGood;
 }
 
-type ListedPulls = {
-	lists: { forge: Forge; pulls: PullRequest[] }[];
-	/** The message of a forge whose token is missing, whose PRs the lists leave out. */
-	missingToken: string | null;
-};
-
-/** The PRs of a project, each list with the forge that read it. */
-async function listPulls(
-	options: PollOptions,
-	project: TrackedProject,
-	tracker: Tracker,
-	since: Date | null,
-): Promise<ListedPulls> {
-	const refs = await tracker.pullRefs?.(project, since);
-	if (refs !== undefined) {
-		const { links: byForge, missing } = linksByForge(
-			refs,
-			options.backends.linkOf,
-		);
-		const lists: ListedPulls["lists"] = [];
-		for (const [forge, links] of byForge) {
-			const repos = links.map((link) => link.repo);
-			lists.push({ forge, pulls: await forge.listLinkedPulls(links, repos) });
-		}
-		return { lists, missingToken: missing };
-	}
-	const forge = options.backends.forgeOf(project.ref);
-	if (forge === null) {
-		return { lists: [], missingToken: null };
-	}
-	const repo = refRepo(project.ref);
-	if (repo !== null) {
-		return {
-			lists: [{ forge, pulls: await forge.listPulls(repo) }],
-			missingToken: null,
-		};
-	}
-	const linked = await tracker.pullLinks?.(project);
-	return {
-		lists:
-			linked === undefined
-				? []
-				: [
-						{
-							forge,
-							pulls: await forge.listLinkedPulls(linked.links, linked.repos),
-						},
-					],
-		missingToken: null,
-	};
-}
-
 /**
  * Records the outcome of a read that got its tickets. A read that left out the
  * PRs of a forge with no token counts as no good read, so that the next read is
@@ -274,7 +220,7 @@ async function readListed(
 		since === null ? [] : (stored?.tickets ?? []),
 	);
 	const { lists, missingToken } = await listPulls(
-		options,
+		options.backends,
 		project,
 		tracker,
 		since,
