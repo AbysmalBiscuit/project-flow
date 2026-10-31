@@ -1,0 +1,227 @@
+import { z } from "zod";
+
+import type { BotCheck, BotReview, PullRequest } from "./domain.ts";
+import { defaultTrackerRequestLimitMs, type Fetch } from "./fetch.ts";
+import { nextPage } from "./github-pages.ts";
+import { rejectedHostToken } from "./host-tokens.ts";
+import { TrackerError } from "./ports.ts";
+
+export const forgejoPull = z.object({
+	number: z.number(),
+	title: z.string(),
+	html_url: z.string(),
+	draft: z.boolean().optional(),
+	body: z.string().nullable(),
+	state: z.string(),
+	merged: z.boolean(),
+	head: z.object({ ref: z.string(), sha: z.string() }),
+});
+
+export type ForgejoPull = z.infer<typeof forgejoPull>;
+
+const login = z.object({ login: z.string() }).nullable();
+
+const combinedStatus = z.object({
+	statuses: z
+		.array(z.object({ context: z.string(), status: z.string() }))
+		.nullable(),
+});
+
+const forgejoReview = z.object({
+	user: login,
+	state: z.string(),
+	commit_id: z.string(),
+	dismissed: z.boolean().optional(),
+});
+
+const forgejoReaction = z.object({
+	user: login,
+	content: z.string(),
+	created_at: z.string().optional(),
+});
+
+const forgejoCommit = z.object({
+	commit: z.object({
+		committer: z.object({ date: z.string() }).nullable(),
+	}),
+});
+
+const forgejoComment = z.object({
+	user: login,
+	body: z.string(),
+	created_at: z.string().optional(),
+});
+
+export type ReviewEvidence = Pick<
+	PullRequest,
+	"checks" | "comments" | "reviews" | "reactions"
+>;
+
+/** The host of a Forgejo forge, its token and the env var that holds the token. */
+export type ForgejoAccess = { host: string; token: string; tokenEnv: string };
+
+/** The requests of one token on one Forgejo host. */
+export type ForgejoClient = {
+	/** The base URL of the host's API, such as `https://codeberg.org/api/v1`. */
+	api: string;
+	get: (url: string, label: string) => Promise<Response>;
+	/** Each row of each page from `start` on, as the `link` header pages them. */
+	rows: <Row>(
+		start: string,
+		label: string,
+		row: z.ZodType<Row>,
+	) => Promise<Row[]>;
+};
+
+function forgejoInit(token: string): RequestInit {
+	return {
+		headers: { accept: "application/json", authorization: `token ${token}` },
+		signal: AbortSignal.timeout(defaultTrackerRequestLimitMs),
+	};
+}
+
+/** True for the error of a request that the host refused for its token. */
+export function isRejected(error: unknown): boolean {
+	return error instanceof TrackerError && error.status === 401;
+}
+
+/** A request that answers 401 throws the error that names the env var of the token. */
+export function forgejoClient(
+	{ host, token, tokenEnv }: ForgejoAccess,
+	fetchImpl: Fetch,
+): ForgejoClient {
+	const origin = `https://${host}`;
+	const get = async (url: string, label: string): Promise<Response> => {
+		// A `link` header can name any URL, and the token must reach only its own host.
+		if (URL.parse(url)?.origin !== origin) {
+			throw new TrackerError(
+				`Forgejo ${label} refused a URL outside ${origin}: ${url}`,
+				502,
+			);
+		}
+		const response = await fetchImpl(url, forgejoInit(token));
+		if (response.status === 401) {
+			throw new TrackerError(rejectedHostToken(tokenEnv, host), 401);
+		}
+		if (!response.ok) {
+			throw new TrackerError(
+				`Forgejo ${label} failed (HTTP ${response.status}): ${url}`,
+				response.status,
+			);
+		}
+		return response;
+	};
+	return {
+		api: `${origin}/api/v1`,
+		get,
+		async rows(start, label, row) {
+			const found = [];
+			let url: string | null = start;
+			while (url !== null) {
+				const response = await get(url, label);
+				found.push(...z.array(row).parse(await response.json()));
+				url = nextPage(response.headers.get("link"));
+			}
+			return found;
+		},
+	};
+}
+
+/** Checks a token against the user read of its Forgejo host. */
+export function checkForgejoToken(
+	host: string,
+	token: string,
+	fetchImpl: Fetch,
+): Promise<Response> {
+	return fetchImpl(`https://${host}/api/v1/user`, forgejoInit(token));
+}
+
+/** A Forgejo commit status as a check: `pending`, `success`, `error`, `failure` or `warning`. */
+function checkOf(context: string, status: string): BotCheck {
+	switch (status) {
+		case "success":
+			return { name: context, status: "completed", conclusion: "success" };
+		case "failure":
+		case "error":
+			return { name: context, status: "completed", conclusion: "failure" };
+		case "warning":
+			return { name: context, status: "completed", conclusion: "neutral" };
+		default:
+			return { name: context, status: "in_progress", conclusion: null };
+	}
+}
+
+const reviewStates: Record<string, BotReview["state"]> = {
+	APPROVED: "APPROVED",
+	REQUEST_CHANGES: "CHANGES_REQUESTED",
+	COMMENT: "COMMENTED",
+	PENDING: "PENDING",
+};
+
+/** The checks, reviews, comments and reactions of a PR at its head. */
+export async function readEvidence(
+	client: ForgejoClient,
+	repo: string,
+	pull: ForgejoPull,
+): Promise<ReviewEvidence> {
+	const base = `${client.api}/repos/${repo}`;
+	const [status, reviews, comments, reactions] = await Promise.all([
+		client
+			.get(`${base}/commits/${pull.head.sha}/status`, "read status")
+			.then(async (response) => combinedStatus.parse(await response.json())),
+		client.rows(
+			`${base}/pulls/${pull.number}/reviews?limit=50`,
+			"list reviews",
+			forgejoReview,
+		),
+		client.rows(
+			`${base}/issues/${pull.number}/comments?limit=50`,
+			"list comments",
+			forgejoComment,
+		),
+		client
+			.get(`${base}/issues/${pull.number}/reactions`, "list reactions")
+			.then(async (response) =>
+				z
+					.array(forgejoReaction)
+					.nullable()
+					.parse(await response.json()),
+			),
+	]);
+	return {
+		checks: (status.statuses ?? []).map(({ context, status }) =>
+			checkOf(context, status),
+		),
+		reviews: reviews.flatMap(({ user, state, commit_id, dismissed }) => {
+			const mapped = dismissed === true ? "DISMISSED" : reviewStates[state];
+			return user === null || mapped === undefined
+				? []
+				: [{ login: user.login, commitId: commit_id, state: mapped }];
+		}),
+		comments: comments.flatMap(({ user, body, created_at }) =>
+			user === null
+				? []
+				: [{ login: user.login, body, createdAt: created_at ?? null }],
+		),
+		reactions: (reactions ?? []).flatMap(({ user, content, created_at }) =>
+			user === null
+				? []
+				: [{ login: user.login, content, createdAt: created_at ?? null }],
+		),
+	};
+}
+
+/** The committer date of a commit, or null when the host gives none. */
+export async function readCommittedAt(
+	client: ForgejoClient,
+	repo: string,
+	sha: string,
+): Promise<string | null> {
+	const response = await client.get(
+		`${client.api}/repos/${repo}/git/commits/${sha}?stat=false&files=false&verification=false`,
+		"read commit",
+	);
+	return (
+		forgejoCommit.parse(await response.json()).commit.committer?.date ?? null
+	);
+}
