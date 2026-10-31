@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { Overview } from "../../src/domain.ts";
-import { rejectedToken } from "../../src/github.ts";
+import { missingToken, rejectedToken } from "../../src/github.ts";
 import { run } from "../../src/main.ts";
 import { tempConfig, testIo } from "../support/app.ts";
 import { urlOf } from "../support/fetch.ts";
@@ -203,7 +203,7 @@ describe("startup", () => {
 		}
 	});
 
-	test("a Linear-only configuration with a blank gh token starts and leaves the linked PR off the ticket", async () => {
+	test("a Linear-only configuration with a blank gh token starts and names GITHUB_TOKEN on the project that links a GitHub PR", async () => {
 		const linearProject = "widget-launch-0d42ae5d46d0";
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -267,9 +267,8 @@ describe("startup", () => {
 			const body = await checks;
 			expect(body.projects[0]).toMatchObject({
 				tracker: "linear",
-				error: null,
+				error: missingToken,
 				inReview: 0,
-				tickets: [{ key: "WID-8", state: "backlog" }],
 			});
 		} finally {
 			await cleanup();
