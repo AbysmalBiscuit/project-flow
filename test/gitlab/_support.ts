@@ -42,6 +42,8 @@ export type GitlabFake = {
 	 * tickets as `relates_to`. A test sets the type of a recorded link here.
 	 */
 	linkTypes?: Record<string, Record<string, string>>;
+	/** The pages of the member projects. The recorded scratch project is the one page by default. */
+	memberPages?: unknown[][];
 	/** The description of a work item, by iid, ahead of the recorded one. */
 	descriptions?: Record<string, string>;
 	/** Each GitLab request URL that the app sent. */
@@ -123,7 +125,10 @@ export function gitlabFake(options: GitlabFake = {}): Fetch {
 			url.pathname === "/api/v4/projects" &&
 			url.searchParams.get("membership") === "true"
 		) {
-			return json([scratchProject]);
+			const pages = options.memberPages ?? [[scratchProject]];
+			const index = Number(url.searchParams.get("page") ?? "1") - 1;
+			const next = index + 1 < pages.length ? String(index + 2) : "";
+			return json(pages[index] ?? [], 200, { "x-next-page": next });
 		}
 		const path = url.pathname.slice(new URL(api).pathname.length);
 		if (!url.href.startsWith(api)) {

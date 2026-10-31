@@ -192,7 +192,7 @@ export function gitlabTracker(
 	const rest = async <Schema extends z.ZodType>(
 		path: string,
 		schema: Schema,
-	): Promise<z.output<Schema>> => {
+	): Promise<{ body: z.output<Schema>; next: string | null }> => {
 		const response = await fetchImpl(`https://${host}/api/v4${path}`, {
 			headers,
 		});
@@ -202,7 +202,29 @@ export function gitlabTracker(
 				response.status,
 			);
 		}
-		return schema.parse(await response.json());
+		const next = response.headers.get("x-next-page") ?? "";
+		return {
+			body: schema.parse(await response.json()),
+			next: next === "" ? null : next,
+		};
+	};
+
+	/** Each project that the token is a member of, read 100 at a time. */
+	const memberProjects = async () => {
+		const projects: z.output<typeof listedProject>[] = [];
+		let page: string | null = "1";
+		while (page !== null) {
+			const read: {
+				body: z.output<typeof listedProject>[];
+				next: string | null;
+			} = await rest(
+				`/projects?membership=true&archived=false&order_by=last_activity_at&per_page=100&page=${page}`,
+				z.array(listedProject),
+			);
+			projects.push(...read.body);
+			page = read.next;
+		}
+		return projects;
 	};
 
 	type WorkItemState = "opened" | "closed";
@@ -260,11 +282,8 @@ export function gitlabTracker(
 			};
 		},
 		async findProjects() {
-			const viewer = await rest("/user", user);
-			const projects = await rest(
-				"/projects?membership=true&archived=false&order_by=last_activity_at&per_page=100",
-				z.array(listedProject),
-			);
+			const { body: viewer } = await rest("/user", user);
+			const projects = await memberProjects();
 			return {
 				projects: projects.map((item): FoundProject => ({
 					key: item.path_with_namespace,
