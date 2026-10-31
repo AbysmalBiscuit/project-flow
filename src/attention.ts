@@ -65,10 +65,14 @@ function newestComment(comments: Comment[] | undefined): {
 
 function commentSources(
 	item: NeedsYouItem,
+	row: Snapshot,
 	tickets: Map<string, Ticket>,
 	pulls: PullRequest[],
 ): Comment[] {
-	const ticket = tickets.get(ticketId(item.tracker, item.key));
+	const ticket =
+		item.host === row.host
+			? tickets.get(ticketId(item.tracker, item.key))
+			: undefined;
 	if (ticket !== undefined) {
 		const linkedPulls = linked(ticket, pulls);
 		return [...(ticket.comments ?? []), ...linkedPulls.flatMap(pullComments)];
@@ -106,7 +110,7 @@ export function attentionOf(
 	for (const view of views) {
 		const pulls = view.row.pulls.filter((pull) => !pull.merged);
 		for (const item of view.items) {
-			const itemComments = commentSources(item, tickets, pulls);
+			const itemComments = commentSources(item, view.row, tickets, pulls);
 			const ask = openAsk(
 				itemComments,
 				projectHasPmBot(

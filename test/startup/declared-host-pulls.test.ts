@@ -18,6 +18,7 @@ import {
 	host,
 	hostedWidget,
 	hosts,
+	openTicket,
 	recordedFetch,
 	storedPull,
 	widget,
@@ -88,6 +89,49 @@ describe("a PR number on github.com and on a declared host", () => {
 			},
 			github,
 			new Date(Date.now() - 60 * 1000),
+		);
+	});
+	test("a full poll keeps the merged PR on the host that a ticket links", async () => {
+		const linkedHosted = { ...hostedMerged, closingKeys: ["acme/widget#5"] };
+		const full: Fetch = githubFetch({
+			issues: [
+				{
+					number: 5,
+					title: "Ticket 5",
+					state: "open",
+					state_reason: null,
+					updated_at: "2026-10-01T10:00:00.000Z",
+					html_url: "https://github.com/acme/widget/issues/5",
+					body: "",
+				},
+			],
+			pulls: [],
+			checksBySha: {},
+			commentsByPull: { 1: [{ user: { login: codex }, body: "Reviewed." }] },
+			reviewsByPull: {},
+			reactionsByPull: {},
+			mergedPulls: [homeMerged],
+		});
+		await withStoredRows(
+			[widgetRow({ pulls: [linkedHosted] })],
+			{ hosts, tracked: [widget] },
+			async (base) => {
+				const settings = await readWhere<{ projects: BotRow[] }>(
+					new URL("/api/settings", base),
+					({ projects }) =>
+						projects.some(
+							(row) =>
+								row.key === "acme/widget" &&
+								row.host === undefined &&
+								row.repoBots["acme/widget"] !== undefined,
+						),
+				);
+				const row = settings.projects.find(
+					(item) => item.key === "acme/widget" && item.host === undefined,
+				);
+				expect(row?.repos.toSorted()).toEqual(["acme/widget", hostedKey]);
+			},
+			full,
 		);
 	});
 });
@@ -372,5 +416,75 @@ describe("a project that holds PR #1 on github.com and on a declared host", () =
 		} finally {
 			await checkout.cleanup();
 		}
+	});
+});
+
+describe("an issue on github.com and a PR on a declared host with one number", () => {
+	const openAsk: PullRequest["comments"][number] = {
+		login: "agent",
+		body: "This waits on Lev for the signing key.\n\n<!-- workcell:ask pr-1 -->",
+		createdAt: "2026-10-01T00:00:00Z",
+	};
+	const issue = {
+		number: 1,
+		title: "Ticket 1",
+		state: "open",
+		state_reason: null,
+		updated_at: "2026-10-02T00:00:00Z",
+		html_url: "https://github.com/acme/widget/issues/1",
+		body: "",
+	};
+
+	test("a comment on the issue does not notify as a comment on the PR", async () => {
+		const recorded = {
+			issues: [issue],
+			pulls: [],
+			checksBySha: {},
+			commentsByIssue: {} as Record<number, Record<string, unknown>[]>,
+			commentsByPull: {},
+			reviewsByPull: {},
+			reactionsByPull: {},
+		};
+		await withStoredRows(
+			[
+				widgetRow({
+					tickets: [openTicket(1)],
+					pulls: [storedPull(1, { host, comments: [openAsk] })],
+				}),
+			],
+			{ hosts, tracked: [widget] },
+			async (base) => {
+				await settledOverview(base, readOverview<{ polling?: true }>);
+				recorded.commentsByIssue[1] = [
+					{
+						id: 7001,
+						body: "The key ships with the next build.",
+						created_at: "2026-10-03T00:00:00Z",
+						updated_at: "2026-10-03T00:00:00Z",
+						user: { login: "ada" },
+					},
+				];
+				const refresh = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(refresh.status).toBe(204);
+				await readWhere<{ tickets: { key: string; updatedAt?: string }[] }>(
+					new URL("/api/projects/acme%2Fwidget", base),
+					({ tickets }) =>
+						tickets.some(
+							(ticket) =>
+								ticket.key === "acme/widget#1" &&
+								ticket.updatedAt === issue.updated_at,
+						),
+				);
+				await settledOverview(base, readOverview<{ polling?: true }>);
+				const inbox = (await (
+					await fetch(new URL("/api/inbox", base))
+				).json()) as { trigger: string; host?: string }[];
+				expect(inbox.filter((entry) => entry.host === host)).toEqual([]);
+			},
+			githubFetch(recorded),
+			new Date(Date.now() - 60 * 1000),
+		);
 	});
 });
