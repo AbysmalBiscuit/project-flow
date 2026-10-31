@@ -353,6 +353,10 @@ export function githubPullNode(
 			},
 		];
 	});
+	const statusNodes = rowsOf(item.statusRows).map((row) => ({
+		context: row.context,
+		state: String(row.state).toUpperCase(),
+	}));
 	const committed = item.committedAt;
 	return {
 		number: item.number,
@@ -386,9 +390,13 @@ export function githubPullNode(
 		reviews: connectionOf(reviewNodes),
 		comments: connectionOf(commentNodes),
 		reactions: connectionOf(reactionNodes),
-		...(checkNodes.length === 0
+		...(checkNodes.length + statusNodes.length === 0
 			? {}
-			: { statusCheckRollup: { contexts: connectionOf(checkNodes) } }),
+			: {
+					statusCheckRollup: {
+						contexts: connectionOf([...checkNodes, ...statusNodes]),
+					},
+				}),
 	};
 }
 

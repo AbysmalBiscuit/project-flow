@@ -21,7 +21,7 @@ import {
 	dependencyRefs,
 	ticketFromGithubIssue,
 } from "./github-issue.ts";
-import type { ReviewEvidence } from "./github-pulls.ts";
+import { commitStatusCheck, type ReviewEvidence } from "./github-pulls.ts";
 import {
 	checkSelection,
 	chunked,
@@ -96,6 +96,10 @@ function ticketFromGraphql(
 function reviewFromGraphql(pull: PullLists): ReviewEvidence {
 	const checks: BotCheck[] = [];
 	for (const node of pull.statusCheckRollup?.contexts.nodes ?? []) {
+		if (node?.context !== undefined && node.state !== undefined) {
+			checks.push(commitStatusCheck(node.context, node.state.toLowerCase()));
+			continue;
+		}
 		if (
 			node === undefined ||
 			node.name === undefined ||

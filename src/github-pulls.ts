@@ -183,7 +183,40 @@ const loginRow = z.object({
 	user: z.object({ login: z.string() }).nullable(),
 });
 
-async function fetchChecks(
+/** Gives a commit status the shape of a check run, so one rollup reads both. */
+export function commitStatusCheck(name: string, state: string): BotCheck {
+	return state === "pending" || state === "expected"
+		? { name, status: "pending", conclusion: null }
+		: { name, status: "completed", conclusion: state };
+}
+
+/** GitHub lists the latest status of each context in this answer. */
+async function fetchCommitStatuses(
+	repo: string,
+	sha: string,
+	token: string,
+	fetchImpl: Fetch,
+): Promise<BotCheck[]> {
+	const bodies = await pages(
+		`https://api.github.com/repos/${repo}/commits/${sha}/status?per_page=100`,
+		token,
+		fetchImpl,
+		repo,
+		"list commit statuses",
+	);
+	return bodies.flatMap((body) =>
+		z
+			.object({
+				statuses: z.array(z.object({ context: z.string(), state: z.string() })),
+			})
+			.parse(body)
+			.statuses.map((status) =>
+				commitStatusCheck(status.context, status.state),
+			),
+	);
+}
+
+async function fetchCheckRuns(
 	repo: string,
 	sha: string,
 	token: string,
@@ -206,6 +239,19 @@ async function fetchChecks(
 			),
 		})
 		.parse(body).check_runs;
+}
+
+async function fetchChecks(
+	repo: string,
+	sha: string,
+	token: string,
+	fetchImpl: Fetch,
+): Promise<BotCheck[]> {
+	const [checkRuns, statuses] = await Promise.all([
+		fetchCheckRuns(repo, sha, token, fetchImpl),
+		fetchCommitStatuses(repo, sha, token, fetchImpl),
+	]);
+	return [...checkRuns, ...statuses];
 }
 
 function fetchComments(

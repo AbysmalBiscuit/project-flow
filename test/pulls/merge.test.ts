@@ -1,14 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import type { TicketView } from "../../src/domain.ts";
-import type { Fetch } from "../../src/fetch.ts";
-import recordedPulls from "../fixtures/github-open-pulls.json";
-import recordedTeam from "../fixtures/linear-team-states.json";
-import outsideRelations from "../fixtures/outside-relations.json";
 import { withApp } from "../project-harness.ts";
-import { urlOf } from "../support/fetch.ts";
-import { recordedDiscovery, unrecorded } from "../support/github.ts";
-import { linearFake } from "../support/linear.ts";
 import {
 	type ChangeEvent,
 	openEventStream,
@@ -16,32 +8,17 @@ import {
 } from "../support/reads.ts";
 import {
 	githubEnv,
+	linearConfig,
+	linearEnv,
+	linearMergeFake,
 	mergeFake,
 	passedCheck,
 	pullUrl,
+	readTicket,
 	repo,
+	sendMerge,
 	widgetConfig,
 } from "./_support.ts";
-
-function sendMerge(base: string, url = pullUrl): Promise<Response> {
-	return fetch(new URL("/api/pulls/merge", base), {
-		method: "POST",
-		headers: { "content-type": "application/json" },
-		body: JSON.stringify({ url }),
-	});
-}
-
-async function readTicket(
-	base: string,
-	project: string,
-	key: string,
-): Promise<TicketView | undefined> {
-	const response = await fetch(
-		new URL(`/api/projects/${encodeURIComponent(project)}?view=all`, base),
-	);
-	const report = (await response.json()) as { tickets: TicketView[] };
-	return report.tickets.find((ticket) => ticket.key === key);
-}
 
 const ticketKey = `${repo}#8`;
 
@@ -237,85 +214,26 @@ describe("merge an awaiting PR", () => {
 	});
 
 	test("the PR of a Linear ticket merges through the GitHub forge", async () => {
-		const linearRepo = "AbysmalBiscuit/project-flow";
-		const pull = recordedPulls.find((item) => item.number === 206);
-		if (pull === undefined) {
-			throw new Error("the recorded PR list has no PR 206");
-		}
-		const served: Record<string, unknown> = { ...pull };
-		const linear = linearFake({
-			states: recordedTeam.data.team.states.nodes,
-			issues: [
+		const { fetch: fetchImpl, merges, pull } = linearMergeFake();
+		await withApp(linearConfig, fetchImpl, linearEnv, async (base) => {
+			const before = await readTicket(base, "Widget launch", "SWE-13029");
+			expect(before?.state).toBe("awaitingMerge");
+			expect(before?.awaitingPulls?.[0]).toMatchObject({
+				url: pull.html_url,
+				baseBranch: pull.base.ref,
+				actions: ["merge"],
+			});
+			const sent = await sendMerge(base, pull.html_url);
+			expect(sent.status).toBe(204);
+			expect(merges).toEqual([
 				{
-					...outsideRelations.linearSwe13029,
-					id: "swe-13029",
-					attachments: {
-						nodes: [
-							{ url: pull.html_url, title: pull.title, sourceType: "github" },
-						],
-					},
+					url: `https://api.github.com/repos/${pull.repo}/pulls/206/merge`,
+					body: { merge_method: "squash", sha: pull.head.sha },
 				},
-			],
+			]);
+			const after = await readTicket(base, "Widget launch", "SWE-13029");
+			expect(after?.state).not.toBe("awaitingMerge");
 		});
-		const merges: { url: string; body: unknown }[] = [];
-		const fetchImpl: Fetch = async (input, init) => {
-			const discovered = recordedDiscovery(input, init);
-			if (discovered !== null) {
-				return discovered;
-			}
-			const url = urlOf(input);
-			if (url === "https://api.linear.app/graphql") {
-				return linear(input, init);
-			}
-			if (url === "https://api.github.com/user") {
-				return Response.json({ login: "lev" });
-			}
-			const pullApi = `https://api.github.com/repos/${linearRepo}/pulls/206`;
-			if (url === `${pullApi}/merge` && init?.method === "PUT") {
-				merges.push({ url, body: JSON.parse(String(init.body)) });
-				served.merged_at = "2026-10-18T12:00:00.000Z";
-				served.state = "closed";
-				return Response.json({ merged: true });
-			}
-			if (url === pullApi) {
-				return Response.json(served);
-			}
-			if (url === "https://api.github.com/graphql") {
-				return Response.json({ data: {} });
-			}
-			if (url.includes(`/repos/${linearRepo}/`)) {
-				return Response.json(
-					url.includes("/check-runs") ? { check_runs: [] } : [],
-				);
-			}
-			return unrecorded(input, init);
-		};
-		await withApp(
-			JSON.stringify({
-				pinned: [{ tracker: "linear", project: "widget-launch-0d42ae5d46d0" }],
-			}),
-			fetchImpl,
-			{ GITHUB_TOKEN: "recorded-token", LINEAR_API_KEY: "recorded-linear-key" },
-			async (base) => {
-				const before = await readTicket(base, "Widget launch", "SWE-13029");
-				expect(before?.state).toBe("awaitingMerge");
-				expect(before?.awaitingPulls?.[0]).toMatchObject({
-					url: pull.html_url,
-					baseBranch: pull.base.ref,
-					actions: ["merge"],
-				});
-				const sent = await sendMerge(base, pull.html_url);
-				expect(sent.status).toBe(204);
-				expect(merges).toEqual([
-					{
-						url: `https://api.github.com/repos/${linearRepo}/pulls/206/merge`,
-						body: { merge_method: "squash", sha: pull.head.sha },
-					},
-				]);
-				const after = await readTicket(base, "Widget launch", "SWE-13029");
-				expect(after?.state).not.toBe("awaitingMerge");
-			},
-		);
 	});
 
 	test("each awaiting PR lists its actions and its gate state", async () => {

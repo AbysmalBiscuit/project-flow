@@ -333,11 +333,29 @@ function answeredItself(payload: unknown, keys: RegExp): boolean {
 	);
 }
 
+/** A recording with no commit status list means that the commit has no status. */
+async function recordedStatuses(answered: Response): Promise<Response> {
+	const payload: unknown = await answered
+		.clone()
+		.json()
+		.catch(() => null);
+	const listed =
+		answered.ok &&
+		typeof payload === "object" &&
+		payload !== null &&
+		"statuses" in payload &&
+		Array.isArray(payload.statuses);
+	return listed ? answered : Response.json({ statuses: [] });
+}
+
 export function answerRecordedRepoRead(fetchImpl: Fetch): Fetch {
 	const lists = new Map<string, Node>();
 	const wrapped: Fetch = async (input, init) => {
 		const body = typeof init?.body === "string" ? init.body : "";
 		const answered = await fetchImpl(input, init);
+		if (/\/commits\/[^/]+\/status\b/.test(urlOf(input))) {
+			return recordedStatuses(answered);
+		}
 		if (urlOf(input) !== "https://api.github.com/graphql") {
 			return answered;
 		}

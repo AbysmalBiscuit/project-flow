@@ -116,7 +116,7 @@ export const reviewSelection = `nodes { author { login } commit { oid } state } 
 
 export const reactionSelection = `nodes { user { login } content createdAt } ${connectionPage}`;
 
-export const checkSelection = `nodes { ... on CheckRun { name status conclusion } } ${connectionPage}`;
+export const checkSelection = `nodes { ... on CheckRun { name status conclusion } ... on StatusContext { context state } } ${connectionPage}`;
 
 export const labelSelection = `nodes { name } ${connectionPage}`;
 
@@ -247,6 +247,10 @@ export const graphqlCheck = z.object({
 	name: z.string().optional(),
 	status: checkStatus.optional(),
 	conclusion: checkConclusion.nullable().optional(),
+	context: z.string().optional(),
+	state: z
+		.enum(["ERROR", "EXPECTED", "FAILURE", "PENDING", "SUCCESS"])
+		.optional(),
 });
 
 export const fullIssueLists = z.object({
