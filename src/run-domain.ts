@@ -158,7 +158,7 @@ export type RunSource = {
 	graphs: { path: string; text: string }[];
 };
 
-/** One record of the agent of a run stage: a message, or a tool call with its cut input. */
+/** One record of the agent of a run stage: a message, a tool call with its cut input, or a steer that reached the agent. */
 export type TranscriptEntry = {
 	/** The cursor of the entry. A read with `after` set to it gives the entries after it. */
 	id: number;

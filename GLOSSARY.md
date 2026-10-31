@@ -231,8 +231,12 @@ The talk with a run in time order: each ask of the run, each answer that Lev sen
 _Avoid_: Run chat, run log
 
 **Stage transcript**:
-The record of the agent of one run stage: each message of the agent and each tool call, in time order. The run thread is not part of it. Project Flow reads it from `GET /runs/{id}/stages/{node_path}/transcript` of the hub that reports the run, or else of its box. Each read gives the entries after the `after` cursor, so a view of a live stage reads only the new entries.
+The record of the agent of one run stage: each message of the agent, each tool call and each steer that reached the agent, in time order. The run thread holds the asks and answers of the run, and it is not part of the stage transcript. Project Flow reads it from `GET /runs/{id}/stages/{node_path}/transcript` of the hub that reports the run, or else of its box. Each read gives the entries after the `after` cursor, so a view of a live stage reads only the new entries. A read also tells when the stage has ended, and then the view stops its reads.
 _Avoid_: Stage thread, stage chat, stage log
+
+**Terminal tab**:
+The tab of the run page that follows the stage transcript of the live stage of a run. It has a steer box for that stage until the stage ends. A run with no live stage shows the stage transcript of its last agent stage, with no steer box. It shows no pane screen and sends no raw keys.
+_Avoid_: Console, shell
 
 **Run context**:
 The context values of a run now, such as its goal and the values that its stages reported. All stages of a run share one run context. The stage view shows it, because the factory serves no context for one stage. Project Flow reads it from the `context_values` of the run checkpoint.
