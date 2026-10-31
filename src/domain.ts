@@ -22,7 +22,7 @@ export const trackerKinds = ["github", "linear"] as const;
 
 export type TrackerKind = (typeof trackerKinds)[number];
 
-export const forgeKinds = ["github", "gitlab"] as const;
+export const forgeKinds = ["github", "gitlab", "forgejo"] as const;
 
 export type ForgeKind = (typeof forgeKinds)[number];
 

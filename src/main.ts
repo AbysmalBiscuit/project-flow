@@ -160,6 +160,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		const credential = rejectedCredential(
 			credentials,
 			configuration,
+			io.env,
 			io.fetch,
 			writeErr,
 		).catch((error: unknown) => {

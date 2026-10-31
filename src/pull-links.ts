@@ -117,8 +117,8 @@ export function linked(ticket: Ticket, pulls: PullRequest[]): PullRequest[] {
 
 /**
  * The links of each forge. The host of a URL selects its forge, and a URL that
- * names no PR on that forge gives no link. `missing` holds the first
- * missing-token message of a URL that names a PR on a forge without a token.
+ * names no PR on that forge gives no link. `missing` holds the missing-token
+ * messages of the URLs that name a PR on a forge without a token.
  */
 export function linksByForge(
 	refs: PullRef[],
@@ -127,7 +127,7 @@ export function linksByForge(
 	) => { forge: Forge; target: PullTarget } | { error: string } | null,
 ): { links: Map<Forge, PullLink[]>; missing: string | null } {
 	const links = new Map<Forge, PullLink[]>();
-	let missing: string | null = null;
+	const missing = new Set<string>();
 	for (const { url, ticketKey } of refs) {
 		const parsed = URL.parse(url);
 		const link = parsed === null ? null : linkOf(parsed);
@@ -135,13 +135,13 @@ export function linksByForge(
 			continue;
 		}
 		if ("error" in link) {
-			missing ??= link.error;
+			missing.add(link.error);
 			continue;
 		}
 		const { forge, target } = link;
 		links.set(forge, [...(links.get(forge) ?? []), { ...target, ticketKey }]);
 	}
-	return { links, missing };
+	return { links, missing: missing.size === 0 ? null : [...missing].join(" ") };
 }
 
 export function closesTicket(pull: PullRequest, ticket: Ticket): boolean {
