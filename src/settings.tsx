@@ -308,7 +308,13 @@ function Menu({
 		setMessage(error ?? settingsCopy.savedToast);
 		setToast((shown) => shown + 1);
 		if (error !== null) {
-			settle(before);
+			// A failed save takes back only the pins of this project, so queued clicks keep their edits.
+			const others = withoutProject(baseline.current.tracked, project);
+			settle(
+				on
+					? others
+					: [...others, ...before.filter((pin) => isTracked([pin], project))],
+			);
 		}
 	}
 
