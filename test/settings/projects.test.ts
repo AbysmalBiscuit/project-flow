@@ -236,6 +236,32 @@ describe("settings", () => {
 		);
 	});
 
+	test("settings lists each saved pin of a project once under its row", async () => {
+		const upper = { tracker: "github" as const, repo: shown.toUpperCase() };
+		const lower = { tracker: "github" as const, repo: shown };
+		const unlisted = "acme/pinned-only";
+		const unlistedPins = [
+			{ tracker: "github" as const, repo: unlisted },
+			{ tracker: "github" as const, repo: unlisted.toUpperCase() },
+		];
+		await withApp(
+			JSON.stringify({ tracked: [upper, lower, ...unlistedPins] }),
+			async (base) => {
+				const { projects } = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as { projects: SettingsProject[] };
+				const rows = (key: string) =>
+					projects.filter((item) => sameTicketKey(item.key, key));
+				expect(rows(shown).map((row) => row.savedPins)).toEqual([
+					[upper, lower],
+				]);
+				expect(rows(unlisted).map((row) => row.savedPins)).toEqual([
+					unlistedPins,
+				]);
+			},
+		);
+	});
+
 	test("the overview names the display key of each project", async () => {
 		await withApp(
 			JSON.stringify({

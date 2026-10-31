@@ -189,6 +189,9 @@ function catalogueRow(
 		expectedBots: bots.expectedBots,
 		repoBots: bots.repoBots,
 		ref,
+		savedPins: configuration.tracked.filter((item) =>
+			matchesRef(project, item),
+		),
 	};
 }
 
@@ -206,11 +209,13 @@ export function settingsProjects(
 			refForFound(project, configuration.tracked),
 		),
 	);
+	const listed = [...catalogue];
 	for (const pin of configuration.tracked) {
-		const located = catalogue.find((project) => matchesRef(project, pin));
+		const located = listed.find((project) => matchesRef(project, pin));
 		if (located !== undefined) {
 			continue;
 		}
+		listed.push(refListed(pinRef(pin)));
 		rows.push({
 			...catalogueRow(
 				refListed(pinRef(pin)),

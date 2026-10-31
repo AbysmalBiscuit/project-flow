@@ -297,12 +297,17 @@ function samePin(left: ProjectPin, right: ProjectPin): boolean {
 	return form(left) === form(right);
 }
 
-function withoutRef(refs: ProjectPin[], ref: ProjectPin): ProjectPin[] {
-	return refs.filter((item) => !samePin(item, ref));
+function isTracked(pins: ProjectPin[], project: SettingsProject): boolean {
+	const named = [project.ref, ...project.savedPins];
+	return pins.some((pin) => named.some((item) => samePin(item, pin)));
 }
 
-function withRef(refs: ProjectPin[], ref: ProjectPin): ProjectPin[] {
-	return refs.some((item) => samePin(item, ref)) ? refs : [...refs, ref];
+function withoutProject(
+	pins: ProjectPin[],
+	project: SettingsProject,
+): ProjectPin[] {
+	const named = [project.ref, ...project.savedPins];
+	return pins.filter((pin) => !named.some((item) => samePin(item, pin)));
 }
 
 function botsOf(
@@ -371,10 +376,7 @@ function projectMatches(
 	if (tracker !== "all" && project.tracker !== tracker) {
 		return false;
 	}
-	if (
-		state === "tracked" &&
-		!draft.tracked.some((ref) => samePin(ref, project.ref))
-	) {
+	if (state === "tracked" && !isTracked(draft.tracked, project)) {
 		return false;
 	}
 	const needle = query.trim().toLowerCase();
@@ -526,7 +528,7 @@ function ProjectRow({
 	const trackerLabel = useTrackerLabel();
 	const repos = project.repos;
 	const pmBot = pmBotOf(draft, project);
-	const tracked = draft.tracked.some((ref) => samePin(ref, project.ref));
+	const tracked = isTracked(draft.tracked, project);
 	return (
 		<tr id={`project-row-${id}`}>
 			<td className={clsx(fields.cell)}>
@@ -545,8 +547,8 @@ function ProjectRow({
 					onChange={(next) =>
 						onChange({
 							tracked: next
-								? withRef(draft.tracked, project.ref)
-								: withoutRef(draft.tracked, project.ref),
+								? [...draft.tracked, project.ref]
+								: withoutProject(draft.tracked, project),
 						})
 					}
 				/>

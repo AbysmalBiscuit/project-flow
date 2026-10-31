@@ -580,6 +580,8 @@ export type SettingsProject = {
 	expectedBots: KnownBot[];
 	repoBots: Record<string, KnownBot[]>;
 	ref: ProjectPin;
+	/** Each pin of the configuration that names this project, whatever its case. */
+	savedPins: ProjectPin[];
 };
 
 export type SettingsSnapshot = Pick<
