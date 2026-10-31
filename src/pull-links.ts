@@ -3,6 +3,7 @@ import type { Forge, PullLink, PullRef, PullTarget } from "./ports.ts";
 import {
 	foldKey,
 	keyNumber,
+	keyRepo,
 	numberedKey,
 	sameTicketKey,
 	teamKey,
@@ -145,10 +146,22 @@ export function linksByForge(
 	return { links, missing: missing.size === 0 ? null : [...missing].join(" ") };
 }
 
+/**
+ * True when a merged pull's body closes the ticket. A Forgejo ticket key
+ * carries its host, so a repo key of the body takes the host of the pull.
+ */
 export function closesTicket(pull: PullRequest, ticket: Ticket): boolean {
 	const key = ticket.key;
 	if (key === null || !pull.merged) {
 		return false;
 	}
-	return closedByBody(pull).some((item) => sameTicketKey(item, key));
+	const hosted = ticket.tracker === "forgejo" ? pull.host : undefined;
+	return closedByBody(pull).some((item) =>
+		sameTicketKey(
+			hosted === undefined || keyRepo(item) === null
+				? item
+				: `${hosted}/${item}`,
+			key,
+		),
+	);
 }

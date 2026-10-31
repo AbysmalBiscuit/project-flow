@@ -389,6 +389,40 @@ describe("a Forgejo PR whose branch names no ticket", () => {
 			},
 		);
 	});
+
+	test("makes the ticket that a merged PR body closes done", async () => {
+		const [pull] = openPulls.filter((item) => item.number === 10);
+		const merged = () =>
+			json([
+				{
+					...pull,
+					state: "closed",
+					merged: true,
+					body: "Closes #2",
+					head: { ...pull?.head, ref: "export-page" },
+				},
+			]);
+		await withApp(
+			tracked,
+			linearWithCodeberg(
+				[],
+				{
+					answers: {
+						"/pulls?state=open": () => json([]),
+						"/pulls?state=closed": merged,
+					},
+				},
+				[],
+			),
+			env,
+			async (base) => {
+				const ticket = (await report(base)).tickets.find(
+					(item) => item.key === keyOf(2),
+				);
+				expect(ticket?.state).toBe("done");
+			},
+		);
+	});
 });
 
 describe("the token of a tracked Forgejo repo", () => {
