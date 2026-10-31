@@ -118,14 +118,14 @@ export function linked(ticket: Ticket, pulls: PullRequest[]): PullRequest[] {
 /** The links of each forge. The host of a URL selects its forge, and a URL that names no PR on that forge gives no link. */
 export function linksByForge(
 	refs: PullRef[],
-	forges: ReadonlyMap<string, Forge>,
+	forgeAt: (host: string) => Forge | null,
 ): Map<Forge, PullLink[]> {
 	const links = new Map<Forge, PullLink[]>();
 	for (const { url, ticketKey } of refs) {
 		const parsed = URL.parse(url);
-		const forge = parsed === null ? undefined : forges.get(parsed.host);
+		const forge = parsed === null ? null : forgeAt(parsed.host);
 		const target = parsed === null ? null : (forge?.pullOfUrl(parsed) ?? null);
-		if (forge !== undefined && target !== null) {
+		if (forge !== null && target !== null) {
 			links.set(forge, [...(links.get(forge) ?? []), { ...target, ticketKey }]);
 		}
 	}

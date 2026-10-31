@@ -1,0 +1,182 @@
+[
+	{
+		"name": "unlinked-change",
+		"commit": {
+			"id": "7defaa63f1ff5fa81f427705241c07b1fa66a66a",
+			"message": "chore(app): add a change with no ticket\n",
+			"url": "https://codeberg.org/AbysmalBiscuit/project-flow-scratch/commit/7defaa63f1ff5fa81f427705241c07b1fa66a66a",
+			"author": {
+				"name": "AbysmalBiscuit",
+				"email": "abysmalbiscuit@noreply.codeberg.org",
+				"username": "AbysmalBiscuit"
+			},
+			"committer": {
+				"name": "AbysmalBiscuit",
+				"email": "abysmalbiscuit@noreply.codeberg.org",
+				"username": "AbysmalBiscuit"
+			},
+			"verification": {
+				"verified": false,
+				"reason": "gpg.error.not_signed_commit",
+				"signature": "",
+				"signer": null,
+				"payload": ""
+			},
+			"timestamp": "2026-10-30T16:40:19+01:00",
+			"added": null,
+			"removed": null,
+			"modified": null
+		},
+		"protected": false,
+		"required_approvals": 0,
+		"enable_status_check": false,
+		"status_check_contexts": [],
+		"user_can_push": false,
+		"user_can_merge": false,
+		"effective_branch_protection_name": ""
+	},
+	{
+		"name": "8-ticket-with-a-pushed-branch",
+		"commit": {
+			"id": "80314fef31f5f5c3df28500358982016612e18b8",
+			"message": "feat(app): start the branch work\n",
+			"url": "https://codeberg.org/AbysmalBiscuit/project-flow-scratch/commit/80314fef31f5f5c3df28500358982016612e18b8",
+			"author": {
+				"name": "AbysmalBiscuit",
+				"email": "abysmalbiscuit@noreply.codeberg.org",
+				"username": "AbysmalBiscuit"
+			},
+			"committer": {
+				"name": "AbysmalBiscuit",
+				"email": "abysmalbiscuit@noreply.codeberg.org",
+				"username": "AbysmalBiscuit"
+			},
+			"verification": {
+				"verified": false,
+				"reason": "gpg.error.not_signed_commit",
+				"signature": "",
+				"signer": null,
+				"payload": ""
+			},
+			"timestamp": "2026-10-30T16:40:12+01:00",
+			"added": null,
+			"removed": null,
+			"modified": null
+		},
+		"protected": false,
+		"required_approvals": 0,
+		"enable_status_check": false,
+		"status_check_contexts": [],
+		"user_can_push": false,
+		"user_can_merge": false,
+		"effective_branch_protection_name": ""
+	},
+	{
+		"name": "7-ticket-with-a-draft-pr",
+		"commit": {
+			"id": "c249841de9769ddfb942c5b0962cd63eb00de3bf",
+			"message": "feat(app): add the draft change\n",
+			"url": "https://codeberg.org/AbysmalBiscuit/project-flow-scratch/commit/c249841de9769ddfb942c5b0962cd63eb00de3bf",
+			"author": {
+				"name": "AbysmalBiscuit",
+				"email": "abysmalbiscuit@noreply.codeberg.org",
+				"username": "AbysmalBiscuit"
+			},
+			"committer": {
+				"name": "AbysmalBiscuit",
+				"email": "abysmalbiscuit@noreply.codeberg.org",
+				"username": "AbysmalBiscuit"
+			},
+			"verification": {
+				"verified": false,
+				"reason": "gpg.error.not_signed_commit",
+				"signature": "",
+				"signer": null,
+				"payload": ""
+			},
+			"timestamp": "2026-10-30T16:40:04+01:00",
+			"added": null,
+			"removed": null,
+			"modified": null
+		},
+		"protected": false,
+		"required_approvals": 0,
+		"enable_status_check": false,
+		"status_check_contexts": [],
+		"user_can_push": false,
+		"user_can_merge": false,
+		"effective_branch_protection_name": ""
+	},
+	{
+		"name": "6-ticket-with-a-pr",
+		"commit": {
+			"id": "e8b587bc5fe0658d1f1ea07ba3f600bd59276fb1",
+			"message": "feat(app): add the linked change\n",
+			"url": "https://codeberg.org/AbysmalBiscuit/project-flow-scratch/commit/e8b587bc5fe0658d1f1ea07ba3f600bd59276fb1",
+			"author": {
+				"name": "AbysmalBiscuit",
+				"email": "abysmalbiscuit@noreply.codeberg.org",
+				"username": "AbysmalBiscuit"
+			},
+			"committer": {
+				"name": "AbysmalBiscuit",
+				"email": "abysmalbiscuit@noreply.codeberg.org",
+				"username": "AbysmalBiscuit"
+			},
+			"verification": {
+				"verified": false,
+				"reason": "gpg.error.not_signed_commit",
+				"signature": "",
+				"signer": null,
+				"payload": ""
+			},
+			"timestamp": "2026-10-30T16:39:58+01:00",
+			"added": null,
+			"removed": null,
+			"modified": null
+		},
+		"protected": false,
+		"required_approvals": 0,
+		"enable_status_check": false,
+		"status_check_contexts": [],
+		"user_can_push": false,
+		"user_can_merge": false,
+		"effective_branch_protection_name": ""
+	},
+	{
+		"name": "main",
+		"commit": {
+			"id": "250b0f0ebc0d116b8b99bb2374541298495fe384",
+			"message": "Initial commit\n",
+			"url": "https://codeberg.org/AbysmalBiscuit/project-flow-scratch/commit/250b0f0ebc0d116b8b99bb2374541298495fe384",
+			"author": {
+				"name": "AbysmalBiscuit",
+				"email": "abysmalbiscuit@noreply.codeberg.org",
+				"username": "AbysmalBiscuit"
+			},
+			"committer": {
+				"name": "AbysmalBiscuit",
+				"email": "abysmalbiscuit@noreply.codeberg.org",
+				"username": "AbysmalBiscuit"
+			},
+			"verification": {
+				"verified": false,
+				"reason": "gpg.error.not_signed_commit",
+				"signature": "",
+				"signer": null,
+				"payload": ""
+			},
+			"timestamp": "2026-10-30T16:26:10+01:00",
+			"added": null,
+			"removed": null,
+			"modified": null
+		},
+		"protected": false,
+		"required_approvals": 0,
+		"enable_status_check": false,
+		"status_check_contexts": [],
+		"user_can_push": false,
+		"user_can_merge": false,
+		"effective_branch_protection_name": ""
+	}
+]
