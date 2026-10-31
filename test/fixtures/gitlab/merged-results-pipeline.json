@@ -1,0 +1,12 @@
+{
+	"id": 3007373349,
+	"iid": 16382,
+	"project_id": 34675721,
+	"sha": "c32780edeb7cf05a26b7ce430aa52f9e01f45ad4",
+	"ref": "refs/merge-requests/4260/merge",
+	"status": "success",
+	"source": "merge_request_event",
+	"created_at": "2026-10-30T06:48:48.850Z",
+	"updated_at": "2026-10-30T07:04:02.472Z",
+	"web_url": "https://gitlab.com/gitlab-org/cli/-/pipelines/3007373349"
+}
