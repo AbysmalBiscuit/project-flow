@@ -26,17 +26,59 @@ function stageAt(graph: RunGraph | null, path: string): RunStage | undefined {
 	);
 }
 
+/** Each call of a child graph opens at one of these start nodes, which run no agent. */
+const startNodes = new Set(["start", "Start"]);
+
 /**
- * The last stage that the run finished with an agent. A node that the graph
- * names with another handler, such as the exit, has no transcript.
+ * True when the stage at `path` records a transcript: an agent stage that
+ * calls no child graph, or a stage of a child graph other than its start.
  */
-function lastAgentStage({ completedStages, graph }: RunCheckpoint) {
-	return (
-		completedStages.findLast((id) => {
-			const kind = graph?.nodes.find((node) => node.id === id)?.kind;
-			return kind === undefined || kind === "codergen";
-		}) ?? null
-	);
+function hasTranscript(graph: RunGraph, path: string): boolean {
+	const node = graph.nodes.find((candidate) => candidate.id === path);
+	if (node !== undefined) {
+		return node.kind === "codergen" && node.child === undefined;
+	}
+	const stage = stageAt(graph, path);
+	return stage !== undefined && !startNodes.has(stage.label);
+}
+
+/**
+ * The last stage with a transcript that the run finished. A node that calls a
+ * child graph gives the last stage of that child graph, by its full path.
+ */
+function lastTranscriptStage({
+	completedStages,
+	graph,
+}: RunCheckpoint): string | null {
+	if (graph === null) {
+		return completedStages.at(-1) ?? null;
+	}
+	for (const id of completedStages.toReversed()) {
+		const node = graph.nodes.find((candidate) => candidate.id === id);
+		const stage =
+			node?.child === undefined
+				? node?.id
+				: node.child.findLast((child) => !startNodes.has(child.label))?.id;
+		if (stage !== undefined && hasTranscript(graph, stage)) {
+			return stage;
+		}
+	}
+	return null;
+}
+
+/**
+ * The stage that the Terminal tab of a run with no live stage shows. A run that
+ * failed or stopped shows the stage where it stopped. A run that succeeded
+ * stopped at its exit, so it shows its last stage with a transcript.
+ */
+function endedStage(run: ShownFactoryRun, checkpoint: RunCheckpoint) {
+	const { stage, graph } = checkpoint;
+	const stoppedHere =
+		stage !== null &&
+		(graph === null
+			? run.statusKind !== "succeeded"
+			: hasTranscript(graph, stage));
+	return stoppedHere ? stage : lastTranscriptStage(checkpoint);
 }
 
 /**
@@ -48,8 +90,8 @@ export function RunTerminal({ run }: { run: ShownFactoryRun }) {
 	const currentStage = useCurrentStage(run);
 	const live = liveRunStatusKinds.some((kind) => kind === run.statusKind);
 	const stage =
-		currentStage ??
-		(typeof checkpoint === "object" ? lastAgentStage(checkpoint) : null);
+		(live ? currentStage : null) ??
+		(typeof checkpoint === "object" ? endedStage(run, checkpoint) : null);
 	if (stage === null) {
 		return <p className={clsx(panel.note)}>{noTerminalStageLabel}</p>;
 	}
