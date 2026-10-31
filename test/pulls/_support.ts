@@ -162,6 +162,30 @@ export const linearEnv = {
 	LINEAR_API_KEY: "recorded-linear-key",
 };
 
+/** Recorded answers for a Linear ticket with no PR, whose status is Ready to merge. */
+export function linearStatusOnlyFake() {
+	const ready = {
+		id: "st-merge",
+		name: "Ready to merge",
+		type: "started",
+		color: "#4CB782",
+	};
+	return linearFake({
+		states: [
+			...recordedTeam.data.team.states.nodes,
+			{ ...ready, position: 2037 },
+		],
+		issues: [
+			{
+				...outsideRelations.linearSwe13029,
+				id: "swe-13029",
+				state: ready,
+				attachments: { nodes: [] },
+			},
+		],
+	});
+}
+
 /**
  * Recorded answers for a Linear ticket whose attachment names recorded PR 206.
  * The forge reads this PR over REST. Each entry of `checkPages` is one page

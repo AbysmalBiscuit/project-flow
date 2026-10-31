@@ -1,6 +1,7 @@
 import type { Configuration } from "./configuration.ts";
 import type {
 	Attention,
+	AwaitingPull,
 	Comment,
 	FactoryRun,
 	NeedsYouItem,
@@ -11,10 +12,10 @@ import type {
 	PullRequest,
 	Snapshot,
 	Ticket,
-	TicketState,
 } from "./domain.ts";
 import { openImportantQuestions } from "./important-questions.ts";
 import type { KnownBot } from "./known-bots.ts";
+import { awaitingPull, type PullActionsOf } from "./merge-gate.ts";
 import {
 	type OpenAsk,
 	openAsk,
@@ -408,7 +409,8 @@ export function needsYouItems(
 	unlinkedPulls: PullRequest[],
 	linkedByTicket: Map<string, PullRequest[]>,
 	expectedBots: Map<string, KnownBot[]>,
-	shownByKey: Map<string, TicketState>,
+	awaitingByKey: Map<string, AwaitingPull[]>,
+	pullActionsOf: PullActionsOf,
 	failedKeys: Set<string>,
 	blockedRuns: Map<string, FactoryRun>,
 	rules: NeedsYouRules,
@@ -425,7 +427,7 @@ export function needsYouItems(
 		if (ticket.state !== "open" || ticket.key === null) {
 			continue;
 		}
-		const shown = shownByKey.get(ticket.key);
+		const awaitingPulls = awaitingByKey.get(foldKey(ticket.key)) ?? [];
 		const linkedPulls = linkedByTicket.get(ticket.key) ?? [];
 		const comments = [
 			...(ticket.comments ?? []),
@@ -440,30 +442,29 @@ export function needsYouItems(
 		const labelled =
 			assignedToViewer(ticket, viewers) &&
 			ticket.labels.some((label) => labels.has(label.toLowerCase()));
-		const awaiting = shown === "awaitingMerge";
+		const awaiting = awaitingPulls.length > 0;
 		const failed = failedKeys.has(ticket.key);
 		const asked = ask !== null || fromRun !== null;
 		if (!asked && !labelled && !awaiting && !failed) {
 			continue;
 		}
-		items.push(
-			needsYouItem(
-				project,
-				tracker,
-				ticket.key,
-				ticket.title,
-				ask,
-				asked
-					? "ask"
-					: awaiting
-						? "awaitingMerge"
-						: failed
-							? "runFailed"
-							: "label",
-				linkedPulls,
-				fromRun?.factoryAsk,
-			),
+		const item = needsYouItem(
+			project,
+			tracker,
+			ticket.key,
+			ticket.title,
+			ask,
+			asked
+				? "ask"
+				: awaiting
+					? "awaitingMerge"
+					: failed
+						? "runFailed"
+						: "label",
+			linkedPulls,
+			fromRun?.factoryAsk,
 		);
+		items.push(awaiting ? { ...item, awaitingPulls } : item);
 	}
 	const folded = new Set(
 		[...linkedByTicket.values()].flat().map((pull) => pullId(pull)),
@@ -493,7 +494,10 @@ export function needsYouItems(
 		if (mergesOnItsOwn([pull], project, projectKey, autoMerge, workcellPulls)) {
 			continue;
 		}
-		items.push(pullItem(project, pull, null, "awaitingMerge"));
+		items.push({
+			...pullItem(project, pull, null, "awaitingMerge"),
+			awaitingPulls: [awaitingPull(pull, pullActionsOf)],
+		});
 	}
 	items.sort((left, right) => Number(left.answered) - Number(right.answered));
 	return items;

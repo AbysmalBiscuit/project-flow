@@ -408,6 +408,8 @@ export type NeedsYouItem = {
 	host?: string;
 	/** The count of Important Questions on the open PRs that have no answer. */
 	openQuestions?: number;
+	/** Each open PR that Lev can merge from this item, with its gate. */
+	awaitingPulls?: AwaitingPull[];
 	/** The factory question that the ask comes from, and the run that waits on it. */
 	factoryAsk?: { factory: string; run: string; question: string };
 };

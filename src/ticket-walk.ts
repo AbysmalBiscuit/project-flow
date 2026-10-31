@@ -7,7 +7,6 @@ import type {
 	LiveRun,
 	PullRequest,
 	Ticket,
-	TicketState,
 	TicketView,
 	WorkcellRun,
 } from "./domain.ts";
@@ -78,7 +77,6 @@ export function walkTickets(walk: TicketWalk) {
 	const relationsByKey = new Map<string, ReturnType<typeof ticketRelations>>();
 	const pullByKey = new Map<string, PullRequest>();
 	const awaitingByKey = new Map<string, AwaitingPull[]>();
-	const shownByKey = new Map<string, TicketState>();
 	const failedKeys = new Set<string>();
 	const blockedRuns = new Map<string, FactoryRun>();
 	const runByKey = new Map<string, LiveRun>();
@@ -132,7 +130,6 @@ export function walkTickets(walk: TicketWalk) {
 			blockers.length,
 		);
 		if (ticket.key !== null) {
-			shownByKey.set(ticket.key, shown.state);
 			if (shown.runFailed) {
 				failedKeys.add(ticket.key);
 			}
@@ -191,7 +188,6 @@ export function walkTickets(walk: TicketWalk) {
 		relationsByKey,
 		pullByKey,
 		awaitingByKey,
-		shownByKey,
 		failedKeys,
 		blockedRuns,
 		runByKey,
