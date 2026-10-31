@@ -141,22 +141,6 @@ async function loadOpenPull(
 	};
 }
 
-async function fetchJson(
-	url: string,
-	token: string,
-	fetchImpl: Fetch,
-	label: string,
-): Promise<unknown> {
-	const response = await fetchImpl(url, { headers: githubHeaders(token) });
-	if (!response.ok) {
-		throw new TrackerError(
-			`GitHub ${label} failed (HTTP ${response.status}): ${url}`,
-			response.status,
-		);
-	}
-	return response.json();
-}
-
 async function fetchRows<Row, Mapped>(
 	start: string,
 	repo: string,
@@ -222,23 +206,27 @@ async function fetchCheckRuns(
 	token: string,
 	fetchImpl: Fetch,
 ): Promise<BotCheck[]> {
-	const body = await fetchJson(
+	const bodies = await pages(
 		`https://api.github.com/repos/${repo}/commits/${sha}/check-runs?per_page=100`,
 		token,
 		fetchImpl,
+		repo,
 		"list checks",
 	);
-	return z
-		.object({
-			check_runs: z.array(
-				z.object({
-					name: z.string(),
-					status: z.string(),
-					conclusion: z.string().nullable(),
-				}),
-			),
-		})
-		.parse(body).check_runs;
+	return bodies.flatMap(
+		(body) =>
+			z
+				.object({
+					check_runs: z.array(
+						z.object({
+							name: z.string(),
+							status: z.string(),
+							conclusion: z.string().nullable(),
+						}),
+					),
+				})
+				.parse(body).check_runs,
+	);
 }
 
 async function fetchChecks(

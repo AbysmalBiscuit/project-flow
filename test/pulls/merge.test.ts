@@ -236,6 +236,29 @@ describe("merge an awaiting PR", () => {
 		});
 	});
 
+	for (const { later, reason } of [
+		{
+			later: { name: "e2e", status: "completed", conclusion: "failure" },
+			reason: "A check failed",
+		},
+		{
+			later: { name: "e2e", status: "in_progress", conclusion: null },
+			reason: "A check is pending",
+		},
+	]) {
+		test(`a check that is ${later.status} on a later page of a linked PR refuses a merge`, async () => {
+			const fake = linearMergeFake({
+				checkPages: [[passedCheck], [later]],
+			});
+			await withApp(linearConfig, fake.fetch, linearEnv, async (base) => {
+				const sent = await sendMerge(base, fake.pull.html_url);
+				expect(sent.status).toBe(409);
+				expect(await sent.json()).toEqual({ error: reason });
+				expect(fake.merges).toEqual([]);
+			});
+		});
+	}
+
 	test("each awaiting PR lists its actions and its gate state", async () => {
 		const fake = mergeFake();
 		await withApp(widgetConfig, fake.fetch, githubEnv, async (base) => {
