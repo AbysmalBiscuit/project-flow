@@ -2,7 +2,7 @@
  * Serves one GitHub repo and one Linear project, each with a ticket that has a
  * thread, so Settings and the side panel show both trackers.
  *
- * Usage: bun proof/serve-779.ts [PORT]
+ * Usage: bun proof/serve-779.ts [PORT] [no-linear-key]
  */
 import type { Fetch } from "../src/fetch.ts";
 import { urlOf } from "../test/support/fetch.ts";
@@ -54,6 +54,7 @@ const linear = linearFake({
 		{
 			id: "issue-wid-1",
 			identifier: "WID-1",
+			url: "https://linear.app/acme/issue/WID-1/ticket",
 			title: "Ship the launch list",
 			description: "",
 			state: { type: "started", name: "In Progress" },
@@ -82,6 +83,7 @@ const linear = linearFake({
 		{
 			id: "issue-wid-2",
 			identifier: "WID-2",
+			url: "https://linear.app/acme/issue/WID-2/ticket",
 			title: "Write the release notes",
 			description: "",
 			state: { type: "unstarted", name: "Todo" },
@@ -131,4 +133,7 @@ await serveRecorded({
 		pollIntervalSeconds: 3600,
 	},
 	fetch,
+	...(process.argv[3] === "no-linear-key"
+		? { credentials: { GITHUB_TOKEN: "recorded-token" } }
+		: {}),
 });
