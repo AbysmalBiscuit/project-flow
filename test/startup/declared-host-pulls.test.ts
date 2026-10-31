@@ -2,8 +2,11 @@ import { describe, expect, test } from "bun:test";
 
 import type { NeedsYouItem, PullRequest, Snapshot } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
+import hubRuns from "../fixtures/factory-hub-runs.json";
+import runDetail from "../fixtures/factory-run-detail.json";
 import { githubFetch } from "../review-github-fake.ts";
 import { devkitWorktree } from "../support/checkouts.ts";
+import { factoryFetch, hub, hubUrl } from "../support/factory.ts";
 import { codex } from "../support/github.ts";
 import {
 	readOverview,
@@ -15,6 +18,7 @@ import {
 	host,
 	hostedWidget,
 	hosts,
+	recordedFetch,
 	storedPull,
 	widget,
 	widgetRow,
@@ -324,6 +328,46 @@ describe("a project that holds PR #1 on github.com and on a declared host", () =
 						{ key: "acme/widget#5", reason: "awaitingMerge" },
 					]);
 				},
+			);
+		} finally {
+			await checkout.cleanup();
+		}
+	});
+
+	test("a factory run of the PR on the host does not reach the PR on github.com", async () => {
+		const checkout = await devkitWorktree({
+			key: "acme/widget#5",
+			status: "running",
+			mergeAuto: { merge: "yes" },
+		});
+		const [run] = hubRuns.runs;
+		if (run === undefined) {
+			throw new Error("the hub runs fixture lost a run");
+		}
+		const hostedRun = {
+			...runDetail,
+			pr: { owner: "acme", repo: "widget", number: 1, url: hostedUrl },
+		};
+		const factories = {
+			[hubUrl]: { ...hub, [`/runs/${run.id}`]: hostedRun },
+		};
+		try {
+			await withStoredRows(
+				[widgetRow({ name: hostedKey, host, pulls: [homePull({})] })],
+				{
+					hosts,
+					tracked: [hostedWidget],
+					checkoutRoots: [checkout.root],
+					factories: [{ name: "work hub", url: hubUrl }],
+				},
+				async (base) => {
+					await readWhere<{ pull?: { url: string } }[]>(
+						new URL("/api/factory-runs", base),
+						(rows) => rows.some((row) => row.pull?.url === hostedUrl),
+					);
+					expect(await needsYouUrls(base)).toEqual([homeUrl]);
+				},
+				factoryFetch(factories, [], recordedFetch(200)),
 			);
 		} finally {
 			await checkout.cleanup();
