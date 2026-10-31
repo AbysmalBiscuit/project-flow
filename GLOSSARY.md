@@ -39,7 +39,7 @@ The external system that hosts the git refs and PRs of a repo, such as GitHub, G
 _Avoid_: Code host, git provider
 
 **Declared host**:
-A self-hosted forge host that the `hosts` list of the configuration names, with its forge kind and the env var of its token. github.com needs no declaration. The name gitlab.com stays reserved until its adapter exists, so a configuration cannot declare it or pin a project on it.
+A self-hosted forge host that the `hosts` list of the configuration names, with its forge kind and the env var of its token. github.com and gitlab.com need no declaration, so a configuration cannot declare them. GitLab issues are not tickets, so a configuration cannot pin a project on gitlab.com.
 _Avoid_: Custom host, enterprise host
 
 ### Grouping

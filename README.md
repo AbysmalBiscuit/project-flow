@@ -120,7 +120,7 @@ An older file can hold `pinned`, `hidden` and `activityWindowDays`. The app load
 
 ## Tokens
 
-The app reads `GITHUB_TOKEN` from the environment. A blank value does not count. Otherwise the app reads `gh auth token`, whatever the configuration pins. A configuration with only Linear pins reads `gh` the same way, and uses that token to load linked PRs. When neither source gives a token, that configuration still starts. A linked open PR then stays off the ticket, so the ticket stays in backlog. A rejected token stops the start.
+The app reads `GITHUB_TOKEN` from the environment. A blank value does not count. Otherwise the app reads `gh auth token`, whatever the configuration pins. A configuration with only Linear pins reads `gh` the same way, and uses that token to load linked PRs. When neither source gives a token, that configuration still starts. A Linear project that links a github.com PR then shows an error that names `GITHUB_TOKEN`. The project keeps its tickets, and the PRs of each forge that has a token. A rejected token stops the start.
 
 An empty configuration starts without a token when neither source gives one. A pin that uses the GitHub tracker also starts. Each GitHub project shows an error that names `GITHUB_TOKEN`. A GitHub project found from a local checkout shows that same error.
 
@@ -152,6 +152,8 @@ proc = Bun.spawn([gh, "auth", "token"], {
 });
 ```
 
+The app reads `GITLAB_TOKEN` from the environment to read PRs on gitlab.com. A blank value does not count. GitLab has no CLI fallback. With no token, a project that links a gitlab.com PR shows an error that names `GITLAB_TOKEN`. That project keeps its tickets, and the PRs of each forge that has a token. A rejected token stops the start. A self-hosted GitLab host does not read PRs yet.
+
 The app reads `LINEAR_API_KEY` from the environment. A blank value does not count. With the key set, the app finds Linear projects. With no key, each Linear project shows an error that names `LINEAR_API_KEY`. The projects of the other tracker poll. A rejected token or key exits and names that credential.
 
 ### Declared hosts
@@ -169,7 +171,7 @@ The `hosts` list declares each self-hosted host with its forge kind and the env 
 }
 ```
 
-A pin with no `host` is on github.com. A pin with `host` set to `github.com` is the same project as a pin with no `host`. The load fails when a pin names a host that `hosts` does not declare. The load also fails when `hosts` declares `github.com`, `gitlab.com` or one host two times. The name `gitlab.com` stays reserved until its adapter exists, so a pin cannot use it.
+A pin with no `host` is on github.com. A pin with `host` set to `github.com` is the same project as a pin with no `host`. The load fails when a pin names a host that `hosts` does not declare. The load also fails when `hosts` declares `github.com`, `gitlab.com` or one host two times. The app knows `gitlab.com` as a forge with no declaration. GitLab issues are not tickets, so a pin cannot use `gitlab.com`.
 
 With no token in the env var, each project of the host shows an error that names the env var. The projects of other hosts poll. With a token, the project shows an error when no adapter can read the host. The app does not send that token to another host.
 
