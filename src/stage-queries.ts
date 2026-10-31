@@ -4,20 +4,21 @@ import type { StageTranscript } from "./domain.ts";
 import type { TranscriptRead } from "./factory-run-transcript.ts";
 import { agentReadMs, heldData } from "./queries.ts";
 
-/** The page queries of the stage view. An overview event reads each of them again. */
+/** The page queries of the stage view. */
 export const stageQuery = {
 	/**
 	 * The transcript of one stage. Each read asks only for the entries after the
 	 * ones the page holds, and adds them. A live stage reads again on an
-	 * interval until the factory says that the stage has ended.
+	 * interval. An overview event also reads the stage again. All reads stop when
+	 * the factory says that the stage has ended.
 	 */
 	transcript: (runId: string, stage: string, live: boolean) => {
 		const queryKey = ["transcript", runId, stage];
 		return queryOptions({
 			queryKey,
 			queryFn: () => readTranscript(runId, stage, queryKey),
-			refetchInterval: (query) =>
-				live && !hasEnded(query.state.data) ? agentReadMs : false,
+			enabled: (query) => !hasEnded(query.state.data),
+			refetchInterval: live ? agentReadMs : false,
 		});
 	},
 };
