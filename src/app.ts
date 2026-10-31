@@ -1,4 +1,9 @@
-import { buildBackends, type Credentials, type Env } from "./backends.ts";
+import {
+	buildBackends,
+	type Credentials,
+	type Env,
+	prepareRepoFetch,
+} from "./backends.ts";
 import type { Configuration, Factory } from "./configuration.ts";
 import {
 	loadConfiguration,
@@ -15,7 +20,6 @@ import {
 	defaultTrackerRequestLimitMs,
 	type Fetch,
 } from "./fetch.ts";
-import { conditionalFetch } from "./github.ts";
 import { elkWorkerPath } from "./graph-core.ts";
 import { forceWorkerPath } from "./graph-layout.ts";
 import { inboxEntries } from "./inbox-entries.ts";
@@ -138,7 +142,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		throw error;
 	}
 	const factoryTokens = installationTokenFetch(
-		conditionalFetch(trackerFetch, opened.validators),
+		prepareRepoFetch(trackerFetch, opened.validators),
 		() => ({
 			enabled: configuration.factoryGithubTokens,
 			dir: configuration.factoryGithubTokenDir,
