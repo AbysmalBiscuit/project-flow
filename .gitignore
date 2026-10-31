@@ -3,6 +3,7 @@ node_modules/
 *.local
 *.local.*
 proofshot-artifacts/
+.devkit/
 
 # Proof media goes into the PR body through `devkit pr create --attach`.
 proof/
