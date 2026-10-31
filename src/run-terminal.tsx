@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-import type { ShownFactoryRun } from "./domain.ts";
+import type { RunCheckpoint, ShownFactoryRun } from "./domain.ts";
 import { liveRunStatusKinds } from "./kinds.ts";
 import { RunFact } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
@@ -9,6 +9,19 @@ import { Transcript } from "./run-stage-view.tsx";
 import { RunSteer, useCurrentStage } from "./run-steer.tsx";
 import { noTerminalStageLabel, terminalStageLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
+
+/**
+ * The last stage that the run finished with an agent. A node that the graph
+ * names with another handler, such as the exit, has no transcript.
+ */
+function lastAgentStage({ completedStages, graph }: RunCheckpoint) {
+	return (
+		completedStages.findLast((id) => {
+			const kind = graph?.nodes.find((node) => node.id === id)?.kind;
+			return kind === undefined || kind === "codergen";
+		}) ?? null
+	);
+}
 
 /**
  * The Terminal tab: the transcript of the stage where the run is now, and a
@@ -20,9 +33,7 @@ export function RunTerminal({ run }: { run: ShownFactoryRun }) {
 	const live = liveRunStatusKinds.some((kind) => kind === run.statusKind);
 	const stage =
 		currentStage ??
-		(typeof checkpoint === "object"
-			? (checkpoint.completedStages.at(-1) ?? null)
-			: null);
+		(typeof checkpoint === "object" ? lastAgentStage(checkpoint) : null);
 	if (stage === null) {
 		return <p className={clsx(panel.note)}>{noTerminalStageLabel}</p>;
 	}
