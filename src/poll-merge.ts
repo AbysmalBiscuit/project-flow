@@ -81,15 +81,11 @@ function keptPulls(
 	const incomingKeys = new Set(
 		incoming.flatMap((pull) => pull.closingKeys.map((key) => foldKey(key))),
 	);
-	const storedById = new Map(
-		stored.map((pull) => [foldKey(pullKey(pull)), pull]),
-	);
+	const storedById = new Map(stored.map((pull) => [pullId(pull), pull]));
 	// An incremental read names only the links of the tickets that it returned,
 	// so a pull that it read again keeps the links of the unchanged tickets.
 	const withUnchangedLinks = (pull: PullRequest): PullRequest => {
-		const unchanged = (
-			storedById.get(foldKey(pullKey(pull)))?.closingKeys ?? []
-		).filter(
+		const unchanged = (storedById.get(pullId(pull))?.closingKeys ?? []).filter(
 			(key) =>
 				!returnedIds.has(foldKey(key)) &&
 				!pull.closingKeys.some((held) => foldKey(held) === foldKey(key)),
