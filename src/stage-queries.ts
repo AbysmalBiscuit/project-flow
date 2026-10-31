@@ -62,15 +62,13 @@ async function absentRead(
 	return body?.notServed === true ? "not served" : "missing";
 }
 
-async function readTranscript(
+/** One page of the transcript after the cursor `after`. */
+async function readPage(
 	runId: string,
 	stage: string,
-): Promise<TranscriptRead> {
-	const held = heldTranscript(runId, stage);
-	const query = new URLSearchParams({
-		stage,
-		after: String(held?.next ?? 0),
-	}).toString();
+	after: number,
+): Promise<StageTranscript | "not served" | "missing"> {
+	const query = new URLSearchParams({ stage, after: String(after) }).toString();
 	const response = await fetch(
 		`/api/factory-runs/${encodeURIComponent(runId)}/transcript?${query}`,
 	);
@@ -80,14 +78,39 @@ async function readTranscript(
 	if (!response.ok) {
 		throw new Error(`transcript failed (HTTP ${response.status})`);
 	}
-	const page = (await response.json()) as StageTranscript;
-	const heldIds = new Set(held?.entries.map((entry) => entry.id));
-	return {
-		entries: [
-			...(held?.entries ?? []),
-			...page.entries.filter((entry) => !heldIds.has(entry.id)),
-		],
-		next: Math.max(page.next, held?.next ?? 0),
-		ended: page.ended,
+	return (await response.json()) as StageTranscript;
+}
+
+/**
+ * The entries after the ones the page holds. The factory gives one page for
+ * each read, so the read goes on with `next` until the stage has ended or a
+ * page moves the cursor no further.
+ */
+async function readTranscript(
+	runId: string,
+	stage: string,
+): Promise<TranscriptRead> {
+	const held = heldTranscript(runId, stage);
+	const read: StageTranscript = {
+		entries: [...(held?.entries ?? [])],
+		next: held?.next ?? 0,
+		ended: false,
 	};
+	const seen = new Set(read.entries.map((entry) => entry.id));
+	while (true) {
+		const page = await readPage(runId, stage, read.next);
+		if (typeof page !== "object") {
+			return page;
+		}
+		read.entries.push(...page.entries.filter((entry) => !seen.has(entry.id)));
+		for (const entry of page.entries) {
+			seen.add(entry.id);
+		}
+		read.ended = page.ended;
+		if (page.ended || page.next <= read.next) {
+			read.next = Math.max(read.next, page.next);
+			return read;
+		}
+		read.next = page.next;
+	}
 }
