@@ -2,23 +2,60 @@ import { queryOptions } from "@tanstack/react-query";
 
 import type { StageTranscript } from "./domain.ts";
 import type { TranscriptRead } from "./factory-run-transcript.ts";
-import { agentReadMs, heldData } from "./queries.ts";
+import { agentReadMs, pageQueryClient } from "./queries.ts";
 
-/** The page queries of the stage view. An overview event reads each of them again. */
+/** The page queries of the stage view. */
 export const stageQuery = {
 	/**
 	 * The transcript of one stage. Each read asks only for the entries after the
-	 * ones the page holds, and adds them. A live stage reads again on an interval.
+	 * ones the page holds, and adds them. A live stage reads again on an
+	 * interval. An overview event also reads the stage again. All reads stop when
+	 * the factory says that the stage has ended.
+	 *
+	 * `visit` names the visit of the stage and the run status. A later visit or a
+	 * resume starts the stage again, so a new `visit` gives a new query. That
+	 * query reads on from the cursor of the entries that the page holds for the
+	 * same run and stage. Until its first read lands, it shows those entries as a
+	 * stage that has not ended. Another stage never shows them.
 	 */
-	transcript: (runId: string, stage: string, live: boolean) => {
-		const queryKey = ["transcript", runId, stage];
+	transcript: (runId: string, stage: string, live: boolean, visit: string) => {
+		const queryKey = ["transcript", runId, stage, visit];
 		return queryOptions({
 			queryKey,
-			queryFn: () => readTranscript(runId, stage, queryKey),
+			queryFn: () => readTranscript(runId, stage),
+			enabled: (query) => !hasEnded(query.state.data),
 			refetchInterval: live ? agentReadMs : false,
+			placeholderData: () => {
+				const held = heldTranscript(runId, stage);
+				return held === undefined ? undefined : { ...held, ended: false };
+			},
 		});
 	},
 };
+
+/** The visit of a stage: its visit count and the run status. */
+export function stageVisit(statusKind: string, visits: number): string {
+	return `${statusKind}:${visits}`;
+}
+
+/** The transcript of the stage that the page holds over all its visits: the one with the furthest cursor. */
+function heldTranscript(
+	runId: string,
+	stage: string,
+): StageTranscript | undefined {
+	return pageQueryClient
+		.getQueriesData<TranscriptRead>({ queryKey: ["transcript", runId, stage] })
+		.flatMap(([, read]) => (typeof read === "object" ? [read] : []))
+		.reduce<StageTranscript | undefined>(
+			(furthest, read) =>
+				furthest === undefined || read.next > furthest.next ? read : furthest,
+			undefined,
+		);
+}
+
+function hasEnded(read: TranscriptRead | undefined): boolean {
+	return typeof read === "object" && read.ended;
+}
 
 /** The read that a 404 answer stands for: a route the factory does not serve, or no run. */
 async function absentRead(
@@ -30,16 +67,13 @@ async function absentRead(
 	return body?.notServed === true ? "not served" : "missing";
 }
 
-async function readTranscript(
+/** One page of the transcript after the cursor `after`. */
+async function readPage(
 	runId: string,
 	stage: string,
-	queryKey: readonly unknown[],
-): Promise<TranscriptRead> {
-	const held = heldData<TranscriptRead>(queryKey);
-	const query = new URLSearchParams({
-		stage,
-		after: String(typeof held === "object" ? held.next : 0),
-	}).toString();
+	after: number,
+): Promise<StageTranscript | "not served" | "missing"> {
+	const query = new URLSearchParams({ stage, after: String(after) }).toString();
 	const response = await fetch(
 		`/api/factory-runs/${encodeURIComponent(runId)}/transcript?${query}`,
 	);
@@ -49,12 +83,40 @@ async function readTranscript(
 	if (!response.ok) {
 		throw new Error(`transcript failed (HTTP ${response.status})`);
 	}
-	const page = (await response.json()) as StageTranscript;
-	return {
-		entries: [
-			...(typeof held === "object" ? held.entries : []),
-			...page.entries,
-		],
-		next: page.next,
+	return (await response.json()) as StageTranscript;
+}
+
+/**
+ * The entries after the ones the page holds. The factory gives one page for
+ * each read, so the read goes on with `next` until the stage has ended or a
+ * page moves the cursor no further. A page that fails after earlier entries
+ * keeps those entries.
+ */
+async function readTranscript(
+	runId: string,
+	stage: string,
+): Promise<TranscriptRead> {
+	const held = heldTranscript(runId, stage);
+	const read: StageTranscript = {
+		entries: [...(held?.entries ?? [])],
+		next: held?.next ?? 0,
+		ended: false,
 	};
+	const seen = new Set(read.entries.map((entry) => entry.id));
+	while (true) {
+		const page = await readPage(runId, stage, read.next);
+		if (typeof page !== "object") {
+			return read.entries.length > 0 ? read : page;
+		}
+		read.entries.push(...page.entries.filter((entry) => !seen.has(entry.id)));
+		for (const entry of page.entries) {
+			seen.add(entry.id);
+		}
+		read.ended = page.ended;
+		if (page.ended || page.next <= read.next) {
+			read.next = Math.max(read.next, page.next);
+			return read;
+		}
+		read.next = page.next;
+	}
 }

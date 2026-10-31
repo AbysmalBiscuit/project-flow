@@ -76,6 +76,7 @@ describe("the stage transcript", () => {
 			expect(await response.json()).toEqual({
 				entries: shownEntries,
 				next: 8,
+				ended: false,
 			});
 			expect(readsOf(app.requests, transcriptPath)).toEqual([
 				`${hubUrl}${transcriptPath}?after=0`,
@@ -122,6 +123,7 @@ describe("the stage transcript", () => {
 					},
 				],
 				next: 9,
+				ended: false,
 			});
 			expect(readsOf(app.requests, transcriptPath)).toContain(
 				`${hubUrl}${transcriptPath}?after=8`,
@@ -181,7 +183,11 @@ describe("the stage transcript", () => {
 			});
 			const again = await read(9);
 			expect(again.status).toBe(200);
-			expect(await again.json()).toEqual({ entries: [], next: 9 });
+			expect(await again.json()).toEqual({
+				entries: [],
+				next: 9,
+				ended: false,
+			});
 			await Bun.sleep(200);
 			expect(seen).not.toContain("overview");
 		} finally {
@@ -210,6 +216,96 @@ describe("the stage transcript", () => {
 			expect(readsOf(app.requests, transcriptPath)).toEqual([
 				`${hubUrl}${transcriptPath}?after=0`,
 			]);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a read of a stage that has ended gives ended from the factory reply", async () => {
+		const app = await serveRuns(
+			{ ...hub, [transcriptPath]: { ...stageTranscript, ended: true } },
+			[41],
+		);
+		try {
+			const response = await transcriptOf(app.base, 0);
+			expect(response.status).toBe(200);
+			expect(await response.json()).toEqual({
+				entries: shownEntries,
+				next: 8,
+				ended: true,
+			});
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a steer sent through the API shows in the next read as a steer entry with its text and sender", async () => {
+		const steerPath = `/runs/${running41.id}/steer`;
+		const steer = { stage, text: "Check the tests too", interrupt: false };
+		const entries: Record<string, unknown>[] = [...stageTranscript.entries];
+		const app = await serveRuns(
+			{
+				...hub,
+				[transcriptPath]: (url: URL) => {
+					const after = Number(url.searchParams.get("after") ?? "0");
+					const found = entries.filter((entry) => Number(entry.id) > after);
+					return {
+						entries: found,
+						next: found.at(-1)?.id ?? after,
+						ended: false,
+					};
+				},
+				[steerPath]: (_url: URL, method: string) => {
+					if (method === "POST") {
+						entries.push({
+							id: 9,
+							visit: 1,
+							attempt: 1,
+							stage: "conceptual@v1.a1/child/review@v1.a1",
+							kind: "steer",
+							recorded_at: "2026-10-25T14:05:12+00:00",
+							text: steer.text,
+							sender: "lev",
+							interrupt: steer.interrupt,
+						});
+					}
+					return { id: 1, run_id: running41.id, ...steer, sender: "lev" };
+				},
+			},
+			[41],
+		);
+		try {
+			const first = (await (await transcriptOf(app.base, 0)).json()) as {
+				next: number;
+			};
+			const steered = await fetch(
+				new URL(`/api/factory-runs/${running41.id}/steer`, app.base),
+				{
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify(steer),
+				},
+			);
+			expect(steered.status).toBe(200);
+			const response = await transcriptOf(app.base, first.next);
+			expect(response.status).toBe(200);
+			expect(await response.json()).toEqual({
+				entries: [
+					{
+						id: 9,
+						folder: "conceptual@v1.a1/child/review@v1.a1",
+						visit: 1,
+						attempt: 1,
+						at: "2026-10-25T14:05:12+00:00",
+						kind: "steer",
+						text: "Check the tests too",
+						sender: "lev",
+						interrupt: false,
+					},
+				],
+				next: 9,
+				ended: false,
+			});
 		} finally {
 			await app.stop();
 		}

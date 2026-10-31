@@ -20,6 +20,7 @@ import {
 import { openEventStream, readWhere, settledRead } from "../support/reads.ts";
 import {
 	boxRow,
+	checkpointOf,
 	factoryRunOf,
 	overviewEventWhere,
 	overviewWhere,
@@ -31,17 +32,6 @@ describe("factory runs", () => {
 	describe("the run checkpoint", () => {
 		const checkpointPath = `/runs/${hubRuns.runs[0]?.id}/checkpoint`;
 
-		async function checkpointOf(base: string): Promise<Response> {
-			const body = await overviewWhere(
-				base,
-				(seen) => factoryRunOf(seen, 41) !== undefined,
-			);
-			const id = factoryRunOf(body, 41)?.id ?? "";
-			return settledRead(
-				new URL(`/api/factory-runs/${encodeURIComponent(id)}/checkpoint`, base),
-			);
-		}
-
 		test("the ticket's run carries the current stage, completed stages, retries, visits and run context of its recorded checkpoint, and no graph from a factory that serves none", async () => {
 			const app = await serveRuns(
 				{ ...hub, [checkpointPath]: hubCheckpoint },
@@ -52,6 +42,7 @@ describe("factory runs", () => {
 				expect(response.status).toBe(200);
 				expect(await response.json()).toEqual({
 					stage: "review",
+					lastAgentStage: "review",
 					completedStages: ["start", "plan", "build", "review", "build"],
 					retries: { build: 1 },
 					visits: { start: 1, plan: 1, build: 2, review: 2 },
