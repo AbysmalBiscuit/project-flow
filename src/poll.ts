@@ -29,19 +29,18 @@ import type {
 	WorkcellRun,
 } from "./domain.ts";
 import { reconcilePoll } from "./poll-merge.ts";
-import {
-	type CheckoutSource,
-	type Clock,
-	type ConfigurationPort,
-	type Forge,
-	type FoundProject,
-	type Notifier,
-	type Store,
-	type TodoSource,
-	type TrackedProject,
-	type Tracker,
-	TrackerError,
-	type Viewer,
+import type {
+	CheckoutSource,
+	Clock,
+	ConfigurationPort,
+	Forge,
+	FoundProject,
+	Notifier,
+	Store,
+	TodoSource,
+	TrackedProject,
+	Tracker,
+	Viewer,
 } from "./ports.ts";
 import {
 	listedRef,
@@ -113,7 +112,11 @@ const fullPollPeriodMs = 10 * 60 * 1000;
 const concurrentReads = 4;
 
 type PolledProject = ListedProject &
-	Pick<TrackedProject, "ref"> & { name: string };
+	Pick<TrackedProject, "ref"> & {
+		name: string;
+		/** The error of a linked PR host that the poll could not read, shown beside the tickets. */
+		pullError: string | null;
+	};
 
 /** The newest project read of each project: an older read that ends later never writes over it. */
 export type ProjectReads = {
@@ -190,21 +193,28 @@ function readSince(
 	return full ? null : lastGood;
 }
 
-/** The PRs of a project, each list with the forge that read it. */
+type PullLists = {
+	lists: { forge: Forge; pulls: PullRequest[] }[];
+	error: string | null;
+};
+
+/** The PRs of a project, each list with the forge that read it, and the error of a linked host that has no token. */
 async function listPulls(
 	options: PollOptions,
 	project: TrackedProject,
 	tracker: Tracker,
 	since: Date | null,
 	hosts: Configuration["hosts"],
-): Promise<{ forge: Forge; pulls: PullRequest[] }[]> {
+): Promise<PullLists> {
 	const refs = await tracker.pullRefs?.(project, since);
 	if (refs !== undefined) {
-		const lists: { forge: Forge; pulls: PullRequest[] }[] = [];
+		const lists: PullLists["lists"] = [];
+		const errors = new Set<string>();
 		const forgeAt = (host: string) => {
 			const found = options.backends.forgeAt(host, hosts);
 			if (found !== null && "error" in found) {
-				throw new TrackerError(found.error, 401);
+				errors.add(found.error);
+				return null;
 			}
 			return found;
 		};
@@ -212,8 +222,16 @@ async function listPulls(
 			const repos = links.map((link) => link.repo);
 			lists.push({ forge, pulls: await forge.listLinkedPulls(links, repos) });
 		}
-		return lists;
+		return { lists, error: errors.size === 0 ? null : [...errors].join(" ") };
 	}
+	return { lists: await ownPulls(options, project, tracker), error: null };
+}
+
+async function ownPulls(
+	options: PollOptions,
+	project: TrackedProject,
+	tracker: Tracker,
+): Promise<PullLists["lists"]> {
 	const forge = options.backends.forgeOf(project.ref);
 	if (forge === null) {
 		return [];
@@ -249,7 +267,13 @@ async function readListed(
 		since,
 		since === null ? [] : (stored?.tickets ?? []),
 	);
-	const lists = await listPulls(options, project, tracker, since, hosts);
+	const { lists, error: pullError } = await listPulls(
+		options,
+		project,
+		tracker,
+		since,
+		hosts,
+	);
 	const repo = refRepo(project.ref);
 	const branches =
 		repo !== null && forge !== null ? await forge.listBranches(repo) : [];
@@ -296,6 +320,7 @@ async function readListed(
 			? {}
 			: { board: listedTickets.board }),
 		...(project.closed === undefined ? {} : { closed: project.closed }),
+		pullError,
 	};
 }
 
@@ -507,23 +532,22 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 			options.fullPoll.add(id);
 		}
 		try {
-			listed.push(
-				await readListed(
-					options,
-					project,
-					tracker,
-					since,
-					stored,
-					startedKeys,
-					readRepos,
-					configuration.hosts,
-				),
+			const item = await readListed(
+				options,
+				project,
+				tracker,
+				since,
+				stored,
+				startedKeys,
+				readRepos,
+				configuration.hosts,
 			);
+			listed.push(item);
 			listed.sort((left, right) => orderOf(left.ref) - orderOf(right.ref));
 			const outcome: ProjectPoll = {
 				ref: project.ref,
 				ok: true,
-				error: null,
+				error: item.pullError,
 				full,
 				row: null,
 			};
@@ -728,7 +752,7 @@ export async function pollProject(
 			outcome = {
 				ref: project.ref,
 				ok: true,
-				error: null,
+				error: listing.pullError,
 				full: true,
 				row:
 					shown === undefined

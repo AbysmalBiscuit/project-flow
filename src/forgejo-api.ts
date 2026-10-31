@@ -90,7 +90,15 @@ export function forgejoClient(
 	{ host, token, tokenEnv }: ForgejoAccess,
 	fetchImpl: Fetch,
 ): ForgejoClient {
+	const origin = `https://${host}`;
 	const get = async (url: string, label: string): Promise<Response> => {
+		// A `link` header can name any URL, and the token must reach only its own host.
+		if (URL.parse(url)?.origin !== origin) {
+			throw new TrackerError(
+				`Forgejo ${label} refused a URL outside ${origin}: ${url}`,
+				502,
+			);
+		}
 		const response = await fetchImpl(url, forgejoInit(token));
 		if (response.status === 401) {
 			throw new TrackerError(rejectedHostToken(tokenEnv, host), 401);
@@ -104,7 +112,7 @@ export function forgejoClient(
 		return response;
 	};
 	return {
-		api: `https://${host}/api/v1`,
+		api: `${origin}/api/v1`,
 		get,
 		async rows(start, label, row) {
 			const found = [];

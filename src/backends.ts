@@ -149,7 +149,7 @@ export type Backends = {
 	readerOf: (ref: ProjectRef, hosts: Hosts) => ProjectReader;
 	/**
 	 * The forge that serves `host`, or null when no forge serves it.
-	 * A declared host that no forge can read, such as a host with no token, answers its error.
+	 * A declared host whose token is missing answers its error.
 	 */
 	forgeAt: (host: string, hosts: Hosts) => Forge | { error: string } | null;
 	/** The name of the forge on the host of `url`, or undefined when no forge serves that host. */
@@ -223,14 +223,19 @@ export function buildBackends(options: {
 	const hostedForge = (
 		host: string,
 		hosts: Hosts,
-	): { forge: Forge; context: AdapterContext } | { error: string } => {
+	):
+		| { forge: Forge; context: AdapterContext }
+		| { error: string; credential: boolean } => {
 		const declared = hosts.find((entry) => entry.host === host);
 		if (declared === undefined) {
-			return { error: `${host} is not declared in hosts.` };
+			return { error: `${host} is not declared in hosts.`, credential: false };
 		}
 		const token = usable(env[declared.tokenEnv]);
 		if (token === null) {
-			return { error: missingHostToken(declared.tokenEnv, host) };
+			return {
+				error: missingHostToken(declared.tokenEnv, host),
+				credential: true,
+			};
 		}
 		const context = {
 			host,
@@ -245,7 +250,10 @@ export function buildBackends(options: {
 		}
 		const forge = declaredForges.get(id) ?? null;
 		if (forge === null) {
-			return { error: `the ${declared.forge} forge cannot read ${host} yet.` };
+			return {
+				error: `the ${declared.forge} forge cannot read ${host} yet.`,
+				credential: false,
+			};
 		}
 		forges.set(host, forge);
 		return { forge, context };
@@ -305,11 +313,14 @@ export function buildBackends(options: {
 				return null;
 			}
 			const hosted = hostedForge(host, hosts);
-			if ("error" in hosted) {
-				explained.add(hosted.error);
-				return hosted;
+			if (!("error" in hosted)) {
+				return hosted.forge;
 			}
-			return hosted.forge;
+			if (!hosted.credential) {
+				return null;
+			}
+			explained.add(hosted.error);
+			return { error: hosted.error };
 		},
 		forgeLabelOf(url, hosts) {
 			const host = URL.parse(url)?.host;

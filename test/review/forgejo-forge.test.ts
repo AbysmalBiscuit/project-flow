@@ -17,6 +17,7 @@ import { withApp } from "../project-harness.ts";
 import { tempConfig, testIo } from "../support/app.ts";
 import { json, urlOf } from "../support/fetch.ts";
 import {
+	codex,
 	page,
 	recordedDiscovery,
 	recordedOrEmpty,
@@ -24,7 +25,7 @@ import {
 } from "../support/github.ts";
 import { linearFake } from "../support/linear.ts";
 import { readOverview } from "../support/reads.ts";
-import { codex, grok } from "./_support.ts";
+import { grok } from "./_support.ts";
 
 const host = "codeberg.org";
 const tokenEnv = "CODEBERG_TOKEN";
@@ -114,9 +115,13 @@ function attachedIssue(number: number, url: string) {
 	};
 }
 
-function linearWithCodeberg(sent: Sent[], options: Codeberg = {}): Fetch {
+function linearWithCodeberg(
+	sent: Sent[],
+	options: Codeberg = {},
+	issues = [attachedIssue(8, `https://${host}/${scratch}/pulls/10`)],
+): Fetch {
 	const linear = linearFake({
-		issues: [attachedIssue(8, `https://${host}/${scratch}/pulls/10`)],
+		issues,
 		github: async (input, init) => {
 			const url = urlOf(input);
 			if (url === "https://api.github.com/user") {
@@ -291,7 +296,7 @@ async function projectError(base: string) {
 }
 
 describe("a Linear project with a Codeberg attachment", () => {
-	test("with no token for the host names its env var on the project", async () => {
+	test("with no token for the host names its env var beside the tickets", async () => {
 		const sent: Sent[] = [];
 		const { [tokenEnv]: _token, ...withoutToken } = env;
 		await withApp(
@@ -299,7 +304,9 @@ describe("a Linear project with a Codeberg attachment", () => {
 			linearWithCodeberg(sent),
 			withoutToken,
 			async (base) => {
-				expect(await projectError(base)).toBe(
+				const ticket = await attachedTicket(base);
+				expect(ticket.state).toBe("backlog");
+				expect(ticket.error).toStartWith(
 					`${tokenEnv} is missing: set ${tokenEnv} to read ${host}.`,
 				);
 				expect(sent.some(({ url }) => url.startsWith(`https://${host}/`))).toBe(
@@ -326,6 +333,57 @@ describe("a Linear project with a Codeberg attachment", () => {
 			);
 		});
 	}
+});
+
+describe("a Linear project with links to several hosts", () => {
+	test("skips the link of a declared host that no forge reads and keeps the tickets", async () => {
+		const acme = "git.acme.dev";
+		await withApp(
+			JSON.stringify({
+				hosts: [
+					...hosts,
+					{ host: acme, forge: "github", tokenEnv: "ACME_TOKEN" },
+				],
+				tracked: [{ tracker: "linear", project: linearProject }],
+			}),
+			linearWithCodeberg([], {}, [
+				attachedIssue(8, `https://${host}/${scratch}/pulls/10`),
+				attachedIssue(9, `https://${acme}/acme/widget/pull/3`),
+			]),
+			{ ...env, ACME_TOKEN: "recorded-acme-token" },
+			async (base) => {
+				expect(await attachedTicket(base)).toEqual({
+					error: null,
+					state: "awaitingMerge",
+					pull: `${scratch}#10`,
+					pullUrl: `https://${host}/${scratch}/pulls/10`,
+				});
+			},
+		);
+	});
+});
+
+describe("a Forgejo page link to another origin", () => {
+	test("sends no request to that origin and leaves the PR out", async () => {
+		const sent: Sent[] = [];
+		const foreign = "https://evil.example/next";
+		await withApp(
+			linearOnCodeberg,
+			linearWithCodeberg(sent, {
+				answers: {
+					"/pulls/10/reviews": () =>
+						json(reviews10, 200, { link: `<${foreign}>; rel="next"` }),
+				},
+			}),
+			env,
+			async (base) => {
+				expect((await attachedTicket(base)).pull).toBeUndefined();
+				expect(
+					sent.some(({ url }) => url.startsWith("https://evil.example")),
+				).toBe(false);
+			},
+		);
+	});
 });
 
 describe("the expected bots of a Codeberg PR", () => {
