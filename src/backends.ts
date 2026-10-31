@@ -138,6 +138,29 @@ const backendHints: BackendViews["hints"] = {
 		"Map a state to a tracker status name for one Linear team or GitHub project.",
 };
 
+const gitlabBackend: Backend<"gitlab"> = {
+	label: "GitLab",
+	hint: "GITLAB_TOKEN found in the environment",
+	credential: {
+		env: "GITLAB_TOKEN",
+		missing: missingGitlabToken,
+		rejected: rejectedGitlabToken,
+		checked: () => true,
+		async check(token, fetchImpl) {
+			const status = await checkGitlabToken(gitlabHost, token, fetchImpl);
+			if (status === 401) {
+				return "rejected";
+			}
+			return status >= 200 && status < 300
+				? "accepted"
+				: { warning: `GitLab token check failed (HTTP ${status}).` };
+		},
+	},
+	homeHost: gitlabHost,
+	forge: ({ host, token, fetch }) => gitlabForge(host, token, fetch),
+	pullOfUrl: gitlabPullOfUrl,
+};
+
 /**
  * The one record that names each backend. A registry holds the adapters of one
  * app start, so that the tracker and the forge of a kind share one client.
@@ -199,28 +222,7 @@ function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 			forge: (context) => githubOf(context)?.forge ?? null,
 			pullOfUrl: githubPullOfUrl,
 		},
-		gitlab: {
-			label: "GitLab",
-			hint: "GITLAB_TOKEN found in the environment",
-			credential: {
-				env: "GITLAB_TOKEN",
-				missing: missingGitlabToken,
-				rejected: rejectedGitlabToken,
-				checked: () => true,
-				async check(token, fetchImpl) {
-					const status = await checkGitlabToken(gitlabHost, token, fetchImpl);
-					if (status === 401) {
-						return "rejected";
-					}
-					return status >= 200 && status < 300
-						? "accepted"
-						: { warning: `GitLab token check failed (HTTP ${status}).` };
-				},
-			},
-			homeHost: gitlabHost,
-			forge: ({ host, token, fetch }) => gitlabForge(host, token, fetch),
-			pullOfUrl: gitlabPullOfUrl,
-		},
+		gitlab: gitlabBackend,
 		linear: {
 			label: "Linear",
 			hint: "LINEAR_API_KEY found in the environment",
