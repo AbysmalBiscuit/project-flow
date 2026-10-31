@@ -15,6 +15,7 @@ import {
 import type { Fetch } from "./fetch.ts";
 import { checkForgejoToken } from "./forgejo-api.ts";
 import { forgejoForge } from "./forgejo-forge.ts";
+import { githubPullOfUrl } from "./github-forge.ts";
 import { githubHost } from "./github-pin.ts";
 import {
 	checkToken,
@@ -25,12 +26,25 @@ import {
 	type ValidatorStore,
 } from "./github.ts";
 import {
+	checkGitlabToken,
+	gitlabForge,
+	gitlabHost,
+	gitlabPullOfUrl,
+	missingGitlabToken,
+	rejectedGitlabToken,
+} from "./gitlab-forge.ts";
+import {
 	checkLinearKey,
 	linearTracker,
 	missingLinearKey,
 	rejectedLinearKey,
 } from "./linear.ts";
-import { type Forge, type Tracker, TrackerError } from "./ports.ts";
+import {
+	type Forge,
+	type PullTarget,
+	type Tracker,
+	TrackerError,
+} from "./ports.ts";
 
 export type BackendKind = TrackerKind | ForgeKind;
 
@@ -97,6 +111,10 @@ type Home = {
 	/** The host of a project whose pin names no host. */
 	host: string;
 	credential: CredentialRule;
+	/** The PR that a URL on the home host names, read without a token. */
+	pullOfUrl?: (url: URL) => PullTarget | null;
+	/** True when the repo keys of the home host carry no host, as configuration files before declared hosts wrote them. */
+	bareKeys?: true;
 };
 
 type Backend<Kind extends BackendKind> = {
@@ -171,6 +189,8 @@ export function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 							: { warning: `GitHub token check failed (HTTP ${user.status}).` };
 					},
 				},
+				pullOfUrl: githubPullOfUrl,
+				bareKeys: true,
 			},
 			prepareFetch: (fetchImpl, context) =>
 				installationTokenFetch(
@@ -189,6 +209,31 @@ export function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 				),
 			tracker: (context) => githubOf(context)?.tracker ?? null,
 			forge: (context) => githubOf(context)?.forge ?? null,
+		},
+		gitlab: {
+			label: "GitLab",
+			hint: "GITLAB_TOKEN found in the environment",
+			home: {
+				host: gitlabHost,
+				credential: {
+					env: "GITLAB_TOKEN",
+					missing: missingGitlabToken,
+					rejected: rejectedGitlabToken,
+					checked: () => true,
+					async check(token, fetchImpl) {
+						const status = await checkGitlabToken(gitlabHost, token, fetchImpl);
+						if (status === 401) {
+							return "rejected";
+						}
+						return status >= 200 && status < 300
+							? "accepted"
+							: { warning: `GitLab token check failed (HTTP ${status}).` };
+					},
+				},
+				pullOfUrl: gitlabPullOfUrl,
+			},
+			forge: ({ host, token, fetch }) =>
+				host === gitlabHost ? gitlabForge(host, token, fetch) : null,
 		},
 		linear: {
 			label: "Linear",

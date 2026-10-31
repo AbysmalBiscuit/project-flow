@@ -39,7 +39,7 @@ The external system that hosts the git refs and PRs of a repo, such as GitHub, G
 _Avoid_: Code host, git provider
 
 **Declared host**:
-A self-hosted forge host that the `hosts` list of the configuration names, with its forge kind and the env var of its token. github.com needs no declaration. The name gitlab.com stays reserved until its adapter exists, so a configuration cannot declare it or pin a project on it.
+A self-hosted forge host that the `hosts` list of the configuration names, with its forge kind and the env var of its token. github.com and gitlab.com need no declaration, so a configuration cannot declare them. GitLab issues are not tickets, so a configuration cannot pin a project on gitlab.com.
 _Avoid_: Custom host, enterprise host
 
 ### Grouping
@@ -114,7 +114,7 @@ An open ticket in a review that has begun and has not finished. The tracker stat
 _Avoid_: Under review, PR open
 
 **Awaiting merge**:
-An open ticket whose every open PR has finished its review cycle and waits for a human to merge it. Auto-merge is off, or auto-merge is set to ask. A ticket stays In review until its PR merges when its reviews are done and auto-merge is on. The workcell `merge_auto` setting applies only to a PR that a workcell run opened. A factory run reports such a PR, or a workcell progress comment names it.
+An open ticket whose every open PR has finished its review cycle and waits for a human to merge it. The CI of each open PR passes or has no checks, on every forge. Failing or pending CI keeps the ticket In review. Auto-merge is off, or auto-merge is set to ask. A ticket stays In review until its PR merges when its reviews are done and auto-merge is on. The workcell `merge_auto` setting applies only to a PR that a workcell run opened. A factory run reports such a PR, or a workcell progress comment names it.
 _Avoid_: Ready, pending merge, mergeable
 
 **Backlog**:

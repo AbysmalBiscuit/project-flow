@@ -306,7 +306,7 @@ describe("a Linear project with a Codeberg attachment", () => {
 			async (base) => {
 				const ticket = await attachedTicket(base);
 				expect(ticket.state).toBe("backlog");
-				expect(ticket.error).toStartWith(
+				expect(ticket.error).toBe(
 					`${tokenEnv} is missing: set ${tokenEnv} to read ${host}.`,
 				);
 				expect(sent.some(({ url }) => url.startsWith(`https://${host}/`))).toBe(

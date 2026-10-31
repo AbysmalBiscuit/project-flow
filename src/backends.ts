@@ -24,7 +24,7 @@ import {
 export type { FactoryTokenMint } from "./factory-tokens.ts";
 import type { Fetch } from "./fetch.ts";
 import { missingHostToken, rejectedHostToken } from "./host-tokens.ts";
-import type { Forge, Tracker } from "./ports.ts";
+import type { Forge, PullTarget, Tracker } from "./ports.ts";
 import { type ProjectRef, refHost } from "./project-ref.ts";
 import { takesClaimedStart } from "./run-start.ts";
 
@@ -148,17 +148,20 @@ export type Backends = {
 	/** The tracker that reads the project of `ref`, or the error to show on it. */
 	readerOf: (ref: ProjectRef, hosts: Hosts) => ProjectReader;
 	/**
-	 * The forge that serves `host`, or null when no forge serves it.
-	 * A declared host whose token is missing answers its error.
+	 * The forge and the PR that a URL names, or null for a URL that names no PR
+	 * of a readable forge. A PR on a host whose token is missing answers its error.
 	 */
-	forgeAt: (host: string, hosts: Hosts) => Forge | { error: string } | null;
+	linkOf: (
+		url: URL,
+		hosts: Hosts,
+	) => { forge: Forge; target: PullTarget } | { error: string } | null;
 	/** The name of the forge on the host of `url`, or undefined when no forge serves that host. */
 	forgeLabelOf: (url: string, hosts: Hosts) => string | undefined;
 	/** The forge that holds the repo of the project of `ref`. */
 	forgeOf: (ref: ProjectRef) => Forge | null;
-	/** The declared host of a forge, or undefined for a forge on its own home host. */
-	declaredHostOf: (forge: Forge) => string | undefined;
-	/** True for an error that `readerOf` gave: the project waits for a setting and no read failed. */
+	/** The host that the repo keys of a forge carry, or undefined for bare keys. */
+	keyHostOf: (forge: Forge) => string | undefined;
+	/** True for an error that `readerOf` or `linkOf` gave: the project waits for a setting and no read failed. */
 	explains: (error: string) => boolean;
 };
 
@@ -185,6 +188,12 @@ export function buildBackends(options: {
 	};
 	const homeHosts = new Set(
 		backendKinds.flatMap((kind) => registry[kind].home?.host ?? []),
+	);
+	const bareKeyHosts = new Set(
+		backendKinds.flatMap((kind) => {
+			const home = registry[kind].home;
+			return home?.bareKeys === true ? [home.host] : [];
+		}),
 	);
 	const view = <Kind extends BackendKind>(
 		kind: Kind,
@@ -305,16 +314,31 @@ export function buildBackends(options: {
 				? unreadable(registry[ref.tracker].home.credential.missing)
 				: { tracker };
 		},
-		forgeAt(host, hosts) {
-			if (homeHosts.has(host)) {
-				return forges.get(host) ?? null;
+		linkOf(url, hosts) {
+			const read = (forge: Forge) => {
+				const target = forge.pullOfUrl(url);
+				return target === null ? null : { forge, target };
+			};
+			const homeForge = forges.get(url.host);
+			if (homeHosts.has(url.host)) {
+				if (homeForge !== undefined) {
+					return read(homeForge);
+				}
+				const home = backendKinds
+					.map((kind) => registry[kind].home)
+					.find((item) => item?.host === url.host);
+				if (home?.pullOfUrl === undefined || home.pullOfUrl(url) === null) {
+					return null;
+				}
+				explained.add(home.credential.missing);
+				return { error: home.credential.missing };
 			}
-			if (!hosts.some((declared) => declared.host === host)) {
+			if (!hosts.some((declared) => declared.host === url.host)) {
 				return null;
 			}
-			const hosted = hostedForge(host, hosts);
+			const hosted = hostedForge(url.host, hosts);
 			if (!("error" in hosted)) {
-				return hosted.forge;
+				return read(hosted.forge);
 			}
 			if (!hosted.credential) {
 				return null;
@@ -331,10 +355,10 @@ export function buildBackends(options: {
 		},
 		forgeOf: (ref) =>
 			forges.get(refHost(ref) ?? registry[ref.tracker].home.host) ?? null,
-		declaredHostOf(forge) {
+		keyHostOf(forge) {
 			for (const [host, held] of forges) {
-				if (held === forge && !homeHosts.has(host)) {
-					return host;
+				if (held === forge) {
+					return bareKeyHosts.has(host) ? undefined : host;
 				}
 			}
 			return undefined;

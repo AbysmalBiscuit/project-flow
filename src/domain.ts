@@ -22,7 +22,7 @@ export const trackerKinds = ["github", "linear"] as const;
 
 export type TrackerKind = (typeof trackerKinds)[number];
 
-export const forgeKinds = ["github", "forgejo"] as const;
+export const forgeKinds = ["github", "gitlab", "forgejo"] as const;
 
 export type ForgeKind = (typeof forgeKinds)[number];
 
@@ -221,7 +221,7 @@ export type OutsideParent = CrossProjectBlocker & {
 
 export type PullRequest = {
 	repo: string;
-	/** The declared host of the repo. A PR on the home host of its forge has none. */
+	/** The host of the repo. A PR on github.com has none. */
 	host?: string;
 	number: number;
 	url: string;

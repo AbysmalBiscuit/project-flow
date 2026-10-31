@@ -1,0 +1,44 @@
+{
+	"1": [
+		{
+			"id": 3009225215,
+			"iid": 1,
+			"project_id": 88307561,
+			"sha": "4a949441fbd4bf14a5133468c74e7ce40a3f64ab",
+			"ref": "6-ticket-with-a-pr",
+			"status": "success",
+			"source": "external",
+			"created_at": "2026-10-30T15:24:18.199Z",
+			"updated_at": "2026-10-30T15:24:18.972Z",
+			"web_url": "https://gitlab.com/AbysmalBiscuit/project-flow-scratch/-/pipelines/3009225215"
+		}
+	],
+	"2": [
+		{
+			"id": 3009225297,
+			"iid": 2,
+			"project_id": 88307561,
+			"sha": "49c8f4e6eecef5b9150300cc293e4165e337a2d6",
+			"ref": "7-ticket-with-a-draft-pr",
+			"status": "running",
+			"source": "external",
+			"created_at": "2026-10-30T15:24:19.264Z",
+			"updated_at": "2026-10-30T15:24:19.527Z",
+			"web_url": "https://gitlab.com/AbysmalBiscuit/project-flow-scratch/-/pipelines/3009225297"
+		}
+	],
+	"3": [
+		{
+			"id": 3009225320,
+			"iid": 3,
+			"project_id": 88307561,
+			"sha": "1550c7bccf90f55163b39f0dac07000f1d3b6215",
+			"ref": "unlinked-change",
+			"status": "failed",
+			"source": "external",
+			"created_at": "2026-10-30T15:24:19.871Z",
+			"updated_at": "2026-10-30T15:24:20.082Z",
+			"web_url": "https://gitlab.com/AbysmalBiscuit/project-flow-scratch/-/pipelines/3009225320"
+		}
+	]
+}
