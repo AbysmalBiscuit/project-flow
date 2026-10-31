@@ -111,6 +111,20 @@ export function itemId(project: string, key: string): string {
 	return id(project, foldKey(key));
 }
 
+/** The React key of a card. Two hosts can give unlinked PRs one key, so an unlinked PR takes its URL. */
+export function cardKey(ticket: {
+	key: string | null;
+	title: string;
+	unlinkedPr?: true;
+	pullUrl?: string;
+}): string {
+	return (
+		(ticket.unlinkedPr === true ? ticket.pullUrl : undefined) ??
+		ticket.key ??
+		ticket.title
+	);
+}
+
 /** The id of a link between two item ids. */
 export function linkId(from: string, to: string): string {
 	return id(from, to);

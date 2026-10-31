@@ -98,10 +98,17 @@ function graphGroupBy(settings: ProjectViewSettings): GroupBy {
 	return settings.groupBy ?? defaultGraphGroupBy;
 }
 
-/** Opens the PR of an unlinked PR card in a new tab, since it has no ticket for the side panel. */
-function openUnlinkedPr(report: ProjectReport, key: string): boolean {
+/** Opens the PR of an unlinked PR card in a new tab, since it has no ticket for the side panel. Two hosts can give one key, so the URL of the card picks the PR. */
+function openUnlinkedPr(
+	report: ProjectReport,
+	key: string,
+	pullUrl: string | undefined,
+): boolean {
 	const unlinked = report.tickets.find(
-		(item) => item.unlinkedPr && item.key === key,
+		(item) =>
+			item.unlinkedPr &&
+			item.key === key &&
+			(pullUrl === undefined || item.pullUrl === pullUrl),
 	);
 	if (unlinked?.pullUrl === undefined) {
 		return false;
@@ -299,8 +306,8 @@ export function Page() {
 		enter: (key) => ticketFocus.enter(projectNodeId(report.name, key)),
 		leave: ticketFocus.leave,
 	};
-	const openTicketInPanel = (key: string) => {
-		if (!openUnlinkedPr(report, key)) {
+	const openTicketInPanel = (key: string, pullUrl?: string) => {
+		if (!openUnlinkedPr(report, key, pullUrl)) {
 			openTicket({ tracker: report.tracker, project: report.name, key });
 		}
 	};

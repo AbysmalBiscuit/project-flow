@@ -22,7 +22,7 @@ import { useLaneColour } from "./state-colours.ts";
 import { tonedProps } from "./state-tone.ts";
 import { openParentLabel, stateLabel } from "./terms.ts";
 import { TicketCardBody } from "./ticket-card.tsx";
-import { outsideKey, sameTicketKey, shortKey } from "./ticket-key.ts";
+import { cardKey, outsideKey, sameTicketKey, shortKey } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 import {
 	defaultGroupBy,
@@ -75,8 +75,9 @@ function groupFaded(focus: TicketFocus, tickets: TicketView[]): boolean {
 function focusPointer(
 	focus: TicketFocus,
 	key: string | null,
-	onOpen: (key: string) => void,
+	onOpen: (key: string, pullUrl?: string) => void,
 	runId: string | undefined,
+	pullUrl: string | undefined,
 ) {
 	if (key === null) {
 		return {};
@@ -85,7 +86,7 @@ function focusPointer(
 		onClick: (event: ClickKeys) =>
 			clickCard(event, {
 				focus: () => focus.toggle(key),
-				open: () => onOpen(key),
+				open: () => onOpen(key, pullUrl),
 				openRun:
 					runId === undefined ? undefined : () => openPage(runPagePath(runId)),
 			}),
@@ -101,7 +102,7 @@ function Card({
 	onOpenOutside,
 }: {
 	ticket: TicketView;
-	onOpen: (key: string) => void;
+	onOpen: (key: string, pullUrl?: string) => void;
 	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	const key = ticket.key;
@@ -123,7 +124,13 @@ function Card({
 				)}
 				data-ticket={key ?? ""}
 				data-faded={faded ? "true" : "false"}
-				{...focusPointer(focus, key, onOpen, ticket.factoryRun?.id)}
+				{...focusPointer(
+					focus,
+					key,
+					onOpen,
+					ticket.factoryRun?.id,
+					ticket.pullUrl,
+				)}
 			>
 				<TicketCardBody
 					ticket={ticket}
@@ -192,7 +199,7 @@ function LaneCards({
 }: {
 	tickets: TicketView[];
 	head?: OutsideParent | undefined;
-	onOpen: (key: string) => void;
+	onOpen: (key: string, pullUrl?: string) => void;
 	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	return (
@@ -202,7 +209,7 @@ function LaneCards({
 			)}
 			{tickets.map((ticket) => (
 				<Card
-					key={ticket.key ?? ticket.title}
+					key={cardKey(ticket)}
 					ticket={ticket}
 					onOpen={onOpen}
 					onOpenOutside={onOpenOutside}
@@ -236,7 +243,7 @@ function Lane({
 	shown: boolean;
 	reveal: string | null;
 	onShowAll: () => void;
-	onOpen: (key: string) => void;
+	onOpen: (key: string, pullUrl?: string) => void;
 	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	const pool = capped && !shown ? fresh : tickets;
@@ -318,7 +325,7 @@ export function Board({
 	report: ProjectReport;
 	settings: ProjectViewSettings;
 	selected: string | null;
-	onOpen: (key: string) => void;
+	onOpen: (key: string, pullUrl?: string) => void;
 	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	const [shownDone, setShownDone] = useState(false);

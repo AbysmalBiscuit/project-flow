@@ -16,7 +16,7 @@ import { QueuedChip } from "./run-marks.tsx";
 import { tonedProps } from "./state-tone.ts";
 import { tableTree } from "./table-tree-styles.ts";
 import { navLabel, subTicketsToggleLabel } from "./terms.ts";
-import { foldKey, itemId, shortKey } from "./ticket-key.ts";
+import { cardKey, foldKey, itemId, shortKey } from "./ticket-key.ts";
 import { type TreeRow, treeRows } from "./ticket-tree.ts";
 import { clsx } from "./ui.ts";
 import type { GroupBy } from "./view-settings.ts";
@@ -214,7 +214,7 @@ function TableRow({
 	order: number;
 	selected: boolean;
 	tree: { depth: number; toggle: TreeToggle | null } | null;
-	onOpen: (key: string) => void;
+	onOpen: (key: string, pullUrl?: string) => void;
 	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	const key = ticket.key;
@@ -232,7 +232,7 @@ function TableRow({
 			data-order={order}
 			data-selected={selected ? "true" : "false"}
 			data-depth={tree?.depth}
-			{...(key === null ? {} : { onClick: () => onOpen(key) })}
+			{...(key === null ? {} : { onClick: () => onOpen(key, ticket.pullUrl) })}
 			tabIndex={key === null ? undefined : 0}
 			onKeyDown={(event) => {
 				if (
@@ -243,7 +243,7 @@ function TableRow({
 					return;
 				}
 				event.preventDefault();
-				onOpen(key);
+				onOpen(key, ticket.pullUrl);
 			}}
 		>
 			<td className={clsx(board.rowCell, board.rowKey)}>
@@ -330,7 +330,7 @@ export function TicketTable({
 	groupBy: GroupBy;
 	searching: boolean;
 	selected: string | null;
-	onOpen: (key: string) => void;
+	onOpen: (key: string, pullUrl?: string) => void;
 	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	const [column, setColumn] = useState<Column>("state");
@@ -459,7 +459,7 @@ export function TicketTable({
 								...heading,
 								...tableRows(group.tickets).map(({ ticket, tree }) => (
 									<TableRow
-										key={itemId(group.name, ticket.key ?? ticket.title)}
+										key={itemId(group.name, cardKey(ticket))}
 										ticket={ticket}
 										tree={tree}
 										project={report.name}
