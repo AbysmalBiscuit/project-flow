@@ -289,6 +289,19 @@ export function gitlabForge(
 		return pulls;
 	};
 
+	/** Answers `skipped` when GitLab says the resource is not there for the token, else throws again. */
+	const unseen =
+		<Skipped>(skipped: Skipped) =>
+		(error: unknown): Skipped => {
+			if (
+				error instanceof TrackerError &&
+				(error.status === 403 || error.status === 404)
+			) {
+				return skipped;
+			}
+			throw error;
+		};
+
 	/** A linked PR that the repo listing left out, or null when it is closed. */
 	const linkedPull = async (link: PullTarget): Promise<PullRequest | null> => {
 		const { body } = await read(
@@ -303,21 +316,21 @@ export function gitlabForge(
 
 	return {
 		listPulls,
-		// A linked repo or PR that the token cannot read is skipped, so it never
-		// fails the project; the next poll reads it again.
+		// A linked repo or PR that the token cannot see is skipped, so a stale
+		// attachment never fails the project. Other failures fail the read.
 		async listLinkedPulls(links, repos) {
 			const pulls: PullRequest[] = [];
 			for (const repo of new Set([
 				...links.map((link) => link.repo),
 				...repos,
 			])) {
-				pulls.push(...(await listPulls(repo).catch(() => [])));
+				pulls.push(...(await listPulls(repo).catch(unseen([]))));
 			}
 			const listed = new Map(pulls.map((pull) => [pullKey(pull), pull]));
 			for (const link of links) {
 				const key = pullKey(link);
 				const pull =
-					listed.get(key) ?? (await linkedPull(link).catch(() => null));
+					listed.get(key) ?? (await linkedPull(link).catch(unseen(null)));
 				if (pull === null) {
 					continue;
 				}
