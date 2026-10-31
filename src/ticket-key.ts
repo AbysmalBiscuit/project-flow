@@ -148,6 +148,8 @@ export function sameTicket(left: TicketRef, right: TicketRef): boolean {
 }
 
 export type TicketSearchHit = TicketRef & {
+	/** The page of the ticket on its tracker. */
+	url?: string;
 	title: string;
 	state: TicketState;
 };

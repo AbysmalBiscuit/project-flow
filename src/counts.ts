@@ -155,6 +155,10 @@ export function projectCounts(
 		url: pull.url,
 		repo: pull.repo,
 	}));
+	const urlOf = new Map<string | undefined, string | undefined>([
+		...pulls.map((pull) => [foldKey(pullKey(pull)), pull.url] as const),
+		...tickets.map((ticket) => [foldKey(ticket.key), ticket.url] as const),
+	]);
 	const needsYouItemsForProject = needsYouItems(
 		name,
 		tracker,
@@ -170,7 +174,10 @@ export function projectCounts(
 		autoMerge,
 		workcellPulls,
 		key,
-	);
+	).map((item) => {
+		const url = urlOf.get(foldKey(item.key));
+		return url === undefined ? item : { ...item, url };
+	});
 	const unlinkedViews = unlinked.map((pull) =>
 		unlinkedPrView(
 			pull,

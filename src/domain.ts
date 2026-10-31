@@ -372,6 +372,8 @@ export type NeedsYouItem = {
 	project: string;
 	tracker: TrackerKind;
 	key: string;
+	/** The page of the ticket or PR on its tracker. */
+	url?: string;
 	headline: string;
 	reason: "ask" | "awaitingMerge" | "decide" | "label" | "runFailed";
 	tags: string[];

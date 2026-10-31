@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type {
+	NeedsYouItem,
 	ProjectReport,
 	PullRequest,
 	Snapshot,
@@ -12,6 +13,7 @@ import type {
 import type { Fetch } from "../../src/fetch.ts";
 import { pendingStatus } from "../../src/stale-reads.ts";
 import { sqliteStore } from "../../src/store.ts";
+import type { TicketSearchHit } from "../../src/ticket-key.ts";
 import { devkitWorktree } from "../support/checkouts.ts";
 import {
 	host,
@@ -344,6 +346,16 @@ describe("the pages of a project on a declared host with a port", () => {
 					(section) => section.id === "needsYou",
 				)?.needsYou;
 				expect(needs?.[0]?.pull?.forge).toBe("GitHub");
+				const needsYou = (await (
+					await fetch(new URL("/api/needs-you", base))
+				).json()) as NeedsYouItem[];
+				expect(needsYou.find((item) => item.key === "acme/widget#2")?.url).toBe(
+					`${page}/issues/2`,
+				);
+				const hits = (await (
+					await fetch(new URL("/api/search?q=acme%2Fwidget%232", base))
+				).json()) as TicketSearchHit[];
+				expect(hits.map((hit) => hit.url)).toEqual([`${page}/issues/2`]);
 				const link = report.graphLinks[0];
 				expect(link?.from.url).toBe(`${page}/issues/1`);
 				expect(link?.to.url).toBe(`${page}/issues/2`);
