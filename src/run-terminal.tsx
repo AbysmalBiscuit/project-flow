@@ -12,7 +12,7 @@ import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
 import { Transcript } from "./run-stage-view.tsx";
 import { RunSteer, useCurrentStage } from "./run-steer.tsx";
-import { stageVisit } from "./stage-queries.ts";
+import { stageQuery, stageVisit } from "./stage-queries.ts";
 import { noTerminalStageLabel, terminalStageLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 
@@ -82,8 +82,45 @@ function endedStage(run: ShownFactoryRun, checkpoint: RunCheckpoint) {
 }
 
 /**
+ * The transcript of one stage, and a steer box while the stage is the live
+ * stage of the run and has not ended.
+ */
+function TerminalStage({
+	run,
+	stage,
+	following,
+	visit,
+}: {
+	run: ShownFactoryRun;
+	stage: string;
+	following: boolean;
+	visit: string;
+}) {
+	const { data } = useQuery(
+		stageQuery.transcript(run.id, stage, following, visit),
+	);
+	const ended = typeof data === "object" && data.ended;
+	return (
+		<div data-run-terminal={stage} data-terminal-live={following}>
+			<dl className={clsx(panel.facts)}>
+				<RunFact label={terminalStageLabel}>{stage}</RunFact>
+			</dl>
+			<Transcript
+				runId={run.id}
+				stage={stage}
+				live={following}
+				visit={visit}
+				follow
+			/>
+			{following && !ended ? <RunSteer run={run} stage={stage} /> : null}
+		</div>
+	);
+}
+
+/**
  * The Terminal tab: the transcript of the stage where the run is now, and a
- * steer box for it. A run that has ended shows its last stage and no steer box.
+ * steer box for it. A run with no live stage shows its last stage and no
+ * steer box.
  */
 export function RunTerminal({ run }: { run: ShownFactoryRun }) {
 	const { data: checkpoint } = useQuery(pageQuery.checkpoint(run));
@@ -95,26 +132,14 @@ export function RunTerminal({ run }: { run: ShownFactoryRun }) {
 	if (stage === null) {
 		return <p className={clsx(panel.note)}>{noTerminalStageLabel}</p>;
 	}
+	const graph = typeof checkpoint === "object" ? checkpoint.graph : null;
 	return (
-		<div data-run-terminal={stage} data-terminal-live={live}>
-			<dl className={clsx(panel.facts)}>
-				<RunFact label={terminalStageLabel}>{stage}</RunFact>
-			</dl>
-			<Transcript
-				key={stage}
-				runId={run.id}
-				stage={stage}
-				live={live}
-				visit={stageVisit(
-					run.statusKind,
-					stageAt(
-						typeof checkpoint === "object" ? checkpoint.graph : null,
-						stage,
-					)?.visits ?? 0,
-				)}
-				follow
-			/>
-			{live ? <RunSteer run={run} stage={stage} /> : null}
-		</div>
+		<TerminalStage
+			key={stage}
+			run={run}
+			stage={stage}
+			following={live && stage === currentStage}
+			visit={stageVisit(run.statusKind, stageAt(graph, stage)?.visits ?? 0)}
+		/>
 	);
 }
