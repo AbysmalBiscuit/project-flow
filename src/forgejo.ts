@@ -9,6 +9,7 @@ import {
 } from "./forgejo-api.ts";
 import type { Tracker } from "./ports.ts";
 import { settingsKey } from "./project-ref.ts";
+import { taskListParents } from "./task-list-parents.ts";
 import { numberedKey } from "./ticket-key.ts";
 
 const forgejoIssue = z.object({
@@ -41,22 +42,6 @@ const forgejoRepo = z.object({
 });
 
 const forgejoUser = z.object({ login: z.string() });
-
-const taskListItem = /^\s*[-*+]\s+\[[ xX]\]\s+#(\d+)\b/gm;
-
-/** The parent of each issue number: Forgejo has no sub-issues, so the issue whose task list names it first. */
-function taskListParents(issues: ForgejoIssue[]): Map<number, number> {
-	const parents = new Map<number, number>();
-	for (const issue of issues) {
-		for (const [, named] of (issue.body ?? "").matchAll(taskListItem)) {
-			const child = Number(named);
-			if (child !== issue.number && !parents.has(child)) {
-				parents.set(child, issue.number);
-			}
-		}
-	}
-	return parents;
-}
 
 async function readBlockers(
 	client: ForgejoClient,
