@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { PullRequest, Snapshot } from "../../src/domain.ts";
+import type { Snapshot } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
 import { pendingStatus } from "../../src/stale-reads.ts";
 import { sqliteStore } from "../../src/store.ts";
@@ -13,32 +13,12 @@ import {
 	hostedWidget,
 	hosts,
 	recordingFetch,
+	storedPull,
 	widget,
 	withStarted,
 } from "./_support.ts";
 
 const hostedName = `${host}/acme/widget`;
-
-function storedPull(number: number, extra: Partial<PullRequest>): PullRequest {
-	return {
-		repo: "acme/widget",
-		number,
-		url: `https://${host}/acme/widget/pull/${number}`,
-		title: `Change ${number}`,
-		draft: false,
-		branch: `change-${number}`,
-		body: "",
-		closingKeys: [],
-		headSha: "head",
-		headCommittedAt: null,
-		merged: false,
-		checks: [],
-		comments: [],
-		reviews: [],
-		reactions: [],
-		...extra,
-	};
-}
 
 /** Runs the checks on an app whose store holds one row of the declared host. */
 async function withHostedRow(

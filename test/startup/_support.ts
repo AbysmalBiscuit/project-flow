@@ -1,3 +1,4 @@
+import type { PullRequest } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
 import { run } from "../../src/main.ts";
 import { tempConfig, testIo } from "../support/app.ts";
@@ -71,6 +72,31 @@ export const tokenEnv = "ACME_FORGE_TOKEN";
 export const hosts = [{ host, forge: "github", tokenEnv }];
 export const widget = { tracker: "github" as const, repo: "acme/widget" };
 export const hostedWidget = { ...widget, host };
+
+/** A PR of `acme/widget` on the declared host, as a store row holds it. */
+export function storedPull(
+	number: number,
+	extra: Partial<PullRequest>,
+): PullRequest {
+	return {
+		repo: "acme/widget",
+		number,
+		url: `https://${host}/acme/widget/pull/${number}`,
+		title: `Change ${number}`,
+		draft: false,
+		branch: `change-${number}`,
+		body: "",
+		closingKeys: [],
+		headSha: "head",
+		headCommittedAt: null,
+		merged: false,
+		checks: [],
+		comments: [],
+		reviews: [],
+		reactions: [],
+		...extra,
+	};
+}
 
 export function recordingFetch(
 	sent: { url: string; authorization: string | null }[],
