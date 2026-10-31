@@ -11,9 +11,8 @@ import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
 import { Loading } from "./loading.tsx";
-import { projectHasPmBot } from "./open-ask.ts";
-import { repoKey, samePin } from "./project-ref.ts";
 import { pageQuery, useSaveSettings } from "./queries.ts";
+import { repoKey } from "./repo-key.ts";
 import { Select } from "./select.tsx";
 import { FactoriesSection } from "./settings-factories.tsx";
 import { sections, type stateFilters, Switch } from "./settings-parts.tsx";
@@ -291,6 +290,13 @@ function Menu({
 	}
 }
 
+/** The API gives each project its saved pin, so two pins of a project have one form. */
+function samePin(left: ProjectPin, right: ProjectPin): boolean {
+	const form = (pin: ProjectPin) =>
+		JSON.stringify(Object.entries(pin).sort(([a], [b]) => a.localeCompare(b)));
+	return form(left) === form(right);
+}
+
 function withoutRef(refs: ProjectPin[], ref: ProjectPin): ProjectPin[] {
 	return refs.filter((item) => !samePin(item, ref));
 }
@@ -330,22 +336,25 @@ function setBots(
 	return { ...saved, ...seeded, [savedKey ?? repo]: bots };
 }
 
+function pmBotOf(draft: Configuration, project: SettingsProject): boolean {
+	const saved = repoKey(draft.pmBot, project.key);
+	return saved === undefined
+		? project.pmBotDefault
+		: (draft.pmBot[saved] ?? project.pmBotDefault);
+}
+
 function setPmBot(
 	draft: Configuration,
-	key: string,
-	tracker: SettingsProject["tracker"],
+	project: SettingsProject,
 	on: boolean,
 ): Configuration["pmBot"] {
 	const next = { ...draft.pmBot };
-	const match = Object.keys(next).find(
-		(name) => name.toLowerCase() === key.toLowerCase(),
-	);
-	if (match !== undefined) {
-		delete next[match];
+	const saved = repoKey(next, project.key);
+	if (saved !== undefined) {
+		delete next[saved];
 	}
-	const implied = projectHasPmBot({}, key, tracker);
-	if (on !== implied) {
-		next[key] = on;
+	if (on !== project.pmBotDefault) {
+		next[project.key] = on;
 	}
 	return next;
 }
@@ -516,7 +525,7 @@ function ProjectRow({
 	const id = `${project.tracker}-${project.key.replace(/[^A-Za-z0-9]+/g, "-")}`;
 	const trackerLabel = useTrackerLabel();
 	const repos = project.repos;
-	const pmBot = projectHasPmBot(draft.pmBot, project.key, project.tracker);
+	const pmBot = pmBotOf(draft, project);
 	const tracked = draft.tracked.some((ref) => samePin(ref, project.ref));
 	return (
 		<tr id={`project-row-${id}`}>
@@ -549,7 +558,7 @@ function ProjectRow({
 					label={`${settingsCopy.pmBot} ${project.name}`}
 					onChange={(next) =>
 						onChange({
-							pmBot: setPmBot(draft, project.key, project.tracker, next),
+							pmBot: setPmBot(draft, project, next),
 						})
 					}
 				/>

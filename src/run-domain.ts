@@ -1,3 +1,4 @@
+import type { RunResult, RunStatusKind } from "./kinds.ts";
 export type WorkcellRun = {
 	key: string;
 	status: "running" | "failed";
@@ -8,17 +9,6 @@ export type LiveRun = {
 	status: "running" | "failed";
 	stage?: string;
 };
-
-export const runStatusKinds = [
-	"queued",
-	"starting",
-	"running",
-	"blocked",
-	"failed",
-	"succeeded",
-] as const;
-
-export type RunStatusKind = (typeof runStatusKinds)[number];
 
 /** An open question that a blocked run waits on, from `GET /runs/{id}/questions`. */
 export type FactoryQuestion = { id: string; text: string };
@@ -87,17 +77,6 @@ export type RunPull = {
 	/** True when the run recorded the merge of its PR. */
 	merged: boolean;
 };
-
-/** What the work of an ended run came to. A live or queued run has no result yet. */
-export const runResults = [
-	"merged",
-	"prOpen",
-	"noPr",
-	"failed",
-	"cancelled",
-] as const;
-
-export type RunResult = (typeof runResults)[number];
 
 /** The last box event of a run that the event stream gave. */
 export type RunEvent = {
@@ -344,25 +323,6 @@ export type RunUsage = {
 	stages: Record<string, TurnUsage>;
 	total: TurnUsage;
 };
-
-/** The run statuses of a run that has ended. Lev can cancel or steer a run in any other status. */
-export const endedRunStatusKinds = [
-	"failed",
-	"succeeded",
-] as const satisfies readonly RunStatusKind[];
-
-/** The run statuses that Lev can resume from the run checkpoint, or restart from the first stage. */
-export const resumableRunStatusKinds = [
-	"blocked",
-	"failed",
-] as const satisfies readonly RunStatusKind[];
-
-/** The run statuses whose agents can work: the app reads a run's agents only in these. */
-export const liveRunStatusKinds = [
-	"starting",
-	"running",
-	"blocked",
-] as const satisfies readonly RunStatusKind[];
 
 /** What the agent of one stage of a live run does now, from `GET /runs/{id}/workers`. */
 export type RunAgent = {

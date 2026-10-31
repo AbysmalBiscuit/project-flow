@@ -18,12 +18,12 @@ import {
 	refListed,
 	refPin,
 	refRepo,
-	repoKey,
 	repoParts,
 	samePin,
 	sameProject,
 	settingsKey,
 } from "./project-ref.ts";
+import { repoKey } from "./repo-key.ts";
 import { expectedBotsByRepo } from "./review.ts";
 
 export type CatalogueProject = {
@@ -65,10 +65,12 @@ function pendingCard(
 	project: CatalogueProject,
 	tracked: readonly ProjectPin[],
 ): ProjectCounts {
+	const ref = refForFound(project, tracked);
 	return {
 		name: project.name ?? project.key,
 		tracker: project.tracker,
-		ref: refForFound(project, tracked),
+		ref,
+		displayKey: pinRef(ref).key,
 		done: 0,
 		dropped: 0,
 		blocked: 0,
@@ -182,6 +184,7 @@ function catalogueRow(
 		source,
 		tracked: configuration.tracked.some((item) => matchesRef(project, item)),
 		pmBot: projectHasPmBot(configuration.pmBot, key, project.tracker),
+		pmBotDefault: projectHasPmBot({}, key, project.tracker),
 		repos: repos.map((repo) => settingsKey(repo, host)),
 		expectedBots: bots.expectedBots,
 		repoBots: bots.repoBots,

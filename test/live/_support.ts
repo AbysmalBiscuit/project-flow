@@ -88,6 +88,7 @@ export function counts(
 			tracker === "linear"
 				? { tracker: "linear", project: name }
 				: { tracker: "github", repo: name },
+		displayKey: name,
 	};
 }
 

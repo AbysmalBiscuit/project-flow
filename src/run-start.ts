@@ -41,20 +41,6 @@ export function takesClaimedStart(tracker: TrackerKind): boolean {
 	return tracker === "github";
 }
 
-/**
- * True when a factory takes a claimed start: it answers, it reports its run slots,
- * and no hub reads its runs, because a box takes its runs from that hub.
- */
-export function takesClaim(
-	entry: Pick<FactoryEntry, "reachable" | "slots" | "alsoReadThroughHub">,
-): boolean {
-	return (
-		entry.reachable === true &&
-		entry.slots !== undefined &&
-		entry.alsoReadThroughHub === undefined
-	);
-}
-
 /** Why a ticket cannot start a run: it is closed, or it has a run that did not succeed. */
 export function startRefusal(
 	ticket: Pick<Ticket, "state">,

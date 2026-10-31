@@ -2,7 +2,7 @@ import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
 
 import type { StatusColours } from "./domain.ts";
-import { categoryColours, defaultStates } from "./lanes.ts";
+import { categoryColours, defaultStates } from "./lane-views.ts";
 import { pageQuery, pageQueryClient } from "./queries.ts";
 import { readStoredStateColours, storedObject } from "./stored-page.ts";
 import { stateColours, stateValues } from "./tokens.stylex.ts";

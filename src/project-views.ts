@@ -132,12 +132,14 @@ function computeProjectView(
 		new Date(status.fetchedAt ?? 0),
 		row.board,
 	);
+	const ref = trackedPin(row, configuration.tracked) ?? refPin(listedRef(row));
 	return {
 		row,
 		items: counted.needsYou,
 		counts: {
 			...counted.counts,
-			ref: trackedPin(row, configuration.tracked) ?? refPin(listedRef(row)),
+			ref,
+			displayKey: pinRef(ref).key,
 		},
 		report: counted.report,
 	};

@@ -1,5 +1,5 @@
 import type { TicketRef } from "./domain.ts";
-import { githubKey } from "./ticket-key.ts";
+import { numberedKey } from "./ticket-key.ts";
 
 const urlShape =
 	/^https?:\/\/github\.com\/([^/\s]+\/[^/\s]+)\/(?:issues|pull)\/(\d+)$/i;
@@ -16,7 +16,7 @@ export function githubTicketRef(
 		return {
 			tracker: "github",
 			project: named[1],
-			key: githubKey(named[1], named[2]),
+			key: numberedKey(named[1], named[2]),
 		};
 	}
 	const bareNumber = token.match(sameRepoShape)?.[1];
@@ -26,6 +26,6 @@ export function githubTicketRef(
 	return {
 		tracker: "github",
 		project: repo,
-		key: githubKey(repo, bareNumber),
+		key: numberedKey(repo, bareNumber),
 	};
 }

@@ -5,6 +5,7 @@ import { useTrackerLabel } from "./backend-labels.ts";
 import { board } from "./board-styles.ts";
 import { control } from "./control-styles.ts";
 import type { CrossProjectBlocker, ProjectCounts } from "./domain.ts";
+import { focusChain } from "./focus-chain.ts";
 import { type FocusView, shownSeeds } from "./focus.ts";
 import { type Anchor, useLaidGraph } from "./graph-laid.tsx";
 import { focusLinks, type LayoutInput } from "./graph-layout.ts";
@@ -17,7 +18,6 @@ import {
 	GraphView,
 	type LinkProps,
 } from "./graph-view.tsx";
-import { focusChain } from "./links.ts";
 import { Loading } from "./loading.tsx";
 import { openProject, projectPath } from "./paths.ts";
 import { SegmentedBar, ticketTotal } from "./progress-bar.tsx";

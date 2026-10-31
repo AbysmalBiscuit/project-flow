@@ -19,7 +19,7 @@ import {
 import { pages } from "./github-pages.ts";
 import { statusTypeOfName } from "./lanes.ts";
 import { type PullLink, type PullLinks, TrackerError } from "./ports.ts";
-import { githubKey } from "./ticket-key.ts";
+import { numberedKey } from "./ticket-key.ts";
 import { statusColours } from "./token-palette.ts";
 
 const closingPullNode = z.object({
@@ -184,7 +184,7 @@ function openIssues(items: ProjectItem[]) {
 					{
 						content,
 						repo: content.repository.nameWithOwner,
-						key: githubKey(content.repository.nameWithOwner, content.number),
+						key: numberedKey(content.repository.nameWithOwner, content.number),
 					},
 				],
 	);
@@ -427,7 +427,7 @@ export async function listProjectTickets(
 			continue;
 		}
 		const repoName = content.repository.nameWithOwner;
-		const ticketKey = githubKey(repoName, content.number);
+		const ticketKey = numberedKey(repoName, content.number);
 		const comments =
 			state === "open" &&
 			openKeys.has(ticketKey) &&

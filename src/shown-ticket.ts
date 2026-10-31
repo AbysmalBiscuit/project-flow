@@ -1,16 +1,16 @@
-import {
-	type EarlierFactoryRun,
-	type FactoryRun,
-	type Lane,
-	type LiveRun,
-	type PullRequest,
-	resumableRunStatusKinds,
-	type RunStatusKind,
-	type ShownFactoryRun,
-	type ShownTicket,
-	type Ticket,
-	type WorkcellRun,
+import type {
+	EarlierFactoryRun,
+	FactoryRun,
+	Lane,
+	LiveRun,
+	PullRequest,
+	RunStatusKind,
+	ShownFactoryRun,
+	ShownTicket,
+	Ticket,
+	WorkcellRun,
 } from "./domain.ts";
+import { resumableRunStatusKinds } from "./kinds.ts";
 import { appLaneNames, closedLaneType, laterState } from "./lanes.ts";
 import { branchLinksTicket, closesTicket } from "./pull-links.ts";
 import { runResultOf } from "./run-list.ts";

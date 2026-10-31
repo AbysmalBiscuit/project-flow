@@ -52,7 +52,6 @@ import {
 	usePollProgress,
 } from "./poll-freshness.tsx";
 import { SegmentedBar, ticketTotal } from "./progress-bar.tsx";
-import { pinRef } from "./project-ref.ts";
 import {
 	configurationOf,
 	pageQuery,
@@ -232,7 +231,7 @@ function slug(value: string): string {
 }
 
 function subtitle(project: ProjectCounts, trackerLabel: TrackerLabel): string {
-	return `${trackerLabel(project.tracker)}, ${pinRef(project.ref).key}`;
+	return `${trackerLabel(project.tracker)}, ${project.displayKey}`;
 }
 
 const legendSegments = [

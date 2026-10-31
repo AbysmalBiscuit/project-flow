@@ -1,11 +1,8 @@
 import { useId } from "react";
 
 import { CommentMarkdown } from "./comment-markdown.tsx";
-import {
-	endedRunStatusKinds,
-	type RunMessage,
-	type ShownFactoryRun,
-} from "./domain.ts";
+import type { RunMessage, ShownFactoryRun } from "./domain.ts";
+import { endedRunStatusKinds } from "./kinds.ts";
 import { commentTime } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
 import { RunAnswer } from "./run-answer.tsx";

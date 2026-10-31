@@ -5,6 +5,7 @@ import type {
 	Configuration,
 	ProjectPin,
 } from "./configuration.ts";
+import type { StatusType } from "./kinds.ts";
 import type { KnownBot } from "./known-bots.ts";
 import type { ProjectRef } from "./project-ref.ts";
 import type {
@@ -43,24 +44,16 @@ export type BackendSwitch = {
 
 /** The trackers, forges and backend switches that the settings read lists. */
 export type BackendViews = {
-	trackers: BackendView<TrackerKind>[];
+	trackers: (BackendView<TrackerKind> & {
+		/** True when a factory can claim a ticket of this tracker. */
+		claimsRuns: boolean;
+	})[];
 	forges: BackendView<ForgeKind>[];
 	switches: BackendSwitch[];
 };
 
+export * from "./kinds.ts";
 export * from "./run-domain.ts";
-
-/** The fixed categories in workflow order. The domain rules read only these. */
-export const statusTypes = [
-	"backlog",
-	"inProgress",
-	"inReview",
-	"awaitingMerge",
-	"done",
-	"dropped",
-] as const;
-
-export type StatusType = (typeof statusTypes)[number];
 
 export type StatusColours = Record<StatusType, string>;
 
@@ -293,6 +286,8 @@ export type ProjectCounts = {
 	name: string;
 	tracker: TrackerKind;
 	ref: Configuration["tracked"][number];
+	/** The key of the project as the page shows it, such as `owner/number` for a board. */
+	displayKey: string;
 	done: number;
 	dropped: number;
 	blocked: number;
@@ -313,7 +308,7 @@ export type ProjectCounts = {
 	pending?: true;
 };
 
-export type ProjectBody = Omit<ProjectCounts, "ref">;
+export type ProjectBody = Omit<ProjectCounts, "ref" | "displayKey">;
 
 export type ThreadComment = {
 	id: string;
@@ -579,6 +574,8 @@ export type SettingsProject = {
 	source: "found" | "configured";
 	tracked: boolean;
 	pmBot: boolean;
+	/** Whether PM Bot is on for this project when the configuration does not name it. */
+	pmBotDefault: boolean;
 	repos: string[];
 	expectedBots: KnownBot[];
 	repoBots: Record<string, KnownBot[]>;

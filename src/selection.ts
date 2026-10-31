@@ -6,11 +6,12 @@ import { sameTicket, type TicketRef } from "./ticket-key.ts";
 type ShownLink = {
 	href: string;
 	ticket: TicketRef | null;
-	/** A ticket link that names no tracker, until the report of its project names one. */
+	/** A ticket link with no tracker that the API names, until the report of its project names one. */
 	unresolved: Omit<TicketLink, "tracker"> | null;
 };
 
 let shown: ShownLink | null = null;
+const knownTrackers = new Set<TicketRef["tracker"]>();
 const listeners = new Set<() => void>();
 
 function publish(): void {
@@ -25,7 +26,8 @@ function shownLink(): ShownLink {
 		return shown;
 	}
 	const link = urlTicket(window.location);
-	const tracker = link?.tracker ?? null;
+	const tracker =
+		[...knownTrackers].find((known) => known === link?.tracker) ?? null;
 	shown = {
 		href,
 		ticket:
@@ -38,6 +40,15 @@ function shownLink(): ShownLink {
 				: null,
 	};
 	return shown;
+}
+
+/** Adds tracker kinds that the API names. A ticket link can name only these. */
+export function knowTrackers(kinds: readonly TicketRef["tracker"][]): void {
+	for (const kind of kinds) {
+		knownTrackers.add(kind);
+	}
+	shown = null;
+	publish();
 }
 
 /** The ticket in the side panel. The page URL holds it, so a reload, the back button and a shared link reopen it. */
@@ -69,6 +80,8 @@ export function openTicket(
 	ticket: TicketRef,
 	history: "push" | "replace" = "push",
 ): void {
+	knownTrackers.add(ticket.tracker);
+	shown = null;
 	const current = activeTicket();
 	if (current === null || !sameTicket(current, ticket)) {
 		writeTicket(

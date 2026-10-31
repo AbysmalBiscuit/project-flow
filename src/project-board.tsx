@@ -15,13 +15,13 @@ import type {
 	TicketView,
 } from "./domain.ts";
 import { clickCard, type ClickKeys } from "./focus.ts";
-import { parentChip, ticketGroups } from "./grouping.ts";
-import { displayedLaneName, doneTicketsForLane } from "./lanes.ts";
+import { displayedLaneName, doneTicketsForLane } from "./lane-views.ts";
 import { openPage, runPagePath } from "./page-links.ts";
 import { useLaneColour } from "./state-colours.ts";
 import { tonedProps } from "./state-tone.ts";
 import { openParentLabel, stateLabel } from "./terms.ts";
 import { TicketCardBody } from "./ticket-card.tsx";
+import { parentChip, ticketGroups } from "./ticket-groups.ts";
 import { outsideKey, sameTicketKey, shortKey } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 import {

@@ -4,7 +4,7 @@ import type {
 	TicketView,
 	TrackerKind,
 } from "./domain.ts";
-import { groupKeysOf } from "./grouping.ts";
+import { groupKeysOf } from "./ticket-groups.ts";
 import { foldKey, itemId } from "./ticket-key.ts";
 import type { GroupBy } from "./view-settings.ts";
 

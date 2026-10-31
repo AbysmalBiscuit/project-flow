@@ -291,6 +291,7 @@ const card = {
 	needsYou: 0,
 	progress: 0,
 	ref: { tracker: "github" as const, repo: named },
+	displayKey: named,
 };
 
 const originConfig = [
@@ -341,6 +342,7 @@ describe("local projects", () => {
 			...card,
 			name: strangerOrigin,
 			ref: { tracker: "github" as const, repo: strangerOrigin },
+			displayKey: strangerOrigin,
 			tickets: [
 				{
 					key: `${strangerOrigin}#9`,
@@ -470,6 +472,7 @@ describe("local projects", () => {
 					name: linearName,
 					tracker: "linear",
 					ref: { tracker: "linear", project: linearPin },
+					displayKey: linearPin,
 					done: 0,
 					dropped: 0,
 					blocked: 0,
@@ -601,6 +604,7 @@ describe("local projects", () => {
 					name: linearName,
 					tracker: "linear",
 					ref: { tracker: "linear", project: linearPin },
+					displayKey: linearPin,
 					done: 0,
 					dropped: 0,
 					blocked: 0,
@@ -743,6 +747,7 @@ describe("local projects", () => {
 						name: linearName,
 						tracker: "linear",
 						ref: { tracker: "linear", project: linearPin },
+						displayKey: linearPin,
 						done: 0,
 						dropped: 0,
 						blocked: 0,

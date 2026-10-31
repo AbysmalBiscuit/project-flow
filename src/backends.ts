@@ -24,6 +24,7 @@ import {
 } from "./linear.ts";
 import { type Forge, type Tracker, TrackerError } from "./ports.ts";
 import { type ProjectRef, refHost } from "./project-ref.ts";
+import { takesClaimedStart } from "./run-start.ts";
 
 type BackendKind = TrackerKind | ForgeKind;
 
@@ -299,7 +300,10 @@ export function buildBackends(options: {
 		trackers,
 		forges,
 		views: {
-			trackers: trackerKinds.map((kind) => view(kind)),
+			trackers: trackerKinds.map((kind) => ({
+				...view(kind),
+				claimsRuns: takesClaimedStart(kind),
+			})),
 			forges: forgeKinds.map((kind) => view(kind)),
 			switches: backendKinds.flatMap((kind) => registry[kind].switches ?? []),
 		},

@@ -683,12 +683,13 @@ export function listedBackends(credential: "present" | "missing") {
 	};
 	return {
 		trackers: [
-			github,
+			{ ...github, claimsRuns: true },
 			{
 				kind: "linear",
 				label: "Linear",
 				hint: "LINEAR_API_KEY found in the environment",
 				credential,
+				claimsRuns: false,
 			},
 		],
 		forges: [github],

@@ -2,8 +2,8 @@ import { z } from "zod";
 
 import type { Factory } from "./configuration.ts";
 import type { FactoryRun, RunStatusKind } from "./domain.ts";
-import { liveRunStatusKinds } from "./domain.ts";
 import { body, type Read, Unreachable } from "./factory-http.ts";
+import { liveRunStatusKinds } from "./kinds.ts";
 
 export const runRow = z.object({
 	id: z.string(),

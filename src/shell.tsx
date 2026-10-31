@@ -9,7 +9,7 @@ import { control, textControl } from "./control-styles.ts";
 import { openJumpBox } from "./jump.tsx";
 import { pageQuery, pageQueryClient, useSaveSettings } from "./queries.ts";
 import { Segment } from "./segment.tsx";
-import { openTicket, useUnresolvedLink } from "./selection.ts";
+import { knowTrackers, openTicket, useUnresolvedLink } from "./selection.ts";
 import { factoryCopy, navLabel } from "./terms.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import { phoneGutter, projectBarLayout } from "./tokens.stylex.ts";
@@ -178,6 +178,12 @@ function useResolvedTicketLink(): void {
 			openTicket({ ...link, tracker }, "replace");
 		}
 	}, [link, tracker]);
+	const trackers = useQuery(pageQuery.settings).data?.trackers;
+	useEffect(() => {
+		if (trackers !== undefined) {
+			knowTrackers(trackers.map((item) => item.kind));
+		}
+	}, [trackers]);
 }
 
 export function AppShell({ children }: { children: ReactNode }) {

@@ -23,13 +23,9 @@ export const defaultFactoryMintCommand = [
 
 import { z } from "zod";
 
-import {
-	forgeKinds,
-	runResults,
-	runStatusKinds,
-	statusTypes,
-} from "./domain.ts";
+import { forgeKinds } from "./domain.ts";
 import { githubHost, githubPin } from "./github-pin.ts";
+import { runResults, runStatusKinds, statusTypes } from "./kinds.ts";
 import { knownBots } from "./known-bots.ts";
 import { defaultStates } from "./lanes.ts";
 import { linearPin } from "./linear-pin.ts";

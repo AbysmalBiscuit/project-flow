@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Comment, Ticket, TicketRef } from "./domain.ts";
 import { graphqlConnection, graphqlDependency } from "./github-graphql.ts";
 import { closedStatusType } from "./lanes.ts";
-import { githubKey } from "./ticket-key.ts";
+import { numberedKey } from "./ticket-key.ts";
 
 export const pageSize = 100;
 
@@ -43,7 +43,7 @@ function parentOf(
 		return { parent: null };
 	}
 	const project = parent.repository.nameWithOwner;
-	const key = githubKey(project, parent.number);
+	const key = numberedKey(project, parent.number);
 	const state = githubState(parent.state ?? "");
 	if (state === null || parent.url === undefined) {
 		return { parent: key };
@@ -125,7 +125,7 @@ export function dependencyRefs(
 		const ref: TicketRef = {
 			tracker: "github",
 			project,
-			key: githubKey(project, node.number),
+			key: numberedKey(project, node.number),
 			state,
 			...(title === "" ? {} : { title }),
 		};
@@ -165,13 +165,13 @@ export function ticketFromGithubIssue(
 	return {
 		id: String(issue.number),
 		tracker: "github",
-		key: githubKey(repo, issue.number),
+		key: numberedKey(repo, issue.number),
 		title: issue.title,
 		...(issue.url === undefined ? {} : { url: issue.url }),
 		state: state === "closed" ? "closed" : "open",
 		stateReason: githubReason(issue.stateReason ?? null),
 		updatedAt: issue.updatedAt,
-		ref: githubKey(repo, issue.number),
+		ref: numberedKey(repo, issue.number),
 		body: issue.body ?? "",
 		blockedBy,
 		...(blocking.length === 0 ? {} : { blocks: blocking }),

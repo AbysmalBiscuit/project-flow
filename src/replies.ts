@@ -7,7 +7,7 @@ import type {
 } from "./domain.ts";
 import { openAsk, projectHasPmBot } from "./open-ask.ts";
 import { settingsKey } from "./project-ref.ts";
-import { githubKeyParts, sameTicketKey } from "./ticket-key.ts";
+import { numberedKeyParts, sameTicketKey } from "./ticket-key.ts";
 
 type ReplyTarget = Pick<ReplyRequest, "tracker" | "project" | "key">;
 
@@ -42,7 +42,7 @@ export function ticketSnapshot(
 		return named;
 	}
 	const repo =
-		reply.tracker === "github" ? githubKeyParts(reply.key)?.repo : undefined;
+		reply.tracker === "github" ? numberedKeyParts(reply.key)?.repo : undefined;
 	return repo === undefined
 		? undefined
 		: rows.find(

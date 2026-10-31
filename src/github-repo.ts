@@ -56,7 +56,7 @@ import {
 } from "./github-repo-query.ts";
 import { TrackerError } from "./ports.ts";
 import { repoParts } from "./project-ref.ts";
-import { githubKey, sameTicketKey } from "./ticket-key.ts";
+import { numberedKey, sameTicketKey } from "./ticket-key.ts";
 import { statusColours } from "./token-palette.ts";
 
 function labelColour(color: string): string {
@@ -180,7 +180,7 @@ function pullFromGraphql(
 			if (node === undefined) {
 				continue;
 			}
-			const key = githubKey(repo, node.number);
+			const key = numberedKey(repo, node.number);
 			if (!keys.includes(key)) {
 				keys.push(key);
 			}
@@ -352,7 +352,7 @@ async function changedHeldIssues(
 			return ticket.state === "open" &&
 				Number.isInteger(number) &&
 				ticket.key !== null &&
-				sameTicketKey(ticket.key, githubKey(repo, number)) &&
+				sameTicketKey(ticket.key, numberedKey(repo, number)) &&
 				!listed.has(number)
 				? [[number, ticket.updatedAt] as const]
 				: [];
@@ -520,12 +520,12 @@ export async function readRepo(
 	const changedIssues = openIssues.filter(
 		(issue) =>
 			since !== null ||
-			stored.issues.get(githubKey(repo, issue.number))?.updatedAt !==
+			stored.issues.get(numberedKey(repo, issue.number))?.updatedAt !==
 				issue.updatedAt,
 	);
 	const readable = allPulls.filter((pull) => !pull.isDraft);
 	const changedPulls = readable.filter((pull) => {
-		const kept = stored.pulls.get(githubKey(repo, pull.number));
+		const kept = stored.pulls.get(numberedKey(repo, pull.number));
 		return kept === undefined || kept.updatedAt !== pull.updatedAt;
 	});
 	const livePulls = readable.filter(
@@ -653,7 +653,7 @@ export async function readRepo(
 		broken,
 	);
 	const pullOf = (pull: z.infer<typeof graphqlPullNode>) => {
-		const key = githubKey(repo, pull.number);
+		const key = numberedKey(repo, pull.number);
 		if (broken.has(pull.id)) {
 			stored.pulls.delete(key);
 			return null;
@@ -683,7 +683,7 @@ export async function readRepo(
 		return mapped?.merged === true ? [mapped] : [];
 	});
 	for (const issue of openIssues) {
-		const key = githubKey(repo, issue.number);
+		const key = numberedKey(repo, issue.number);
 		const comments =
 			commentsById.get(issue.id)?.nodes ??
 			stored.issues.get(key)?.comments ??

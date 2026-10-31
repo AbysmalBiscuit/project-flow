@@ -2,11 +2,8 @@ import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
 import { Fragment } from "react";
 
-import {
-	liveRunStatusKinds,
-	type ShownFactoryRun,
-	type TranscriptEntry,
-} from "./domain.ts";
+import type { ShownFactoryRun, TranscriptEntry } from "./domain.ts";
+import { liveRunStatusKinds } from "./kinds.ts";
 import { Loading } from "./loading.tsx";
 import { commentTime } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
