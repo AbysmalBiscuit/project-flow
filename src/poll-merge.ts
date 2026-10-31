@@ -127,6 +127,9 @@ export function reconcilePoll(
 	for (const outcome of outcomes) {
 		seen.add(projectId(outcome.ref));
 		if (outcome.ok) {
+			if (outcome.error !== null) {
+				projectErrors.push({ ref: outcome.ref, error: outcome.error });
+			}
 			if (outcome.row === null) {
 				continue;
 			}

@@ -269,6 +269,7 @@ describe("startup", () => {
 				tracker: "linear",
 				error: missingToken,
 				inReview: 0,
+				tickets: [{ key: "WID-8", state: "backlog" }],
 			});
 		} finally {
 			await cleanup();
