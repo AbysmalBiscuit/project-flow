@@ -32,6 +32,7 @@ import {
 } from "./lanes.ts";
 import { ticketRelations } from "./links.ts";
 import { staleView } from "./poll-merge.ts";
+import { settingsKey } from "./project-ref.ts";
 import { linked } from "./pull-links.ts";
 import { projectReport } from "./report.ts";
 import {
@@ -129,7 +130,9 @@ export function projectCounts(
 	const mappingKey = board?.laneKey;
 	const mapping =
 		mappingKey === undefined ? {} : (mappings.laneMappings[mappingKey] ?? {});
-	const stateMapping = mappings.stateMappings[stateSourceKey(board, key)] ?? {};
+	const stateMapping =
+		mappings.stateMappings[stateSourceKey(board, key, autoMerge.projectHost)] ??
+		{};
 	const lanes = placeOnBoard(
 		lanesFor(board, mapping, colours),
 		tickets,
@@ -468,7 +471,14 @@ function progressRatio(
 	return Math.round((counts.done / total) * 100);
 }
 
-/** The key that `stateMappings` uses for the statuses of one board. */
-export function stateSourceKey(board: Board | undefined, key: string): string {
-	return board?.laneKey ?? key;
+/**
+ * The key that `stateMappings` uses for the statuses of one board. A repo with
+ * no lane key takes its `settingsKey`, so each host keeps its own mapping.
+ */
+export function stateSourceKey(
+	board: Board | undefined,
+	key: string,
+	host: string | undefined,
+): string {
+	return board?.laneKey ?? settingsKey(key, host);
 }

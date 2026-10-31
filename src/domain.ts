@@ -960,7 +960,7 @@ export type SettingsProject = {
 
 export type SettingsSnapshot = Pick<
 	Snapshot,
-	"key" | "name" | "tracker" | "owner" | "number" | "board"
+	"key" | "name" | "tracker" | "host" | "owner" | "number" | "board"
 > & {
 	pulls: Pick<
 		PullRequest,
