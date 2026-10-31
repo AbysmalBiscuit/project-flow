@@ -71,13 +71,20 @@ export function shortKey(key: string): string {
 	return mark === -1 ? key : key.slice(mark);
 }
 
-/** A pull key as `#number` when the pull is in the repo of the ticket, else the whole key. */
+const ownerRepoShape = /(?:^|\/)([^/\s#]+\/[^/\s#]+)#\d+$/;
+
+/**
+ * A pull key as `#number` when the pull is in the repo of the ticket, else the
+ * whole key. A ticket key can lead with its host, so the ticket repo is the
+ * `owner/name` before the number.
+ */
 export function pullRef(pull: string, ticketKey: string | null): string {
 	const pullRepo = keyRepo(pull);
+	const ticketRepo = ticketKey?.match(ownerRepoShape)?.[1];
 	const sameRepo =
 		pullRepo !== null &&
-		ticketKey !== null &&
-		foldKey(pullRepo) === foldKey(keyRepo(ticketKey));
+		ticketRepo !== undefined &&
+		foldKey(pullRepo) === foldKey(ticketRepo);
 	return sameRepo ? shortKey(pull) : pull;
 }
 
