@@ -115,7 +115,7 @@ export function projectCounts(
 	needsYou: NeedsYouItem[];
 	report: ProjectReport;
 } {
-	const { index, parsed } = graph;
+	const { index } = graph;
 	const counts = {
 		done: 0,
 		dropped: 0,
@@ -255,34 +255,15 @@ export function projectCounts(
 			...(ticket.parent === null ? {} : { parent: ticket.parent }),
 			...countOf(subTickets, ticket.key),
 		});
-		if (blockers.length === 0 || ticket.state !== "open") {
-			continue;
-		}
-		for (const blocker of blockers) {
-			if (blocker.key === null) {
-				continue;
+		if (ticket.state === "open") {
+			for (const blocker of crossProjectBlockers(
+				ticket,
+				blockers,
+				graph,
+				name,
+			)) {
+				cross.set(ticketRefId(blocker), blocker);
 			}
-			const self = asRef(ticket);
-			const merged = self === null ? undefined : known(index, self);
-			const source = [
-				...(merged?.blockedBy ?? ticket.blockedBy),
-				...(parsed.get(parseKey(ticket))?.blockedBy ?? []),
-			].find(
-				(ref) =>
-					ref.tracker === blocker.tracker &&
-					foldKey(ref.key) === foldKey(blocker.key),
-			);
-			const project = blockerProject(blocker, source, graph);
-			if (project === "" || project.toLowerCase() === name.toLowerCase()) {
-				continue;
-			}
-			const crossBlocker = {
-				project,
-				tracker: blocker.tracker,
-				key: blocker.key,
-				title: blocker.title,
-			};
-			cross.set(ticketRefId(crossBlocker), crossBlocker);
 		}
 	}
 	const unlinked = active.filter((pull) => !linkedKeys.has(pullKey(pull)));
@@ -352,6 +333,44 @@ export function projectCounts(
 		needsYou: needsYouItemsForProject,
 		report,
 	};
+}
+
+/** The open blockers of a ticket that live in another project. */
+function crossProjectBlockers(
+	ticket: Ticket,
+	blockers: ReturnType<typeof openBlockers>,
+	graph: TicketGraph,
+	name: string,
+): CrossProjectBlocker[] {
+	const { index, parsed } = graph;
+	const self = asRef(ticket);
+	const merged = self === null ? undefined : known(index, self);
+	const refs = [
+		...(merged?.blockedBy ?? ticket.blockedBy),
+		...(parsed.get(parseKey(ticket))?.blockedBy ?? []),
+	];
+	return blockers.flatMap((blocker) => {
+		if (blocker.key === null) {
+			return [];
+		}
+		const source = refs.find(
+			(ref) =>
+				ref.tracker === blocker.tracker &&
+				foldKey(ref.key) === foldKey(blocker.key),
+		);
+		const project = blockerProject(blocker, source, graph);
+		if (project === "" || project.toLowerCase() === name.toLowerCase()) {
+			return [];
+		}
+		return [
+			{
+				project,
+				tracker: blocker.tracker,
+				key: blocker.key,
+				title: blocker.title,
+			},
+		];
+	});
 }
 
 function withSubTicketCounts(views: TicketView[]): TicketView[] {
