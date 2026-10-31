@@ -195,11 +195,13 @@ async function listPulls(
 	project: TrackedProject,
 	tracker: Tracker,
 	since: Date | null,
+	hosts: Configuration["hosts"],
 ): Promise<{ forge: Forge; pulls: PullRequest[] }[]> {
 	const refs = await tracker.pullRefs?.(project, since);
 	if (refs !== undefined) {
 		const lists: { forge: Forge; pulls: PullRequest[] }[] = [];
-		for (const [forge, links] of linksByForge(refs, options.backends.forges)) {
+		const forgeAt = (host: string) => options.backends.forgeAt(host, hosts);
+		for (const [forge, links] of linksByForge(refs, forgeAt)) {
 			const repos = links.map((link) => link.repo);
 			lists.push({ forge, pulls: await forge.listLinkedPulls(links, repos) });
 		}
@@ -232,6 +234,7 @@ async function readListed(
 	stored: Snapshot | undefined,
 	startedKeys: string[],
 	readRepos: Set<string>,
+	hosts: Configuration["hosts"],
 ): Promise<PolledProject> {
 	const forge = options.backends.forgeOf(project.ref);
 	const listedTickets = await tracker.listTickets(
@@ -239,7 +242,7 @@ async function readListed(
 		since,
 		since === null ? [] : (stored?.tickets ?? []),
 	);
-	const lists = await listPulls(options, project, tracker, since);
+	const lists = await listPulls(options, project, tracker, since, hosts);
 	const repo = refRepo(project.ref);
 	const branches =
 		repo !== null && forge !== null ? await forge.listBranches(repo) : [];
@@ -506,6 +509,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 					stored,
 					startedKeys,
 					readRepos,
+					configuration.hosts,
 				),
 			);
 			listed.sort((left, right) => orderOf(left.ref) - orderOf(right.ref));
@@ -704,6 +708,7 @@ export async function pollProject(
 				stored,
 				startedKeys,
 				new Set(),
+				configuration.hosts,
 			);
 			const donors = storedRows.flatMap((row) =>
 				sameProject(listedRef(row), project.ref)

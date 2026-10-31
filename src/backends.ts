@@ -14,6 +14,7 @@ import {
 	installationTokenFetch,
 } from "./factory-tokens.ts";
 import type { Fetch } from "./fetch.ts";
+import { checkForgejoToken, forgejoForge } from "./forgejo-forge.ts";
 import { githubHost } from "./github-pin.ts";
 import {
 	checkToken,
@@ -43,8 +44,8 @@ const backendKinds: readonly BackendKind[] = [
 
 export type Env = Record<string, string | undefined>;
 
-/** The token of each backend kind, or null when none is set. */
-export type Credentials = Record<BackendKind, string | null>;
+/** The token of each backend kind with a home, or null when none is set. */
+export type Credentials = Partial<Record<BackendKind, string | null>>;
 
 export type TokenIo = {
 	env: Env;
@@ -93,6 +94,13 @@ export type RepoFetch = {
 	stop: () => void;
 };
 
+/** The public host of a backend that needs no declaration, and the rule of its token. */
+type Home = {
+	/** The host of a project whose pin names no host. */
+	host: string;
+	credential: CredentialRule;
+};
+
 type Backend<Kind extends BackendKind> = {
 	/** The name that the page shows. */
 	label: string;
@@ -100,12 +108,19 @@ type Backend<Kind extends BackendKind> = {
 	hint: string;
 	/** The settings of this backend that Settings shows as switches. */
 	switches?: BackendSwitch[];
-	credential: CredentialRule;
-	/** The host of a project whose pin names no host. */
-	homeHost: string;
+	/** A backend without a home reads only the hosts that the configuration declares. */
+	home?: Home;
+	/** Checks the token of a declared host of this backend. */
+	checkHost?: (
+		host: string,
+		token: string,
+		fetch: Fetch,
+	) => Promise<TokenCheck>;
 	/** Wraps the fetch of the repo reads, such as in a cache of its responses. */
 	prepareFetch?: (fetch: Fetch, context: RepoFetchContext) => RepoFetch;
-} & (Kind extends TrackerKind ? { tracker: Factory<Tracker> } : unknown) &
+} & (Kind extends TrackerKind
+	? { tracker: Factory<Tracker>; home: Home }
+	: unknown) &
 	(Kind extends ForgeKind ? { forge: Factory<Forge> } : unknown);
 
 /** The help texts of Settings that name each backend. */
@@ -140,23 +155,25 @@ function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 					hint: "GitHub reads and polls use the factory token for that repo owner. Replies stay on your token.",
 				},
 			],
-			credential: {
-				env: "GITHUB_TOKEN",
-				fallback: (io) => io.readGhToken(io.env),
-				missing: missingToken,
-				rejected: rejectedToken,
-				checked: () => true,
-				async check(token, fetchImpl) {
-					const user = await checkToken(token, fetchImpl);
-					if (user.status === 401) {
-						return "rejected";
-					}
-					return user.ok
-						? "accepted"
-						: { warning: `GitHub token check failed (HTTP ${user.status}).` };
+			home: {
+				host: githubHost,
+				credential: {
+					env: "GITHUB_TOKEN",
+					fallback: (io) => io.readGhToken(io.env),
+					missing: missingToken,
+					rejected: rejectedToken,
+					checked: () => true,
+					async check(token, fetchImpl) {
+						const user = await checkToken(token, fetchImpl);
+						if (user.status === 401) {
+							return "rejected";
+						}
+						return user.ok
+							? "accepted"
+							: { warning: `GitHub token check failed (HTTP ${user.status}).` };
+					},
 				},
 			},
-			homeHost: githubHost,
 			prepareFetch: (fetchImpl, context) =>
 				installationTokenFetch(
 					conditionalFetch(fetchImpl, context.validators),
@@ -178,26 +195,45 @@ function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 		linear: {
 			label: "Linear",
 			hint: "LINEAR_API_KEY found in the environment",
-			credential: {
-				env: "LINEAR_API_KEY",
-				missing: missingLinearKey,
-				rejected: rejectedLinearKey,
-				checked: ({ tracked }) =>
-					tracked.some((pin) => pin.tracker === "linear"),
-				async check(key, fetchImpl) {
-					try {
-						await checkLinearKey(key, fetchImpl);
-						return "accepted";
-					} catch (error) {
-						if (error instanceof TrackerError && error.status === 401) {
-							return "rejected";
+			home: {
+				host: "linear.app",
+				credential: {
+					env: "LINEAR_API_KEY",
+					missing: missingLinearKey,
+					rejected: rejectedLinearKey,
+					checked: ({ tracked }) =>
+						tracked.some((pin) => pin.tracker === "linear"),
+					async check(key, fetchImpl) {
+						try {
+							await checkLinearKey(key, fetchImpl);
+							return "accepted";
+						} catch (error) {
+							if (error instanceof TrackerError && error.status === 401) {
+								return "rejected";
+							}
+							throw error;
 						}
-						throw error;
-					}
+					},
 				},
 			},
-			homeHost: "linear.app",
 			tracker: ({ token, fetch }) => linearTracker(token, fetch),
+		},
+		forgejo: {
+			label: "Forgejo",
+			hint: "Token from the env var that each declared host names",
+			async checkHost(host, token, fetchImpl) {
+				const user = await checkForgejoToken(host, token, fetchImpl);
+				if (user.status === 401) {
+					return "rejected";
+				}
+				return user.ok
+					? "accepted"
+					: {
+							warning: `Forgejo token check of ${host} failed (HTTP ${user.status}).`,
+						};
+			},
+			forge: ({ host, token, repoFetch }) =>
+				forgejoForge(host, token, repoFetch),
 		},
 	};
 }
@@ -217,15 +253,17 @@ function usable(token: string | null | undefined): string | null {
 	return trimmed === "" ? null : trimmed;
 }
 
-/** Reads the token of each backend kind from its env var, or else from its fallback. */
+/** Reads the token of each backend kind from its env var, or else from its fallback. A backend without a home has none. */
 export async function readCredentials(io: TokenIo): Promise<Credentials> {
 	const registry = backendRegistry();
 	const tokens = new Map(
 		await Promise.all(
 			backendKinds.map(async (kind) => {
-				const rule = registry[kind].credential;
+				const rule = registry[kind].home?.credential;
 				const token =
-					usable(io.env[rule.env]) ?? usable(await rule.fallback?.(io));
+					rule === undefined
+						? null
+						: (usable(io.env[rule.env]) ?? usable(await rule.fallback?.(io)));
 				return [kind, token] as const;
 			}),
 		),
@@ -233,23 +271,45 @@ export async function readCredentials(io: TokenIo): Promise<Credentials> {
 	return byKind(backendKinds, (kind) => tokens.get(kind) ?? null);
 }
 
-/** Checks each token that the configuration needs. Answers the message that stops the start, or null. */
+type TokenTest = {
+	check: () => Promise<TokenCheck>;
+	rejected: string;
+};
+
+/** Checks each token that the configuration needs, then the token of each declared host. Answers the message that stops the start, or null. */
 export async function rejectedCredential(
 	credentials: Credentials,
 	configuration: Configuration,
+	env: Env,
 	fetchImpl: Fetch,
 	warn: (message: string) => void,
 ): Promise<string | null> {
 	const registry = backendRegistry();
+	const tests: TokenTest[] = [];
 	for (const kind of backendKinds) {
-		const rule = registry[kind].credential;
-		const token = credentials[kind];
-		if (token === null || !rule.checked(configuration)) {
-			continue;
+		const rule = registry[kind].home?.credential;
+		const token = credentials[kind] ?? null;
+		if (rule !== undefined && token !== null && rule.checked(configuration)) {
+			tests.push({
+				check: () => rule.check(token, fetchImpl),
+				rejected: rule.rejected,
+			});
 		}
-		const verdict = await rule.check(token, fetchImpl);
+	}
+	for (const { host, forge, tokenEnv } of configuration.hosts) {
+		const token = usable(env[tokenEnv]);
+		const checkHost = registry[forge].checkHost;
+		if (token !== null && checkHost !== undefined) {
+			tests.push({
+				check: () => checkHost(host, token, fetchImpl),
+				rejected: `${tokenEnv} was rejected by ${host} (HTTP 401): set a valid token.`,
+			});
+		}
+	}
+	for (const { check, rejected } of tests) {
+		const verdict = await check();
 		if (verdict === "rejected") {
-			return rule.rejected;
+			return rejected;
 		}
 		if (verdict !== "accepted") {
 			warn(verdict.warning);
@@ -294,19 +354,20 @@ export function prepareRepoFetch(
 
 export type ProjectReader = { tracker: Tracker } | { error: string };
 
+type Hosts = Configuration["hosts"];
+
 export type Backends = {
 	trackers: ReadonlyMap<TrackerKind, Tracker>;
-	/** The forge of each host that a PR reference can name. */
+	/** The forge of each host that a poll has read. */
 	forges: ReadonlyMap<string, Forge>;
-	/** Each tracker and forge kind with its label and whether it has a token. */
-	views: BackendViews;
+	/** Each tracker and forge kind with its label and whether it has a token. A forge without a home shows once a host declares it. */
+	views: (hosts: Hosts) => BackendViews;
 	/** The tracker that reads the project of `ref`, or the error to show on it. */
-	readerOf: (ref: ProjectRef, hosts: Configuration["hosts"]) => ProjectReader;
+	readerOf: (ref: ProjectRef, hosts: Hosts) => ProjectReader;
+	/** The forge that serves `host`, or null when no forge with a token serves it. */
+	forgeAt: (host: string, hosts: Hosts) => Forge | null;
 	/** The name of the forge on the host of `url`, or undefined when no forge serves that host. */
-	forgeLabelOf: (
-		url: string,
-		hosts: Configuration["hosts"],
-	) => string | undefined;
+	forgeLabelOf: (url: string, hosts: Hosts) => string | undefined;
 	/** The forge that holds the repo of the project of `ref`. */
 	forgeOf: (ref: ProjectRef) => Forge | null;
 	/** The declared host of a forge, or undefined for a forge on its own home host. */
@@ -324,17 +385,30 @@ export function buildBackends(options: {
 	const { credentials, env, fetch, repoFetch } = options;
 	const registry = backendRegistry();
 	const homeContext = (kind: BackendKind): AdapterContext | null => {
-		const token = credentials[kind];
-		return token === null
+		const token = credentials[kind] ?? null;
+		const home = registry[kind].home;
+		return token === null || home === undefined
 			? null
-			: { host: registry[kind].homeHost, token, fetch, repoFetch };
+			: { host: home.host, token, fetch, repoFetch };
 	};
-	const view = <Kind extends BackendKind>(kind: Kind): BackendView<Kind> => ({
-		kind,
-		label: registry[kind].label,
-		hint: registry[kind].hint,
-		credential: credentials[kind] === null ? "missing" : "present",
-	});
+	const homeHosts = new Set(
+		backendKinds.flatMap((kind) => registry[kind].home?.host ?? []),
+	);
+	const view = <Kind extends BackendKind>(
+		kind: Kind,
+		hosts: Hosts,
+	): BackendView<Kind> => {
+		const declared = hosts.filter((entry) => entry.forge === kind);
+		const present =
+			(credentials[kind] ?? null) !== null ||
+			declared.some((entry) => usable(env[entry.tokenEnv]) !== null);
+		return {
+			kind,
+			label: registry[kind].label,
+			hint: registry[kind].hint,
+			credential: present ? "present" : "missing",
+		};
+	};
 	const trackers = new Map<TrackerKind, Tracker>();
 	for (const kind of trackerKinds) {
 		const context = homeContext(kind);
@@ -347,10 +421,39 @@ export function buildBackends(options: {
 	for (const kind of forgeKinds) {
 		const context = homeContext(kind);
 		const forge = context === null ? null : registry[kind].forge(context);
-		if (forge !== null) {
-			forges.set(registry[kind].homeHost, forge);
+		const home = registry[kind].home;
+		if (forge !== null && home !== undefined) {
+			forges.set(home.host, forge);
 		}
 	}
+	/** The forge of each declared host, by its host, forge kind and token, so that its reads keep their cache across polls. */
+	const declaredForges = new Map<string, Forge | null>();
+	const hostedForge = (
+		host: string,
+		hosts: Hosts,
+	): { forge: Forge; context: AdapterContext } | { error: string } => {
+		const declared = hosts.find((entry) => entry.host === host);
+		if (declared === undefined) {
+			return { error: `${host} is not declared in hosts.` };
+		}
+		const token = usable(env[declared.tokenEnv]);
+		if (token === null) {
+			return {
+				error: `${declared.tokenEnv} is missing: set ${declared.tokenEnv} to read ${host}.`,
+			};
+		}
+		const context = { host, token, fetch, repoFetch };
+		const id = JSON.stringify([host, declared.forge, token]);
+		if (!declaredForges.has(id)) {
+			declaredForges.set(id, registry[declared.forge].forge(context));
+		}
+		const forge = declaredForges.get(id) ?? null;
+		if (forge === null) {
+			return { error: `the ${declared.forge} forge cannot read ${host} yet.` };
+		}
+		forges.set(host, forge);
+		return { forge, context };
+	};
 	const explained = new Set<string>();
 	const unreadable = (error: string): ProjectReader => {
 		explained.add(error);
@@ -359,39 +462,35 @@ export function buildBackends(options: {
 	const hostedReader = (
 		kind: TrackerKind,
 		host: string,
-		hosts: Configuration["hosts"],
+		hosts: Hosts,
 	): ProjectReader => {
-		const declared = hosts.find((entry) => entry.host === host);
-		if (declared === undefined) {
-			return unreadable(`${host} is not declared in hosts.`);
+		const hosted = hostedForge(host, hosts);
+		if ("error" in hosted) {
+			return unreadable(hosted.error);
 		}
-		const token = usable(env[declared.tokenEnv]);
-		if (token === null) {
-			return unreadable(
-				`${declared.tokenEnv} is missing: set ${declared.tokenEnv} to read ${host}.`,
-			);
-		}
-		const context = { host, token, fetch, repoFetch };
-		const forge = registry[declared.forge].forge(context);
-		const tracker = forge === null ? null : registry[kind].tracker(context);
-		if (forge === null || tracker === null) {
-			return unreadable(`the ${declared.forge} forge cannot read ${host} yet.`);
-		}
-		forges.set(host, forge);
-		return { tracker };
+		const tracker = registry[kind].tracker(hosted.context);
+		return tracker === null
+			? unreadable(`the ${kind} tracker cannot read ${host} yet.`)
+			: { tracker };
 	};
 	return {
 		trackers,
 		forges,
-		views: {
+		views: (hosts) => ({
 			trackers: trackerKinds.map((kind) => ({
-				...view(kind),
+				...view(kind, hosts),
 				claimsRuns: takesClaimedStart(kind),
 			})),
-			forges: forgeKinds.map((kind) => view(kind)),
+			forges: forgeKinds
+				.filter(
+					(kind) =>
+						registry[kind].home !== undefined ||
+						hosts.some((entry) => entry.forge === kind),
+				)
+				.map((kind) => view(kind, hosts)),
 			switches: backendKinds.flatMap((kind) => registry[kind].switches ?? []),
 			hints: backendHints,
-		},
+		}),
 		readerOf(ref, hosts) {
 			const host = refHost(ref);
 			if (host !== undefined) {
@@ -399,22 +498,28 @@ export function buildBackends(options: {
 			}
 			const tracker = trackers.get(ref.tracker);
 			return tracker === undefined
-				? unreadable(registry[ref.tracker].credential.missing)
+				? unreadable(registry[ref.tracker].home.credential.missing)
 				: { tracker };
+		},
+		forgeAt(host, hosts) {
+			if (homeHosts.has(host)) {
+				return forges.get(host) ?? null;
+			}
+			const hosted = hostedForge(host, hosts);
+			return "error" in hosted ? null : hosted.forge;
 		},
 		forgeLabelOf(url, hosts) {
 			const host = URL.parse(url)?.host;
 			const kind =
-				forgeKinds.find((forge) => registry[forge].homeHost === host) ??
+				forgeKinds.find((forge) => registry[forge].home?.host === host) ??
 				hosts.find((declared) => declared.host === host)?.forge;
 			return kind === undefined ? undefined : registry[kind].label;
 		},
 		forgeOf: (ref) =>
-			forges.get(refHost(ref) ?? registry[ref.tracker].homeHost) ?? null,
+			forges.get(refHost(ref) ?? registry[ref.tracker].home.host) ?? null,
 		declaredHostOf(forge) {
-			const home = new Set(backendKinds.map((kind) => registry[kind].homeHost));
 			for (const [host, held] of forges) {
-				if (held === forge && !home.has(host)) {
+				if (held === forge && !homeHosts.has(host)) {
 					return host;
 				}
 			}
