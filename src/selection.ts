@@ -1,9 +1,16 @@
 import { useSyncExternalStore } from "react";
 
-import { ticketPath, urlTicket } from "./paths.ts";
+import { type TicketLink, ticketPath, urlTicket } from "./paths.ts";
 import { sameTicket, type TicketRef } from "./ticket-key.ts";
 
-let shown: { href: string; ticket: TicketRef | null } | null = null;
+type ShownLink = {
+	href: string;
+	ticket: TicketRef | null;
+	/** A ticket link that names no tracker, until the report of its project names one. */
+	unresolved: Omit<TicketLink, "tracker"> | null;
+};
+
+let shown: ShownLink | null = null;
 const listeners = new Set<() => void>();
 
 function publish(): void {
@@ -12,14 +19,34 @@ function publish(): void {
 	}
 }
 
-/** The ticket in the side panel. The page URL holds it, so a reload, the back button and a shared link reopen it. */
-export function activeTicket(): TicketRef | null {
+function shownLink(): ShownLink {
 	const href = `${window.location.pathname}${window.location.search}`;
 	if (shown?.href === href) {
-		return shown.ticket;
+		return shown;
 	}
-	shown = { href, ticket: urlTicket(window.location) };
-	return shown.ticket;
+	const link = urlTicket(window.location);
+	const tracker = link?.tracker ?? null;
+	shown = {
+		href,
+		ticket:
+			link === null || tracker === null
+				? null
+				: { tracker, project: link.project, key: link.key },
+		unresolved:
+			link !== null && tracker === null
+				? { project: link.project, key: link.key }
+				: null,
+	};
+	return shown;
+}
+
+/** The ticket in the side panel. The page URL holds it, so a reload, the back button and a shared link reopen it. */
+export function activeTicket(): TicketRef | null {
+	return shownLink().ticket;
+}
+
+function unresolvedLink(): ShownLink["unresolved"] {
+	return shownLink().unresolved;
 }
 
 function writeTicket(
@@ -70,4 +97,8 @@ function subscribe(listener: () => void): () => void {
 
 export function useActiveTicket(): TicketRef | null {
 	return useSyncExternalStore(subscribe, activeTicket, activeTicket);
+}
+
+export function useUnresolvedLink(): ShownLink["unresolved"] {
+	return useSyncExternalStore(subscribe, unresolvedLink, unresolvedLink);
 }
