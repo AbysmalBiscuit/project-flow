@@ -367,6 +367,8 @@ export type PollOptions = {
 	progress: PollProgress | null;
 	stopped: boolean;
 	catalogue: FoundProject[];
+	/** The error of each declared host whose repo discovery failed in the last poll. */
+	discoveryErrors: string[];
 	/** False when a tracked-list write landed after this poll started. */
 	mayPublish: () => boolean;
 	factoryUnreachable: () => boolean;
@@ -441,6 +443,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 		}
 	}
 	const hostedViewers: Viewer[] = [];
+	const discoveryErrors: string[] = [];
 	for (const tracker of options.backends.hostedTrackers(configuration.hosts)) {
 		try {
 			const page = await tracker.findProjects();
@@ -449,9 +452,12 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 			}
 			mergeFound(discovered, page.projects);
 		} catch (error) {
-			failed = error instanceof Error ? error.message : "poll failed";
+			discoveryErrors.push(
+				error instanceof Error ? error.message : "discovery failed",
+			);
 		}
 	}
+	options.discoveryErrors = discoveryErrors;
 	options.viewers = [...viewers.values(), ...hostedViewers];
 	mergeFound(
 		discovered,

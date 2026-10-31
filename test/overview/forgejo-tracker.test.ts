@@ -462,6 +462,28 @@ describe("the token of a tracked Forgejo repo", () => {
 });
 
 describe("Settings on a declared Forgejo host", () => {
+	test("a failed repo discovery shows in Settings and keeps the pinned repo fresh", async () => {
+		await withApp(
+			tracked,
+			linearWithCodeberg([], { reposStatus: 500 }, []),
+			env,
+			async (base) => {
+				const overview = await readOverview(base);
+				expect(overview.error).toBeNull();
+				const card = overview.projects.find(
+					(project) => project.tracker === "forgejo",
+				);
+				expect(card?.error).toBeNull();
+				const { discoveryErrors } = await settledSettings<{
+					discoveryErrors: string[];
+				}>(base);
+				expect(discoveryErrors).toEqual([
+					`Forgejo find repos failed (HTTP 500): https://${host}/api/v1/user/repos?limit=50`,
+				]);
+			},
+		);
+	});
+
 	test("lists each found repo with the pin that tracks it", async () => {
 		await withApp(
 			JSON.stringify({ hosts }),

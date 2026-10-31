@@ -42,6 +42,8 @@ export type Sent = { url: string; authorization: string | null };
 
 export type Codeberg = {
 	userStatus?: number;
+	/** The HTTP status of the repo discovery read, when it fails. */
+	reposStatus?: number;
 	/** Answers that replace the recorded answer of a repo path, by the start of the path. */
 	answers?: Record<string, () => Response>;
 };
@@ -59,7 +61,9 @@ export function codeberg(url: string, options: Codeberg): Response | null {
 			: json({ login: "AbysmalBiscuit" });
 	}
 	if (url.startsWith(`https://${host}/api/v1/user/repos`)) {
-		return json(userRepos);
+		return options.reposStatus === undefined
+			? json(userRepos)
+			: json({ message: "discovery failed" }, options.reposStatus);
 	}
 	const path = url.slice(repoApi.length);
 	const answer = Object.entries(options.answers ?? {}).find(([start]) =>
