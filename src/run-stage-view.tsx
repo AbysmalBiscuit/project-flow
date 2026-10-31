@@ -146,7 +146,8 @@ function byRecordedTime(a: TranscriptEntry, b: TranscriptEntry): number {
 
 /**
  * The stage transcript of one stage. A live stage reads its new entries again
- * on an interval. With `follow`, the list scrolls to each new entry.
+ * on an interval. With `follow`, the list scrolls to each new entry while
+ * the reader stays at its end.
  */
 export function Transcript({
 	runId,
@@ -163,9 +164,10 @@ export function Transcript({
 }) {
 	const { data } = useQuery(stageQuery.transcript(runId, stage, live, visit));
 	const list = useRef<HTMLOListElement>(null);
+	const atEnd = useRef(true);
 	const next = typeof data === "object" ? data.next : null;
 	useEffect(() => {
-		if (follow && next !== null) {
+		if (follow && next !== null && atEnd.current) {
 			list.current?.scrollTo({ top: list.current.scrollHeight });
 		}
 	}, [follow, next]);
@@ -183,6 +185,12 @@ export function Transcript({
 			) : (
 				<ol
 					ref={list}
+					onScroll={(event) => {
+						const { scrollHeight, scrollTop, clientHeight } =
+							event.currentTarget;
+						// A zoomed page leaves a fraction of a pixel at the end.
+						atEnd.current = scrollHeight - scrollTop - clientHeight < 1;
+					}}
 					className={clsx(styles.entries)}
 					data-transcript={stage}
 					data-transcript-next={data.next}
