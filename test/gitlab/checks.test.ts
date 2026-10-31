@@ -48,6 +48,22 @@ describe("the CI of a GitLab PR", () => {
 		);
 	});
 
+	test("a failed pipeline whose listed jobs passed, such as a failed trigger job, is failing CI", async () => {
+		await withLinkedPull(
+			{
+				pipelines: { 1: [{ ...recordedPipeline, status: "failed" }] },
+				jobs: {
+					[recordedPipeline.id]: [
+						{ name: "test", status: "success", allow_failure: false },
+					],
+				},
+			},
+			async (base) => {
+				expect(await ciOf(base, "WID-1")).toBe("failing");
+			},
+		);
+	});
+
 	test.each([
 		[false, "pending"],
 		[true, "passing"],

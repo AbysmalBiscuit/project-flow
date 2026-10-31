@@ -210,18 +210,25 @@ export function gitlabForge(
 			note,
 			repo,
 		);
+		const checks = jobs.map(statusCheck);
+		// A pipeline of external commit statuses has no jobs, and the jobs list
+		// leaves out trigger jobs, so the pipeline status stands for what is unlisted.
+		const unlisted =
+			current !== undefined &&
+			(jobs.length === 0 ||
+				(current.status === "failed" &&
+					!checks.some((check) => check.conclusion === "failure")));
 		return {
-			checks:
-				// A pipeline of external commit statuses has no jobs.
-				jobs.length === 0 && current !== undefined
-					? [
-							statusCheck({
-								name: "pipeline",
-								status: current.status,
-								allow_failure: false,
-							}),
-						]
-					: jobs.map(statusCheck),
+			checks: unlisted
+				? [
+						...checks,
+						statusCheck({
+							name: "pipeline",
+							status: current.status,
+							allow_failure: false,
+						}),
+					]
+				: checks,
 			// GitLab owns the approval reset policy, and its approvals API gives no
 			// commit for an approval, so each current approval counts on the head.
 			reviews: approved.body.approved_by.map(({ user }) => ({
