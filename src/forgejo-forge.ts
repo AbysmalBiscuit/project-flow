@@ -3,10 +3,12 @@ import { z } from "zod";
 import type { PullRequest } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import {
+	type ForgejoAccess,
 	type ForgejoClient,
 	forgejoClient,
 	type ForgejoPull,
 	forgejoPull,
+	isRejected,
 	readEvidence,
 	type ReviewEvidence,
 } from "./forgejo-api.ts";
@@ -57,6 +59,14 @@ async function pullOf(
 	};
 }
 
+/** A read that failed for any cause but a rejected token, which fails the poll of the project. */
+function skipUnlessRejected(error: unknown): null {
+	if (isRejected(error)) {
+		throw error;
+	}
+	return null;
+}
+
 /** Each PR in order. A PR that fails to read is left out until the next poll. */
 async function pullsOf(
 	reads: Reads,
@@ -65,7 +75,7 @@ async function pullsOf(
 ): Promise<PullRequest[]> {
 	const pulls: PullRequest[] = [];
 	for (const item of listed) {
-		const read = await pullOf(reads, repo, item).catch(() => null);
+		const read = await pullOf(reads, repo, item).catch(skipUnlessRejected);
 		if (read !== null) {
 			pulls.push(read);
 		}
@@ -84,7 +94,7 @@ async function mergedHistory(
 			`${reads.client.api}/repos/${repo}/pulls?state=closed&limit=10`,
 			"list pulls",
 		)
-		.catch(() => null);
+		.catch(skipUnlessRejected);
 	if (response === null) {
 		return [];
 	}
@@ -115,7 +125,7 @@ async function linkedPulls(
 		const pull = await reads.client
 			.get(`${reads.client.api}/repos/${repo}/pulls/${number}`, "read pull")
 			.then(async (response) => forgejoPull.parse(await response.json()))
-			.catch(() => null);
+			.catch(skipUnlessRejected);
 		if (pull !== null && (pull.state === "open" || pull.merged)) {
 			pulls.push(...(await pullsOf(reads, repo, [{ pull, closingKeys }])));
 		}
@@ -145,13 +155,9 @@ function pullOfUrl({
 }
 
 /** Reads the PRs, branches, checks and reviews of the repos on one Forgejo host. */
-export function forgejoForge(
-	host: string,
-	token: string,
-	fetchImpl: Fetch,
-): Forge {
+export function forgejoForge(access: ForgejoAccess, fetchImpl: Fetch): Forge {
 	const reads: Reads = {
-		client: forgejoClient(host, token, fetchImpl),
+		client: forgejoClient(access, fetchImpl),
 		merged: new Map(),
 	};
 	const { client } = reads;

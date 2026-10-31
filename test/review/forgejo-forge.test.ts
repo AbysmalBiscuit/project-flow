@@ -14,6 +14,12 @@ import rejectedUser from "../fixtures/forgejo-user-401.json";
 import { withApp } from "../project-harness.ts";
 import { tempConfig, testIo } from "../support/app.ts";
 import { json, urlOf } from "../support/fetch.ts";
+import {
+	page,
+	recordedDiscovery,
+	recordedOrEmpty,
+	unrecorded,
+} from "../support/github.ts";
 import { linearFake } from "../support/linear.ts";
 import { readOverview } from "../support/reads.ts";
 
@@ -36,17 +42,31 @@ const statusBySha = new Map(
 
 type Sent = { url: string; authorization: string | null };
 
+type Codeberg = {
+	userStatus?: number;
+	/** Answers that replace the recorded answer of a repo path, by the start of the path. */
+	answers?: Record<string, () => Response>;
+};
+
+const rejected = () => json(rejectedUser, 401);
+
 /** The recorded answers of the Codeberg scratch repo, or null for a URL on another host. */
-function codeberg(url: string, userStatus: number): Response | null {
+function codeberg(url: string, options: Codeberg): Response | null {
 	if (!url.startsWith(`https://${host}/`)) {
 		return null;
 	}
 	if (url === `https://${host}/api/v1/user`) {
-		return userStatus === 401
-			? json(rejectedUser, 401)
+		return options.userStatus === 401
+			? rejected()
 			: json({ login: "AbysmalBiscuit" });
 	}
 	const path = url.slice(repoApi.length);
+	const answer = Object.entries(options.answers ?? {}).find(([start]) =>
+		path.startsWith(start),
+	)?.[1];
+	if (answer !== undefined) {
+		return answer();
+	}
 	if (path === "/pulls/10") {
 		return json(pull10);
 	}
@@ -85,11 +105,23 @@ function attachedIssue(number: number, url: string) {
 	};
 }
 
-function linearWithCodeberg(sent: Sent[], userStatus = 200): Fetch {
+function linearWithCodeberg(sent: Sent[], options: Codeberg = {}): Fetch {
 	const linear = linearFake({
 		issues: [attachedIssue(8, `https://${host}/${scratch}/pulls/10`)],
-		github: async (input) =>
-			json(urlOf(input).includes("/check-runs") ? { check_runs: [] } : []),
+		github: async (input, init) => {
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return page({ login: "lev" });
+			}
+			if (url.includes("/repos/acme/widget/issues?")) {
+				return page([]);
+			}
+			return (
+				recordedDiscovery(input, init) ??
+				recordedOrEmpty(url) ??
+				unrecorded(input)
+			);
+		},
 	});
 	return async (input, init) => {
 		const url = urlOf(input);
@@ -97,7 +129,7 @@ function linearWithCodeberg(sent: Sent[], userStatus = 200): Fetch {
 			url,
 			authorization: new Headers(init?.headers).get("authorization"),
 		});
-		return codeberg(url, userStatus) ?? linear(input, init);
+		return codeberg(url, options) ?? linear(input, init);
 	};
 }
 
@@ -213,7 +245,7 @@ describe("the token of a declared Forgejo host", () => {
 				["--config", path, "--host", "127.0.0.1", "--port", "0"],
 				testIo({
 					env: { ...env, [tokenEnv]: "rejected-token" },
-					fetch: linearWithCodeberg([], 401),
+					fetch: linearWithCodeberg([], { userStatus: 401 }),
 					readGhToken: async () => null,
 					databasePath: ":memory:",
 				}),
@@ -226,4 +258,63 @@ describe("the token of a declared Forgejo host", () => {
 			await cleanup();
 		}
 	});
+});
+
+const linearOnCodeberg = JSON.stringify({
+	hosts,
+	tracked: [{ tracker: "linear", project: linearProject }],
+});
+
+/** A GitHub project beside the Linear project, so that a failed Linear read does not stop a cold start. */
+const linearBesideGithub = JSON.stringify({
+	hosts,
+	tracked: [
+		{ tracker: "linear", project: linearProject },
+		{ tracker: "github", repo: "acme/widget" },
+	],
+});
+
+async function projectError(base: string) {
+	const { projects } = await readOverview(base);
+	return (
+		projects.find((project) => project.tracker === "linear")?.error ?? null
+	);
+}
+
+describe("a Linear project with a Codeberg attachment", () => {
+	test("with no token for the host names its env var on the project", async () => {
+		const sent: Sent[] = [];
+		const { [tokenEnv]: _token, ...withoutToken } = env;
+		await withApp(
+			linearOnCodeberg,
+			linearWithCodeberg(sent),
+			withoutToken,
+			async (base) => {
+				expect(await projectError(base)).toBe(
+					`${tokenEnv} is missing: set ${tokenEnv} to read ${host}.`,
+				);
+				expect(sent.some(({ url }) => url.startsWith(`https://${host}/`))).toBe(
+					false,
+				);
+			},
+		);
+	});
+
+	for (const [read, path] of [
+		["the PR", "/pulls/10"],
+		["the statuses", `/commits/${pull10.head.sha}/status`],
+	] as const) {
+		test(`whose token the host rejects on ${read} names its env var on the project`, async () => {
+			await withApp(
+				linearBesideGithub,
+				linearWithCodeberg([], { answers: { [path]: rejected } }),
+				env,
+				async (base) => {
+					expect(await projectError(base)).toBe(
+						`${tokenEnv} was rejected by ${host} (HTTP 401): set a valid token.`,
+					);
+				},
+			);
+		});
+	}
 });
