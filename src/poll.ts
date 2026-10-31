@@ -440,7 +440,19 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 			failed = error instanceof Error ? error.message : "poll failed";
 		}
 	}
-	options.viewers = [...viewers.values()];
+	const hostedViewers: Viewer[] = [];
+	for (const tracker of options.backends.hostedTrackers(configuration.hosts)) {
+		try {
+			const page = await tracker.findProjects();
+			if (page.viewer !== null) {
+				hostedViewers.push(page.viewer);
+			}
+			mergeFound(discovered, page.projects);
+		} catch (error) {
+			failed = error instanceof Error ? error.message : "poll failed";
+		}
+	}
+	options.viewers = [...viewers.values(), ...hostedViewers];
 	mergeFound(
 		discovered,
 		checkoutProjects(checkouts, (kind) => viewers.get(kind) ?? null),
