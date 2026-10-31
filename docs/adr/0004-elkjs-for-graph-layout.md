@@ -2,7 +2,7 @@
 
 The project graph frames each parent ticket around its sub-tickets, and frames nest to any depth. The hand-written layout cannot do this. It places all tickets on one global grid, then cuts each group out of that grid. A group frame keeps the empty cells of other groups, so a large project scatters. elkjs lays out a graph with nested frames. Layered uses the ELK `layered` algorithm. Force uses d3-force with two frame forces. Each layout runs in a Web Worker.
 
-The spike in issue 349 measured both layouts on the recorded tickets of project-flow, `AbysmalBiscuit/workcell` and the Linear project Initial SDI Issues. The issue comment holds the tables. `proof/elk-spike/capture.ts` records the data again, and `proof/elk-spike/measure.ts` prints the ELK rows of the tables again. The app no longer has the hand-written layout, so the current script does not print the hand-written rows. To print them, check out commit `ac9cccf` in a separate worktree and run `bun proof/elk-spike/measure.ts DATA_DIR OUT_DIR` there.
+The spike in issue 349 measured both layouts on the recorded tickets of project-flow, `AbysmalBiscuit/workcell` and the Linear project Initial SDI Issues. The issue comment holds the tables.
 
 ## Considered options
 
