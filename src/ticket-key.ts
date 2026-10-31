@@ -1,4 +1,5 @@
 import type { TicketState, TrackerKind } from "./domain.ts";
+import { settingsKey } from "./project-ref.ts";
 
 // Keys compare without case, so every id folds the key to lower case.
 
@@ -13,6 +14,15 @@ export function githubKey(repo: string, number: number | string): string {
 
 export function pullKey(pull: { repo: string; number: number }): string {
 	return githubKey(pull.repo, pull.number);
+}
+
+/** The id of a PR across hosts: the declared host of the PR qualifies its repo. */
+export function pullId(pull: {
+	repo: string;
+	host?: string;
+	number: number;
+}): string {
+	return foldKey(githubKey(settingsKey(pull.repo, pull.host), pull.number));
 }
 
 export function linearKey(team: string, number: number | string): string {
