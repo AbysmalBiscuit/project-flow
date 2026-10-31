@@ -147,14 +147,19 @@ export function RunTerminal({ run }: { run: ShownFactoryRun }) {
 			</p>
 		);
 	}
-	const graph = typeof checkpoint === "object" ? checkpoint.graph : null;
+	const visits =
+		typeof checkpoint === "object"
+			? (stageAt(checkpoint.graph, stage)?.visits ??
+				checkpoint.visits[stage] ??
+				0)
+			: 0;
 	return (
 		<TerminalStage
 			key={stage}
 			run={run}
 			stage={stage}
 			following={live && stage === currentStage}
-			visit={stageVisit(run.statusKind, stageAt(graph, stage)?.visits ?? 0)}
+			visit={stageVisit(run.statusKind, visits)}
 		/>
 	);
 }
