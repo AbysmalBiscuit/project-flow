@@ -2,6 +2,7 @@ import {
 	buildBackends,
 	type Credentials,
 	type Env,
+	type FactoryTokenMint,
 	prepareRepoFetch,
 } from "./backends.ts";
 import type { Configuration, Factory } from "./configuration.ts";
@@ -13,8 +14,6 @@ import {
 import { eventStream } from "./event-stream.ts";
 import { factoryReader } from "./factories.ts";
 import { factoryRunRoutes } from "./factory-run-routes.ts";
-import type { FactoryTokenMint } from "./factory-tokens.ts";
-import { installationTokenFetch } from "./factory-tokens.ts";
 import {
 	abortableFetch,
 	defaultTrackerRequestLimitMs,
@@ -141,18 +140,14 @@ export async function start(options: StartOptions): Promise<Running> {
 		opened.close();
 		throw error;
 	}
-	const factoryTokens = installationTokenFetch(
-		prepareRepoFetch(trackerFetch, opened.validators),
-		() => ({
-			enabled: configuration.factoryGithubTokens,
-			dir: configuration.factoryGithubTokenDir,
-			mintCommand: configuration.factoryMintCommand,
-		}),
-		() => clock.now(),
-		options.mintFactoryTokens,
-		options.mintRetryDelayMs,
-	);
-	void factoryTokens.mintNow();
+	const repoFetch = prepareRepoFetch(trackerFetch, {
+		validators: opened.validators,
+		configuration: () => configuration,
+		now: () => clock.now(),
+		mint: options.mintFactoryTokens,
+		mintRetryDelayMs: options.mintRetryDelayMs,
+	});
+	void repoFetch.mintNow();
 	const flagFactories = options.flagFactories ?? [];
 	const listedFactories = () =>
 		flagFactories.length > 0
@@ -174,7 +169,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		credentials: options.credentials,
 		env: options.env,
 		fetch: trackerFetch,
-		repoFetch: factoryTokens.fetch,
+		repoFetch: repoFetch.fetch,
 	});
 	const trackerOf = projectTrackers(
 		backends,
@@ -232,7 +227,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			backends.configured,
 			pollOptions.catalogue,
 			opened.store.readTickets(),
-			factoryTokens.reports(),
+			repoFetch.reports(),
 			factories.entries(),
 			discovering,
 		);
@@ -619,7 +614,7 @@ export async function start(options: StartOptions): Promise<Running> {
 						!current.factoryGithubTokens &&
 						configuration.factoryGithubTokens
 					) {
-						void factoryTokens.mintNow();
+						void repoFetch.mintNow();
 					}
 					if (viewOnlyChange(current, merged)) {
 						pollOptions.fallback = configuration;
@@ -746,7 +741,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			pollOptions.stopped = true;
 			dropQueuedRefresh();
 			requests.abort();
-			factoryTokens.stop();
+			repoFetch.stop();
 			releaseLists();
 			if (timer !== null) {
 				clearInterval(timer);
