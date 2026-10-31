@@ -9,6 +9,7 @@ import {
 	type ForgejoPull,
 	forgejoPull,
 	isRejected,
+	readCommittedAt,
 	readEvidence,
 	type ReviewEvidence,
 } from "./forgejo-api.ts";
@@ -53,7 +54,10 @@ async function pullOf(
 		body: pull.body ?? "",
 		closingKeys,
 		headSha: pull.merged ? "" : pull.head.sha,
-		headCommittedAt: null,
+		headCommittedAt:
+			pull.merged || draft
+				? null
+				: await readCommittedAt(reads.client, repo, pull.head.sha),
 		merged: pull.merged,
 		...evidence,
 	};
