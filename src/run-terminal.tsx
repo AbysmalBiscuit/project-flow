@@ -7,13 +7,20 @@ import type {
 	ShownFactoryRun,
 } from "./domain.ts";
 import { liveRunStatusKinds } from "./kinds.ts";
+import { Loading } from "./loading.tsx";
 import { RunFact } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
+import { NotServed } from "./run-checkpoint.tsx";
 import { Transcript } from "./run-stage-view.tsx";
 import { RunSteer, useCurrentStage } from "./run-steer.tsx";
 import { stageQuery, stageVisit } from "./stage-queries.ts";
-import { noTerminalStageLabel, terminalStageLabel } from "./terms.ts";
+import {
+	noRunDataLabel,
+	noTerminalStageLabel,
+	runTabData,
+	terminalStageLabel,
+} from "./terms.ts";
 import { clsx } from "./ui.ts";
 
 /** The stage at `path` in the graph: a top-level stage, or a stage of a child graph. */
@@ -130,7 +137,15 @@ export function RunTerminal({ run }: { run: ShownFactoryRun }) {
 		(live ? currentStage : null) ??
 		(typeof checkpoint === "object" ? endedStage(run, checkpoint) : null);
 	if (stage === null) {
-		return <p className={clsx(panel.note)}>{noTerminalStageLabel}</p>;
+		return checkpoint === undefined ? (
+			<Loading />
+		) : checkpoint === "not served" ? (
+			<NotServed data={runTabData.stages} />
+		) : (
+			<p className={clsx(panel.note)}>
+				{checkpoint === "missing" ? noRunDataLabel : noTerminalStageLabel}
+			</p>
+		);
 	}
 	const graph = typeof checkpoint === "object" ? checkpoint.graph : null;
 	return (
