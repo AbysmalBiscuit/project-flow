@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { BotCheck, BotReview, PullRequest } from "./domain.ts";
 import { defaultTrackerRequestLimitMs, type Fetch } from "./fetch.ts";
 import { nextPage } from "./github-pages.ts";
+import { rejectedHostToken } from "./host-tokens.ts";
 import { TrackerError } from "./ports.ts";
 
 export const forgejoPull = z.object({
@@ -44,6 +45,9 @@ export type ReviewEvidence = Pick<
 	"checks" | "comments" | "reviews" | "reactions"
 >;
 
+/** The host of a Forgejo forge, its token and the env var that holds the token. */
+export type ForgejoAccess = { host: string; token: string; tokenEnv: string };
+
 /** The requests of one token on one Forgejo host. */
 export type ForgejoClient = {
 	/** The base URL of the host's API, such as `https://codeberg.org/api/v1`. */
@@ -64,13 +68,21 @@ function forgejoInit(token: string): RequestInit {
 	};
 }
 
+/** True for the error of a request that the host refused for its token. */
+export function isRejected(error: unknown): boolean {
+	return error instanceof TrackerError && error.status === 401;
+}
+
+/** A request that answers 401 throws the error that names the env var of the token. */
 export function forgejoClient(
-	host: string,
-	token: string,
+	{ host, token, tokenEnv }: ForgejoAccess,
 	fetchImpl: Fetch,
 ): ForgejoClient {
 	const get = async (url: string, label: string): Promise<Response> => {
 		const response = await fetchImpl(url, forgejoInit(token));
+		if (response.status === 401) {
+			throw new TrackerError(rejectedHostToken(tokenEnv, host), 401);
+		}
 		if (!response.ok) {
 			throw new TrackerError(
 				`Forgejo ${label} failed (HTTP ${response.status}): ${url}`,

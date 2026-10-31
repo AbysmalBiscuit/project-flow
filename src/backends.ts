@@ -23,6 +23,7 @@ import {
 } from "./domain.ts";
 export type { FactoryTokenMint } from "./factory-tokens.ts";
 import type { Fetch } from "./fetch.ts";
+import { missingHostToken, rejectedHostToken } from "./host-tokens.ts";
 import type { Forge, Tracker } from "./ports.ts";
 import { type ProjectRef, refHost } from "./project-ref.ts";
 import { takesClaimedStart } from "./run-start.ts";
@@ -84,7 +85,7 @@ export async function rejectedCredential(
 		if (token !== null && checkHost !== undefined) {
 			tests.push({
 				check: () => checkHost(host, token, fetchImpl),
-				rejected: `${tokenEnv} was rejected by ${host} (HTTP 401): set a valid token.`,
+				rejected: rejectedHostToken(tokenEnv, host),
 			});
 		}
 	}
@@ -146,8 +147,11 @@ export type Backends = {
 	views: (hosts: Hosts) => BackendViews;
 	/** The tracker that reads the project of `ref`, or the error to show on it. */
 	readerOf: (ref: ProjectRef, hosts: Hosts) => ProjectReader;
-	/** The forge that serves `host`, or null when no forge with a token serves it. */
-	forgeAt: (host: string, hosts: Hosts) => Forge | null;
+	/**
+	 * The forge that serves `host`, or null when no forge serves it.
+	 * A declared host that no forge can read, such as a host with no token, answers its error.
+	 */
+	forgeAt: (host: string, hosts: Hosts) => Forge | { error: string } | null;
 	/** The name of the forge on the host of `url`, or undefined when no forge serves that host. */
 	forgeLabelOf: (url: string, hosts: Hosts) => string | undefined;
 	/** The forge that holds the repo of the project of `ref`. */
@@ -171,7 +175,13 @@ export function buildBackends(options: {
 		const home = registry[kind].home;
 		return token === null || home === undefined
 			? null
-			: { host: home.host, token, fetch, repoFetch };
+			: {
+					host: home.host,
+					token,
+					tokenEnv: home.credential.env,
+					fetch,
+					repoFetch,
+				};
 	};
 	const homeHosts = new Set(
 		backendKinds.flatMap((kind) => registry[kind].home?.host ?? []),
@@ -220,11 +230,15 @@ export function buildBackends(options: {
 		}
 		const token = usable(env[declared.tokenEnv]);
 		if (token === null) {
-			return {
-				error: `${declared.tokenEnv} is missing: set ${declared.tokenEnv} to read ${host}.`,
-			};
+			return { error: missingHostToken(declared.tokenEnv, host) };
 		}
-		const context = { host, token, fetch, repoFetch };
+		const context = {
+			host,
+			token,
+			tokenEnv: declared.tokenEnv,
+			fetch,
+			repoFetch,
+		};
 		const id = JSON.stringify([host, declared.forge, token]);
 		if (!declaredForges.has(id)) {
 			declaredForges.set(id, registry[declared.forge].forge(context));
@@ -287,8 +301,15 @@ export function buildBackends(options: {
 			if (homeHosts.has(host)) {
 				return forges.get(host) ?? null;
 			}
+			if (!hosts.some((declared) => declared.host === host)) {
+				return null;
+			}
 			const hosted = hostedForge(host, hosts);
-			return "error" in hosted ? null : hosted.forge;
+			if ("error" in hosted) {
+				explained.add(hosted.error);
+				return hosted;
+			}
+			return hosted.forge;
 		},
 		forgeLabelOf(url, hosts) {
 			const host = URL.parse(url)?.host;

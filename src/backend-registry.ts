@@ -65,6 +65,8 @@ type CredentialRule = {
 export type AdapterContext = {
 	host: string;
 	token: string;
+	/** The env var that holds the token, which an error about the token names. */
+	tokenEnv: string;
 	fetch: Fetch;
 	/** The fetch of the repo reads, which the factory tokens and the validators cover. */
 	repoFetch: Fetch;
@@ -228,8 +230,8 @@ export function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 							warning: `Forgejo token check of ${host} failed (HTTP ${user.status}).`,
 						};
 			},
-			forge: ({ host, token, repoFetch }) =>
-				forgejoForge(host, token, repoFetch),
+			forge: ({ host, token, tokenEnv, repoFetch }) =>
+				forgejoForge({ host, token, tokenEnv }, repoFetch),
 		},
 	};
 }

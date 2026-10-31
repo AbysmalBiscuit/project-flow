@@ -29,18 +29,19 @@ import type {
 	WorkcellRun,
 } from "./domain.ts";
 import { reconcilePoll } from "./poll-merge.ts";
-import type {
-	CheckoutSource,
-	Clock,
-	ConfigurationPort,
-	Forge,
-	FoundProject,
-	Notifier,
-	Store,
-	TodoSource,
-	TrackedProject,
-	Tracker,
-	Viewer,
+import {
+	type CheckoutSource,
+	type Clock,
+	type ConfigurationPort,
+	type Forge,
+	type FoundProject,
+	type Notifier,
+	type Store,
+	type TodoSource,
+	type TrackedProject,
+	type Tracker,
+	TrackerError,
+	type Viewer,
 } from "./ports.ts";
 import {
 	listedRef,
@@ -200,7 +201,13 @@ async function listPulls(
 	const refs = await tracker.pullRefs?.(project, since);
 	if (refs !== undefined) {
 		const lists: { forge: Forge; pulls: PullRequest[] }[] = [];
-		const forgeAt = (host: string) => options.backends.forgeAt(host, hosts);
+		const forgeAt = (host: string) => {
+			const found = options.backends.forgeAt(host, hosts);
+			if (found !== null && "error" in found) {
+				throw new TrackerError(found.error, 401);
+			}
+			return found;
+		};
 		for (const [forge, links] of linksByForge(refs, forgeAt)) {
 			const repos = links.map((link) => link.repo);
 			lists.push({ forge, pulls: await forge.listLinkedPulls(links, repos) });
