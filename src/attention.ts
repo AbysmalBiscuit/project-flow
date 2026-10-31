@@ -33,9 +33,11 @@ import {
 import {
 	blockerClearedId,
 	commentNotificationId,
+	foldKey,
 	itemId,
 	needsYouNotificationId,
 	needsYouSeenId,
+	pullId,
 	pullKey,
 	sameTicketKey,
 	ticketId,
@@ -445,10 +447,13 @@ export function needsYouItems(
 		);
 	}
 	const folded = new Set(
-		[...linkedByTicket.values()].flat().map((pull) => pullKey(pull)),
+		[...linkedByTicket.values()].flat().map((pull) => pullId(pull)),
+	);
+	const listed = new Set(
+		items.map((item) => foldKey(settingsKey(item.key, autoMerge.projectHost))),
 	);
 	for (const pull of pulls) {
-		if (folded.has(pullKey(pull))) {
+		if (folded.has(pullId(pull))) {
 			continue;
 		}
 		const comments = pullComments(pull);
@@ -456,16 +461,15 @@ export function needsYouItems(
 		if (ask === null) {
 			continue;
 		}
+		listed.add(pullId(pull));
 		items.push(
 			needsYouItem(project, "github", pullKey(pull), pull.title, ask, "ask", [
 				pull,
 			]),
 		);
 	}
-	const listed = new Set(items.map((item) => item.key));
 	for (const pull of unlinkedPulls) {
-		const key = pullKey(pull);
-		if (listed.has(key)) {
+		if (listed.has(pullId(pull))) {
 			continue;
 		}
 		if (reviewState([pull], expectedBots, []).state !== "awaitingMerge") {
@@ -475,9 +479,15 @@ export function needsYouItems(
 			continue;
 		}
 		items.push(
-			needsYouItem(project, "github", key, pull.title, null, "awaitingMerge", [
-				pull,
-			]),
+			needsYouItem(
+				project,
+				"github",
+				pullKey(pull),
+				pull.title,
+				null,
+				"awaitingMerge",
+				[pull],
+			),
 		);
 	}
 	items.sort((left, right) => Number(left.answered) - Number(right.answered));

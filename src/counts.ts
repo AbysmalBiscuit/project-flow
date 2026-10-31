@@ -49,7 +49,13 @@ import {
 } from "./shown-ticket.ts";
 import { unlinkedPrGroup } from "./terms.ts";
 import { asRef, known, parseKey } from "./ticket-index.ts";
-import { foldKey, pullKey, sameTicketKey, ticketRefId } from "./ticket-key.ts";
+import {
+	foldKey,
+	pullId,
+	pullKey,
+	sameTicketKey,
+	ticketRefId,
+} from "./ticket-key.ts";
 import { progressNamesPull, runFor } from "./workcell.ts";
 
 /** The state of an unlinked PR from its review cycle, as for the PR of a ticket. */
@@ -149,21 +155,21 @@ export function projectCounts(
 	const cross = new Map<string, CrossProjectBlocker>();
 	const active = pulls.filter((pull) => !pull.merged);
 	const linkedByTicket = new Map<string, PullRequest[]>();
-	const linkedKeys = new Set<string>();
+	const linkedIds = new Set<string>();
 	const subTickets = subTicketCounts(tickets);
 	const started = new Set(startedKeys.map((item) => foldKey(item)));
 	const workcellPulls = new Set(
 		factoryRuns.flatMap((run) =>
-			run.pull === undefined ? [] : [pullKey(run.pull)],
+			run.pull === undefined ? [] : [pullId(run.pull)],
 		),
 	);
 	for (const ticket of tickets) {
 		const blockers = openBlockers(ticket, graph);
 		const links = linked(ticket, pulls);
 		for (const pull of links) {
-			linkedKeys.add(pullKey(pull));
+			linkedIds.add(pullId(pull));
 			if (progressNamesPull(ticket.comments ?? [], pull)) {
-				workcellPulls.add(pullKey(pull));
+				workcellPulls.add(pullId(pull));
 			}
 		}
 		if (ticket.state === "open" && ticket.key !== null) {
@@ -287,7 +293,7 @@ export function projectCounts(
 			cross.set(ticketRefId(crossBlocker), crossBlocker);
 		}
 	}
-	const unlinked = active.filter((pull) => !linkedKeys.has(pullKey(pull)));
+	const unlinked = active.filter((pull) => !linkedIds.has(pullId(pull)));
 	const unlinkedPrs = unlinked.map((pull) => ({
 		number: pull.number,
 		title: pull.title,
