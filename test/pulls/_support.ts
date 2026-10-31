@@ -21,13 +21,18 @@ export const passedCheck = {
 };
 
 /** The one open PR of the fake: PR 40, which closes ticket 8. */
-function openPull(body: string, checkRows: unknown[], statusRows: unknown[]) {
+function openPull(
+	body: string,
+	branch: string,
+	checkRows: unknown[],
+	statusRows: unknown[],
+) {
 	return {
 		number: 40,
 		title: "Ship the widget",
 		state: "open",
 		html_url: pullUrl,
-		head: { ref: "8-ship", sha: "sha-40" },
+		head: { ref: branch, sha: "sha-40" },
 		base: { ref: "main" },
 		body,
 		merged_at: null as string | null,
@@ -49,17 +54,19 @@ type SentMerge = {
  */
 export function mergeFake({
 	body = "Closes #8",
+	branch = "8-ship",
 	checks = [passedCheck],
 	statuses = [],
 	refuses = false,
 }: {
 	body?: string;
+	branch?: string;
 	checks?: unknown[];
 	statuses?: CommitStatus[];
 	refuses?: boolean;
 } = {}): { fetch: Fetch; merges: SentMerge[]; repoReads: () => number } {
 	const merges: SentMerge[] = [];
-	const pull = openPull(body, checks, statuses);
+	const pull = openPull(body, branch, checks, statuses);
 	let repoReads = 0;
 	const fetchImpl: Fetch = async (input, init) => {
 		const discovered = recordedDiscovery(input, init);
