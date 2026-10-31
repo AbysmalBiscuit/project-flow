@@ -1,7 +1,6 @@
 import { repo } from "../support/github.ts";
 
 export const older = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-export const codex = "chatgpt-codex-connector[bot]";
 export const grok = "grok-code-review[bot]";
 export const greptile = "greptile-apps[bot]";
 

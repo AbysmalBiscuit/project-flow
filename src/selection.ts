@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { type TicketLink, ticketPath, urlTicket } from "./paths.ts";
-import { sameTicket, type TicketRef } from "./ticket-key.ts";
+import { sameTicket, type TicketRef, ticketRefOf } from "./ticket-key.ts";
 
 type ShownLink = {
 	href: string;
@@ -33,10 +33,14 @@ function shownLink(): ShownLink {
 		ticket:
 			link === null || tracker === null
 				? null
-				: { tracker, project: link.project, key: link.key },
+				: ticketRefOf({ ...link, tracker }),
 		unresolved:
 			link !== null && tracker === null
-				? { project: link.project, key: link.key }
+				? {
+						project: link.project,
+						key: link.key,
+						...(link.host === undefined ? {} : { host: link.host }),
+					}
 				: null,
 	};
 	return shown;
@@ -89,10 +93,7 @@ export function openTicket(
 	shown = null;
 	const current = activeTicket();
 	if (current === null || !sameTicket(current, ticket)) {
-		writeTicket(
-			{ tracker: ticket.tracker, project: ticket.project, key: ticket.key },
-			history,
-		);
+		writeTicket(ticketRefOf(ticket), history);
 	}
 	publish();
 }

@@ -223,6 +223,32 @@ function openMergeAsk(later: Comment[], number: number): Comment | undefined {
 	});
 }
 
+const pullUrl = /\bhttps?:\/\/[^\s/]+\/[^\s/]+\/[^\s/]+\/pull\/\d+\b/gi;
+
+/** The host and path of a PR URL, folded, or null when the text is no URL. */
+function pullTarget(url: string): string | null {
+	const parsed = URL.parse(url);
+	return parsed === null
+		? null
+		: `${parsed.host}${parsed.pathname}`.toLowerCase();
+}
+
+/**
+ * True when a progress line names the PR. A PR URL names the PR on its host
+ * and repo. A line with no PR URL names the PR by its number.
+ */
+function lineNamesPull(line: string, pull: PullRequest): boolean {
+	const urls = line.match(pullUrl);
+	if (urls === null) {
+		return pullNumbers(line).includes(pull.number);
+	}
+	const target = pullTarget(pull.url);
+	return (
+		urls.some((url) => target !== null && pullTarget(url) === target) ||
+		line.match(mergeAskLine)?.[1] === String(pull.number)
+	);
+}
+
 /** True when the workcell progress comment names the PR. */
 export function progressNamesPull(
 	comments: Comment[],
@@ -230,7 +256,7 @@ export function progressNamesPull(
 ): boolean {
 	return (
 		progressComment(comments)?.lines.some((line) =>
-			pullNumbers(line).includes(pull.number),
+			lineNamesPull(line, pull),
 		) === true
 	);
 }

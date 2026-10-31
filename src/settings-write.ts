@@ -55,7 +55,7 @@ export type StateSource = {
 function stateSources(snapshots: readonly SettingsSnapshot[]): StateSource[] {
 	const sources = new Map<string, StateSource>();
 	for (const row of snapshots) {
-		const key = stateSourceKey(row.board, row.key);
+		const key = stateSourceKey(row.board, row.key, row.host);
 		const source = sources.get(key) ?? { key, projects: [], statuses: [] };
 		source.projects.push(row.name);
 		for (const status of row.board?.statuses ?? []) {

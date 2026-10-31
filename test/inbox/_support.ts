@@ -29,6 +29,7 @@ export type InboxEntry = {
 	trigger: "needsYou" | "comment" | "blockerCleared";
 	project: string;
 	key: string;
+	host?: string;
 	text: string;
 	at: string;
 	read: boolean;

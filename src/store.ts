@@ -160,6 +160,9 @@ export function sqliteStore(path: string): {
 			);
 		})();
 	}
+	if (!notificationColumns.some((column) => column.name === "host")) {
+		db.run("alter table notifications add column host text");
+	}
 	db.run(`
 		create table if not exists seeded_ids (
 			id text primary key
@@ -296,7 +299,7 @@ export function sqliteStore(path: string): {
 			readNotifications() {
 				const rows = db
 					.query(
-						"select id, trigger, project, tracker, item_key, text, at, read from notifications order by at desc, id desc",
+						"select id, trigger, project, tracker, item_key, host, text, at, read from notifications order by at desc, id desc",
 					)
 					.all() as {
 					id: string;
@@ -304,6 +307,7 @@ export function sqliteStore(path: string): {
 					project: string;
 					tracker: TrackerKind;
 					item_key: string;
+					host: string | null;
 					text: string;
 					at: string;
 					read: number;
@@ -314,6 +318,7 @@ export function sqliteStore(path: string): {
 					project: row.project,
 					tracker: row.tracker,
 					key: row.item_key,
+					...(row.host === null ? {} : { host: row.host }),
 					text: row.text,
 					at: row.at,
 					read: row.read !== 0,
@@ -321,7 +326,7 @@ export function sqliteStore(path: string): {
 			},
 			appendNotifications(entries) {
 				const insert = db.query(
-					"insert or ignore into notifications (id, trigger, project, tracker, item_key, text, at, read) values (?, ?, ?, ?, ?, ?, ?, ?)",
+					"insert or ignore into notifications (id, trigger, project, tracker, item_key, host, text, at, read) values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
 				);
 				db.transaction(() => {
 					for (const entry of entries) {
@@ -331,6 +336,7 @@ export function sqliteStore(path: string): {
 							entry.project,
 							entry.tracker,
 							entry.key,
+							entry.host ?? null,
 							entry.text,
 							entry.at,
 							entry.read ? 1 : 0,

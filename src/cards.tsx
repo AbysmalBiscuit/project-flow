@@ -71,7 +71,7 @@ import {
 	tableColumnLabel,
 	viewLabel,
 } from "./terms.ts";
-import { itemId, outsideKey } from "./ticket-key.ts";
+import { attentionItemId, itemId, outsideKey } from "./ticket-key.ts";
 import { phoneGutter, phoneLayout } from "./tokens.stylex.ts";
 import { cards, shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
@@ -781,7 +781,7 @@ function OverviewPage({
 					<ul className={clsx(cards.needs)}>
 						{needs.slice(0, 4).map((item) => (
 							<li
-								key={itemId(item.project, item.key)}
+								key={attentionItemId(item)}
 								className={clsx(cards.need, phoneLayout.cardNeed)}
 							>
 								<a

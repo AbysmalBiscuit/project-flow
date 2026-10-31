@@ -72,6 +72,8 @@ export type FactoryRun = {
 /** The PR that a run opened, as the factory gives it from the run's `pr_url` output. */
 export type RunPull = {
 	repo: string;
+	/** The declared host of the PR. A PR on github.com has none. */
+	host?: string;
 	number: number;
 	url: string;
 	/** True when the run recorded the merge of its PR. */

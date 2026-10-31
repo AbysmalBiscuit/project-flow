@@ -126,6 +126,9 @@ export function emptyProjectFields(
 }
 
 export const repo = "acme/widget";
+
+/** The login of the Codex review bot. */
+export const codex = "chatgpt-codex-connector[bot]";
 export const otherRepo = "acme/other";
 
 export function ticket(

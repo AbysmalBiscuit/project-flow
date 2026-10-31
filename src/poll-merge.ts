@@ -14,7 +14,7 @@ import {
 	sameProject,
 } from "./project-ref.ts";
 import { linked } from "./pull-links.ts";
-import { foldKey, pullKey, ticketId } from "./ticket-key.ts";
+import { foldKey, pullId, ticketId } from "./ticket-key.ts";
 
 export function staleView(
 	status: FetchStatus,
@@ -57,7 +57,7 @@ function retainedPulls(
 	tickets: Ticket[],
 ): PullRequest[] {
 	const missed = stored.filter(
-		(pull) => pull.merged && !incomingIds.has(foldKey(pullKey(pull))),
+		(pull) => pull.merged && !incomingIds.has(pullId(pull)),
 	);
 	const linkedPulls = new Set(
 		tickets.flatMap((ticket) => linked(ticket, missed)),
@@ -74,7 +74,7 @@ function keptPulls(
 	tickets: Ticket[],
 	full: boolean,
 ): PullRequest[] {
-	const incomingIds = new Set(incoming.map((pull) => foldKey(pullKey(pull))));
+	const incomingIds = new Set(incoming.map((pull) => pullId(pull)));
 	if (full) {
 		return [...incoming, ...retainedPulls(stored, incomingIds, tickets)];
 	}
@@ -87,7 +87,7 @@ function keptPulls(
 		...incoming,
 		...stored.filter(
 			(pull) =>
-				!incomingIds.has(foldKey(pullKey(pull))) &&
+				!incomingIds.has(pullId(pull)) &&
 				(pull.merged ||
 					!pull.closingKeys.some(
 						(key) =>

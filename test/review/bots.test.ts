@@ -8,16 +8,8 @@ import { run } from "../../src/main.ts";
 import { githubFetch, overview } from "../review-github-fake.ts";
 import { tempConfig, testIo } from "../support/app.ts";
 import { urlOf } from "../support/fetch.ts";
-import { head, pull, repo } from "../support/github.ts";
-import {
-	card,
-	codex,
-	greptile,
-	grok,
-	issue,
-	mergedPull,
-	older,
-} from "./_support.ts";
+import { codex, head, pull, repo } from "../support/github.ts";
+import { card, greptile, grok, issue, mergedPull, older } from "./_support.ts";
 
 describe("review cycle", () => {
 	test("an open PR with a changes-requested review is awaiting merge with no warning", async () => {

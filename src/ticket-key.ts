@@ -1,4 +1,5 @@
 import type { TicketState, TrackerKind } from "./domain.ts";
+import { settingsKey } from "./project-ref.ts";
 
 // Keys compare without case, so every id folds the key to lower case.
 
@@ -13,6 +14,15 @@ export function numberedKey(repo: string, number: number | string): string {
 
 export function pullKey(pull: { repo: string; number: number }): string {
 	return numberedKey(pull.repo, pull.number);
+}
+
+/** The id of a PR across hosts: the declared host of the PR qualifies its repo. */
+export function pullId(pull: {
+	repo: string;
+	host?: string;
+	number: number;
+}): string {
+	return foldKey(numberedKey(settingsKey(pull.repo, pull.host), pull.number));
 }
 
 export function teamKey(team: string, number: number | string): string {
@@ -94,6 +104,20 @@ export function itemId(project: string, key: string): string {
 	return id(project, foldKey(key));
 }
 
+/** The React key of a card. Two hosts can give unlinked PRs one key, so an unlinked PR takes its URL. */
+export function cardKey(ticket: {
+	key: string | null;
+	title: string;
+	unlinkedPr?: true;
+	pullUrl?: string;
+}): string {
+	return (
+		(ticket.unlinkedPr === true ? ticket.pullUrl : undefined) ??
+		ticket.key ??
+		ticket.title
+	);
+}
+
 /** The id of a link between two item ids. */
 export function linkId(from: string, to: string): string {
 	return id(from, to);
@@ -104,26 +128,35 @@ export function ticketRefId(ref: {
 	project: string;
 	tracker: string;
 	key: string;
+	host?: string;
 }): string {
-	return id(ref.project, ref.tracker, foldKey(ref.key));
+	return id(ref.project, ref.tracker, foldKey(settingsKey(ref.key, ref.host)));
 }
 
-export function needsYouSeenId(item: { project: string; key: string }): string {
-	return id("needsYou", itemId(item.project, item.key));
+/** An item that Needs you lists. A PR on a declared host carries the host. */
+type AttentionItem = { project: string; key: string; host?: string };
+
+/** The id of a Needs you item: the host of a PR qualifies its key. */
+export function attentionItemId(item: AttentionItem): string {
+	return itemId(item.project, settingsKey(item.key, item.host));
+}
+
+export function needsYouSeenId(item: AttentionItem): string {
+	return id("needsYou", attentionItemId(item));
 }
 
 export function needsYouNotificationId(
-	item: { project: string; key: string },
+	item: AttentionItem,
 	at: string,
 ): string {
 	return id(needsYouSeenId(item), at);
 }
 
 export function commentNotificationId(
-	item: { project: string; key: string },
+	item: AttentionItem,
 	stamp: string,
 ): string {
-	return id("comment", itemId(item.project, item.key), stamp);
+	return id("comment", attentionItemId(item), stamp);
 }
 
 export function blockerClearedId(
@@ -137,13 +170,44 @@ export type TicketRef = {
 	tracker: TrackerKind;
 	project: string;
 	key: string;
+	/** The declared host of the PR that the ref names. */
+	host?: string;
 };
+
+/** The ref of a ticket or PR, with no other field of the item. */
+export function ticketRefOf(item: TicketRef): TicketRef {
+	const { tracker, project, key, host } = item;
+	return {
+		tracker,
+		project,
+		key,
+		...(host === undefined ? {} : { host }),
+	};
+}
 
 export function sameTicket(left: TicketRef, right: TicketRef): boolean {
 	return (
 		left.tracker === right.tracker &&
 		left.project === right.project &&
+		left.host === right.host &&
 		sameTicketKey(left.key, right.key)
+	);
+}
+
+/**
+ * The entry that a ref names: the entry on the host of the ref. A ref with no
+ * host, such as a stored notification, also names an entry on a declared host.
+ */
+export function namedEntry<Entry extends { key: string | null; host?: string }>(
+	entries: readonly Entry[],
+	ref: { key: string; host?: string },
+): Entry | undefined {
+	const sameKey = entries.filter(
+		(entry) => entry.key !== null && sameTicketKey(entry.key, ref.key),
+	);
+	return (
+		sameKey.find((entry) => entry.host === ref.host) ??
+		(ref.host === undefined ? sameKey[0] : undefined)
 	);
 }
 

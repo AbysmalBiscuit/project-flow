@@ -16,6 +16,7 @@ import {
 	shownGraph,
 	type ticketRelations,
 } from "./links.ts";
+import { settingsKey } from "./project-ref.ts";
 import { graphParentsOf } from "./report-filter.ts";
 import { foldKey, pullKey } from "./ticket-key.ts";
 
@@ -96,7 +97,9 @@ export function projectReport(
 		},
 		{ id: "backlog", title: "Backlog", items: backlog },
 	];
-	const needsKeys = new Set(needs.map((item) => foldKey(item.key)));
+	const needsKeys = new Set(
+		needs.map((item) => foldKey(settingsKey(item.key, item.host))),
+	);
 	const placedByKey = new Map(
 		placed.flatMap((item) =>
 			item.ticket.key === null
@@ -152,7 +155,8 @@ export function projectReport(
 			...view,
 			...(view.pullUrl === undefined ? {} : { url: view.pullUrl }),
 			...forgeOfPull(view.pullUrl),
-			...(view.key !== null && needsKeys.has(foldKey(view.key))
+			...(view.key !== null &&
+			needsKeys.has(foldKey(settingsKey(view.key, view.host)))
 				? { needsYou: true as const }
 				: {}),
 		})),

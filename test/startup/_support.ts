@@ -2,9 +2,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { PullRequest, Snapshot } from "../../src/domain.ts";
+import type { PullRequest, Snapshot, Ticket } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
 import { run } from "../../src/main.ts";
+import { listedRef } from "../../src/project-ref.ts";
 import { sqliteStore } from "../../src/store.ts";
 import { tempConfig, testIo } from "../support/app.ts";
 import { urlOf } from "../support/fetch.ts";
@@ -151,20 +152,72 @@ export async function withStarted(
 }
 
 /** Runs the checks on an app whose store holds one row before it starts. */
-export async function withStoredRow(
+export function withStoredRow(
 	row: Snapshot,
 	configuration: Record<string, unknown>,
 	checks: (base: string) => Promise<void>,
 	fetchImpl?: Fetch,
 ): Promise<void> {
+	return withStoredRows([row], configuration, checks, fetchImpl);
+}
+
+/**
+ * Runs the checks on an app whose store holds the rows before it starts. A
+ * `goodPollAt` records a good poll of each row, so a tracker that reads changes
+ * since its last poll reads only the changes.
+ */
+export async function withStoredRows(
+	rows: Snapshot[],
+	configuration: Record<string, unknown>,
+	checks: (base: string) => Promise<void>,
+	fetchImpl?: Fetch,
+	goodPollAt?: Date,
+): Promise<void> {
 	const root = await mkdtemp(join(tmpdir(), "project-flow-hosts-"));
 	const databasePath = join(root, "project-flow.sqlite");
 	const seeded = sqliteStore(databasePath);
-	seeded.store.mergeTickets([row]);
+	seeded.store.mergeTickets(rows);
+	if (goodPollAt !== undefined) {
+		for (const row of rows) {
+			seeded.store.recordGoodPoll(listedRef(row), goodPollAt);
+		}
+	}
 	seeded.close();
 	try {
 		await withStarted(configuration, checks, fetchImpl, databasePath);
 	} finally {
 		await rm(root, { recursive: true, force: true });
 	}
+}
+
+/** An open ticket of `acme/widget` on github.com. */
+export function openTicket(number: number, labels: string[] = []): Ticket {
+	return {
+		id: String(number),
+		tracker: "github",
+		key: `acme/widget#${number}`,
+		title: `Ticket ${number}`,
+		state: "open",
+		stateReason: null,
+		updatedAt: "2026-10-01T10:00:00.000Z",
+		body: "",
+		blockedBy: [],
+		milestone: null,
+		parent: null,
+		labels,
+	};
+}
+
+/** A store row of `acme/widget` on github.com with one open ticket. */
+export function widgetRow(extra: Partial<Snapshot>): Snapshot {
+	return {
+		key: "acme/widget",
+		name: "acme/widget",
+		tracker: "github",
+		branches: [],
+		startedKeys: [],
+		tickets: [openTicket(5)],
+		pulls: [],
+		...extra,
+	};
 }
