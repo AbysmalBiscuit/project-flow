@@ -286,4 +286,47 @@ describe("a project that holds PR #1 on github.com and on a declared host", () =
 			await checkout.cleanup();
 		}
 	});
+
+	test("a workcell report of the linked PR on the host leaves the linked PR on github.com to Lev", async () => {
+		const checkout = await devkitWorktree({
+			key: "acme/widget#5",
+			status: "running",
+			mergeAuto: { merge: "yes" },
+		});
+		try {
+			const [ticket] = widgetRow({}).tickets;
+			if (ticket === undefined) {
+				throw new Error("the row holds no ticket");
+			}
+			await withPulls(
+				{
+					pulls: [
+						homePull({ closingKeys: closingTicket }),
+						hostedPull({ closingKeys: closingTicket, autoMerge: true }),
+					],
+					tickets: [
+						{
+							...ticket,
+							comments: [
+								{
+									body: `**Workcell progress**\n\n- final report sent ${hostedUrl}`,
+									createdAt: "2026-10-01T10:00:00.000Z",
+								},
+							],
+						},
+					],
+				},
+				{ checkoutRoots: [checkout.root] },
+				async (base) => {
+					const response = await settledRead(new URL("/api/needs-you", base));
+					const items = (await response.json()) as NeedsYouItem[];
+					expect(items.map(({ key, reason }) => ({ key, reason }))).toEqual([
+						{ key: "acme/widget#5", reason: "awaitingMerge" },
+					]);
+				},
+			);
+		} finally {
+			await checkout.cleanup();
+		}
+	});
 });
