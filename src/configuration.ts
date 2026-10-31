@@ -23,16 +23,22 @@ export const defaultFactoryMintCommand = [
 
 import { z } from "zod";
 
-import { runResults, runStatusKinds, statusTypes } from "./domain.ts";
+import {
+	forgeKinds,
+	runResults,
+	runStatusKinds,
+	statusTypes,
+} from "./domain.ts";
+import { githubHost, githubPin } from "./github-pin.ts";
 import { knownBots } from "./known-bots.ts";
 import { defaultStates } from "./lanes.ts";
+import { linearPin } from "./linear-pin.ts";
 import {
 	overviewDirections,
 	overviewFilters,
 	overviewSorts,
 	overviewViews,
 } from "./overview-view.ts";
-import { ownerRepo } from "./project-ref.ts";
 import { statusColours } from "./token-palette.ts";
 import {
 	defaultGraphDirection,
@@ -45,25 +51,25 @@ import {
 	pageViews,
 } from "./view-settings.ts";
 
-const githubRepoPin = z.strictObject({
-	tracker: z.literal("github"),
-	repo: z.string().regex(ownerRepo),
-});
-
-const githubProjectPin = z.strictObject({
-	tracker: z.literal("github"),
-	owner: z.string().regex(/^[^/\s]+$/),
-	project: z.number().int().positive(),
-});
-
-const linearPin = z.strictObject({
-	tracker: z.literal("linear"),
-	project: z.string().regex(/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/),
-});
-
-export const projectRef = z.union([githubRepoPin, githubProjectPin, linearPin]);
+export const projectRef = z.discriminatedUnion("tracker", [
+	githubPin,
+	linearPin,
+]);
 
 export type ProjectPin = z.infer<typeof projectRef>;
+
+/** The public hosts that a configuration cannot declare. gitlab.com stays reserved until its adapter exists. */
+const knownHosts: readonly string[] = [githubHost, "gitlab.com"];
+
+const declaredHost = z.strictObject({
+	host: z
+		.string()
+		.trim()
+		.toLowerCase()
+		.regex(/^[a-z0-9.-]+(?::\d+)?$/),
+	forge: z.enum(forgeKinds),
+	tokenEnv: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/),
+});
 
 const knownBot = z.enum(knownBots);
 
@@ -204,6 +210,7 @@ const configurationSchema = z
 			view: "cards",
 			showNeedsYou: true,
 		}),
+		hosts: z.array(declaredHost).default([]),
 		tracked: z.array(projectRef).optional(),
 		pinned: z.array(projectRef).optional(),
 		hidden: z.unknown().optional(),
@@ -250,6 +257,25 @@ const configurationSchema = z
 			.record(z.string(), z.record(z.string(), z.string()))
 			.default({}),
 		stateColours: legacyStateColours.optional(),
+	})
+	.superRefine(({ hosts, tracked, pinned }, context) => {
+		const declared = new Set<string>();
+		for (const [index, { host }] of hosts.entries()) {
+			if (knownHosts.includes(host) || declared.has(host)) {
+				context.addIssue({ code: "custom", path: ["hosts", index, "host"] });
+			}
+			declared.add(host);
+		}
+		for (const [field, pins] of [
+			["tracked", tracked],
+			["pinned", pinned],
+		] as const) {
+			for (const [index, pin] of (pins ?? []).entries()) {
+				if ("host" in pin && !declared.has(pin.host)) {
+					context.addIssue({ code: "custom", path: [field, index, "host"] });
+				}
+			}
+		}
 	})
 	.transform(
 		({

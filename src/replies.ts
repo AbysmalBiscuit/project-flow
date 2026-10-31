@@ -6,6 +6,7 @@ import type {
 	Ticket,
 } from "./domain.ts";
 import { openAsk, projectHasPmBot } from "./open-ask.ts";
+import { settingsKey } from "./project-ref.ts";
 import { githubKeyParts, sameTicketKey } from "./ticket-key.ts";
 
 type ReplyTarget = Pick<ReplyRequest, "tracker" | "project" | "key">;
@@ -18,22 +19,38 @@ export type ReplyDraft = ReplyTarget & {
 	kind?: ReplyRequest["kind"] | undefined;
 };
 
-/** The stored project of a ticket: by its key, its name, or the repo of a GitHub ticket key. */
+/** The stored project that a route names by its name or its settings key. */
+export function namedSnapshot(
+	rows: Snapshot[],
+	tracker: Snapshot["tracker"],
+	project: string,
+): Snapshot | undefined {
+	return rows.find(
+		(item) =>
+			item.tracker === tracker &&
+			(item.name === project || settingsKey(item.key, item.host) === project),
+	);
+}
+
+/** The stored project of a ticket: by its name or key, or the repo of a GitHub ticket key on the home host. */
 export function ticketSnapshot(
 	rows: Snapshot[],
 	reply: ReplyTarget,
 ): Snapshot | undefined {
+	const named = namedSnapshot(rows, reply.tracker, reply.project);
+	if (named !== undefined) {
+		return named;
+	}
 	const repo =
 		reply.tracker === "github" ? githubKeyParts(reply.key)?.repo : undefined;
-	return rows.find((item) => {
-		if (item.tracker !== reply.tracker) {
-			return false;
-		}
-		if (item.key === reply.project || item.name === reply.project) {
-			return true;
-		}
-		return repo !== undefined && item.key === repo;
-	});
+	return repo === undefined
+		? undefined
+		: rows.find(
+				(item) =>
+					item.tracker === reply.tracker &&
+					item.host === undefined &&
+					item.key === repo,
+			);
 }
 
 function optionReplyBody(
@@ -81,7 +98,7 @@ export function replyRequest(
 	);
 	const pmBot = projectHasPmBot(
 		pmBots,
-		row?.key ?? draft.project,
+		row === undefined ? draft.project : settingsKey(row.key, row.host),
 		draft.tracker,
 	);
 	const picked =

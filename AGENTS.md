@@ -57,6 +57,7 @@ test/
     fetch.ts         fake fetch basics: request URLs, JSON answers, tracker requests
     github.ts        recorded GitHub answers: discovery, issue lists, pages, pulls
     repo-read.ts     recorded answers to the GitHub repo read query
+    checkouts.ts     temporary git checkouts and devkit worktrees
     linear.ts        recorded Linear answers: issues, the Linear fake
     factory.ts       hub and daemon fakes
     reads.ts         API reads that wait for a state: overview, settings, events
