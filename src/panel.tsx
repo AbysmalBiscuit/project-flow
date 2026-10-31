@@ -381,6 +381,7 @@ export function TicketPanel({
 			{item === null ? null : (
 				<WhySection
 					item={item}
+					run={view?.factoryRun}
 					pending={pending}
 					picked={picked || item.answered}
 					onPick={(option) => {

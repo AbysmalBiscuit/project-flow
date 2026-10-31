@@ -74,7 +74,11 @@ export function runActions(deps: {
 	signal: AbortSignal;
 	now: () => Date;
 	statusRowOf: (runId: string) => StatusRows<ReadRun>;
-	addMessage: (runId: string, message: RunMessage, once?: string) => void;
+	addMessage: (
+		runId: string,
+		message: Omit<RunMessage, "html">,
+		once?: string,
+	) => void;
 }) {
 	const { fetchImpl, signal, now, statusRowOf, addMessage } = deps;
 	const answer = async (

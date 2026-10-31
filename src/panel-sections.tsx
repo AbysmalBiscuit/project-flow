@@ -246,16 +246,24 @@ export function RelationList({
 
 export function WhySection({
 	item,
+	run,
 	pending,
 	picked,
 	onPick,
 }: {
 	item: NeedsYouItem;
+	/** The run whose thread the panel shows. */
+	run: ShownFactoryRun | undefined;
 	pending: boolean;
 	picked: boolean;
 	onPick: (option: number) => void;
 }) {
-	const question = item.question;
+	const ask = item.factoryAsk;
+	const askInThread =
+		ask !== undefined &&
+		ask.run === run?.id &&
+		run.thread?.some(({ question }) => question === ask.question) === true;
+	const question = askInThread ? undefined : item.question;
 	const options = item.options ?? [];
 	const pull = item.pull;
 	if (question === undefined && pull === undefined && options.length === 0) {
