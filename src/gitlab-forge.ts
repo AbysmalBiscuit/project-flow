@@ -73,8 +73,11 @@ function statusCheck({
 		case "canceled":
 			return completed("cancelled");
 		case "skipped":
-		case "manual":
 			return completed("skipped");
+		case "manual":
+			return allow_failure
+				? completed("skipped")
+				: { name, status: "queued", conclusion: null };
 		case "running":
 			return { name, status: "in_progress", conclusion: null };
 		default:

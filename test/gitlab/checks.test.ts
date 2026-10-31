@@ -5,7 +5,7 @@ import resultsJobs from "../fixtures/gitlab/merged-results-jobs.json";
 import resultsPipeline from "../fixtures/gitlab/merged-results-pipeline.json";
 import resultsPull from "../fixtures/gitlab/merged-results-pull.json";
 import pipelines from "../fixtures/gitlab/pipelines.json";
-import { linearName, withLinkedPull } from "./_support.ts";
+import { gitlabRepo, withLinkedPull } from "./_support.ts";
 
 /** The CI of the PR that a Needs you item names. */
 async function ciOf(base: string, key: string) {
@@ -24,7 +24,7 @@ describe("the CI of a GitLab PR", () => {
 	test("a failed pipeline of external statuses, which has no jobs, is failing CI", async () => {
 		await withLinkedPull({}, async (base) => {
 			expect(await ciOf(base, "WID-1")).toBe("passing");
-			expect(await ciOf(base, `${linearName}#3`)).toBe("failing");
+			expect(await ciOf(base, `${gitlabRepo}#3`)).toBe("failing");
 		});
 	});
 
@@ -47,4 +47,26 @@ describe("the CI of a GitLab PR", () => {
 			},
 		);
 	});
+
+	test.each([
+		[false, "pending"],
+		[true, "passing"],
+	] as const)(
+		"a manual job with allow_failure %p gives %s CI",
+		async (allowFailure, ci) => {
+			await withLinkedPull(
+				{
+					jobs: {
+						[recordedPipeline.id]: [
+							{ name: "test", status: "success", allow_failure: false },
+							{ name: "deploy", status: "manual", allow_failure: allowFailure },
+						],
+					},
+				},
+				async (base) => {
+					expect(await ciOf(base, "WID-1")).toBe(ci);
+				},
+			);
+		},
+	);
 });
