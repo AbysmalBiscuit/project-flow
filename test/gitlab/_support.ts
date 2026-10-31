@@ -42,6 +42,8 @@ export type GitlabFake = {
 	 * tickets as `relates_to`. A test sets the type of a recorded link here.
 	 */
 	linkTypes?: Record<string, Record<string, string>>;
+	/** The description of a work item, by iid, ahead of the recorded one. */
+	descriptions?: Record<string, string>;
 	/** Each GitLab request URL that the app sent. */
 	sent?: string[];
 };
@@ -59,10 +61,10 @@ const workItemsBody = z.object({
 	variables: z.object({ state: z.enum(["opened", "closed"]) }),
 });
 
-/** The recorded work items of one state, with the link types of `linkTypes`. */
+/** The recorded work items of one state, with the link types and descriptions of the fake. */
 function workItemsOf(
 	state: WorkItemState,
-	linkTypes: GitlabFake["linkTypes"] = {},
+	{ linkTypes = {}, descriptions = {} }: GitlabFake,
 ) {
 	const recorded = workItems[state];
 	return {
@@ -72,6 +74,7 @@ function workItemsOf(
 					...recorded.data.project.workItems,
 					nodes: recorded.data.project.workItems.nodes.map((item) => ({
 						...item,
+						description: descriptions[item.iid] ?? item.description,
 						widgets: item.widgets.map((widget) =>
 							"linkedItems" in widget && widget.linkedItems !== undefined
 								? {
@@ -113,7 +116,7 @@ export function gitlabFake(options: GitlabFake = {}): Fetch {
 			const { variables } = workItemsBody.parse(
 				JSON.parse(String(init?.body ?? "")),
 			);
-			return json(workItemsOf(variables.state, options.linkTypes));
+			return json(workItemsOf(variables.state, options));
 		}
 		if (
 			url.pathname === "/api/v4/projects" &&

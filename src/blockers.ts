@@ -153,7 +153,7 @@ export function parseBodies(groups: ProjectGroup[]): ParsedBodies {
 	for (const group of groups) {
 		for (const ticket of group.tickets) {
 			const key = parseKey(ticket);
-			const scope = scopeOf(bodyRepo(ticket, group.repo));
+			const scope = scopeOf(bodyRepo(ticket, group.repo), ticket.tracker);
 			const blockedBy = bodyBlockers(ticket, scope, "blockedBy");
 			const blocks = bodyBlockers(ticket, scope, "blocks");
 			const earlier = parsed.get(key);

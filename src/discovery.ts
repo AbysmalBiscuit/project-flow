@@ -65,10 +65,14 @@ export function projectSnapshots(found: ListedProject[]): Snapshot[] {
 						blockedBy: mergeBlockedBy([
 							donor.blockedBy,
 							ticket.blockedBy,
-							bodyBlockers(donor, scopeOf(bodyRepo(donor, repo)), "blockedBy"),
+							bodyBlockers(
+								donor,
+								scopeOf(bodyRepo(donor, repo), donor.tracker),
+								"blockedBy",
+							),
 							bodyBlockers(
 								ticket,
-								scopeOf(bodyRepo(ticket, repo)),
+								scopeOf(bodyRepo(ticket, repo), ticket.tracker),
 								"blockedBy",
 							),
 						]),
