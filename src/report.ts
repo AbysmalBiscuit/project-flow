@@ -1,4 +1,5 @@
 import type {
+	AwaitingPull,
 	Lane,
 	LiveRun,
 	NeedsYouItem,
@@ -34,6 +35,7 @@ export function projectReport(
 	statuses: Lane[],
 	relationsByKey: Map<string, ReturnType<typeof ticketRelations>> = new Map(),
 	pullByKey: Map<string, PullRequest> = new Map(),
+	awaitingByKey: Map<string, AwaitingPull[]> = new Map(),
 	needs: NeedsYouItem[] = [],
 	runByKey: Map<string, LiveRun> = new Map(),
 	outsideParents: OutsideParent[] = [],
@@ -112,6 +114,8 @@ export function projectReport(
 			view.key === null ? undefined : relationsByKey.get(foldKey(view.key));
 		const pull =
 			view.key === null ? undefined : pullByKey.get(foldKey(view.key));
+		const awaitingPulls =
+			view.key === null ? undefined : awaitingByKey.get(foldKey(view.key));
 		const commentRun =
 			view.key === null ? undefined : runByKey.get(foldKey(view.key));
 		const placedItem =
@@ -144,6 +148,7 @@ export function projectReport(
 			...(pull === undefined
 				? {}
 				: { pull: pullKey(pull), pullUrl: pull.url, ...forgeOfPull(pull.url) }),
+			...(awaitingPulls === undefined ? {} : { awaitingPulls }),
 			...(view.key !== null && needsKeys.has(foldKey(view.key))
 				? { needsYou: true as const }
 				: {}),

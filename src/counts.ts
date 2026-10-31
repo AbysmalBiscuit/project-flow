@@ -25,6 +25,7 @@ import {
 	stateLanes,
 	stateOfTicket,
 } from "./lanes.ts";
+import { awaitingPull, type PullActionsOf } from "./merge-gate.ts";
 import { staleView } from "./poll-merge.ts";
 import { settingsKey } from "./project-ref.ts";
 import { type ForgeLabelOf, projectReport } from "./report.ts";
@@ -58,6 +59,7 @@ function unlinkedPrView(
 	expectedBots: Map<string, KnownBot[]>,
 	mergesAlone: boolean,
 	states: Configuration["states"],
+	pullActionsOf: PullActionsOf,
 ): TicketView {
 	const state = unlinkedPrState(pull, expectedBots, mergesAlone);
 	return {
@@ -70,6 +72,9 @@ function unlinkedPrView(
 		statusType: state,
 		pull: pullKey(pull),
 		pullUrl: pull.url,
+		...(state === "awaitingMerge"
+			? { awaitingPulls: [awaitingPull(pull, pullActionsOf)] }
+			: {}),
 		unlinkedPr: true,
 		...(pull.host === undefined ? {} : { host: pull.host }),
 		workstream: unlinkedPrGroup,
@@ -97,6 +102,7 @@ export function projectCounts(
 	mappings: Pick<Configuration, "laneMappings" | "states" | "stateMappings">,
 	runStarts: RunStarts,
 	forgeLabelOf: ForgeLabelOf,
+	pullActionsOf: PullActionsOf,
 	now: Date,
 	board?: Board,
 ): {
@@ -124,6 +130,7 @@ export function projectCounts(
 		views,
 		relationsByKey,
 		pullByKey,
+		awaitingByKey,
 		shownByKey,
 		failedKeys,
 		blockedRuns,
@@ -147,6 +154,7 @@ export function projectCounts(
 		states: mappings.states,
 		stateMapping,
 		runStarts,
+		pullActionsOf,
 		lanes,
 		colours,
 		now,
@@ -188,6 +196,7 @@ export function projectCounts(
 			expectedBots,
 			mergesOnItsOwn([pull], name, key, autoMerge, workcellPulls),
 			mappings.states,
+			pullActionsOf,
 		),
 	);
 	const unlinkedReview = reviewState(unlinked, expectedBots, []);
@@ -214,6 +223,7 @@ export function projectCounts(
 		lanes,
 		relationsByKey,
 		pullByKey,
+		awaitingByKey,
 		needsYouItemsForProject,
 		runByKey,
 		outsideParents(tickets, graph.groups),

@@ -42,6 +42,7 @@ import type { RunListRow } from "./run-list.ts";
 import type { StateSource } from "./settings-write.ts";
 import { pendingStatus } from "./stale-reads.ts";
 import { storedObject } from "./stored-page.ts";
+import { pullMergeCopy } from "./terms.ts";
 
 type SettingsPage = {
 	settings: Configuration;
@@ -658,6 +659,30 @@ export function usePostReply(
 			await queries.invalidateQueries(
 				pageQuery.thread(tracker, project, key, host),
 			);
+			void queries.invalidateQueries(pageQuery.needsYou);
+			void queries.invalidateQueries({ queryKey: ["project"] });
+		},
+	});
+}
+
+/** Merge one awaiting PR. The server reads its project again before it answers. */
+export function useMergePull() {
+	const queries = useQueryClient();
+	return useMutation({
+		mutationFn: async (url: string): Promise<void> => {
+			const response = await fetch("/api/pulls/merge", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ url }),
+			});
+			if (!response.ok) {
+				const failed = (await response.json().catch(() => null)) as {
+					error?: string;
+				} | null;
+				throw new Error(failed?.error ?? pullMergeCopy.failed);
+			}
+		},
+		onSuccess: () => {
 			void queries.invalidateQueries(pageQuery.needsYou);
 			void queries.invalidateQueries({ queryKey: ["project"] });
 		},

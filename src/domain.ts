@@ -173,6 +173,8 @@ export type TicketView = {
 	staleStatus?: string;
 	chips?: string[];
 	pull?: string;
+	/** Each open PR of the ticket while the ticket is in Awaiting merge. The project report holds it. */
+	awaitingPulls?: AwaitingPull[];
 	pullUrl?: string;
 	/** The name of the forge that holds the PR at `pullUrl`. */
 	pullForge?: string;
@@ -228,6 +230,8 @@ export type PullRequest = {
 	title: string;
 	draft: boolean;
 	branch: string;
+	/** The branch that the PR merges into. A row stored before the app read this field has none. */
+	baseBranch?: string;
 	body: string;
 	closingKeys: string[];
 	headSha: string;
@@ -244,6 +248,20 @@ export type PullRequest = {
 	comments: BotComment[];
 	reviews: BotReview[];
 	reactions: BotReaction[];
+};
+
+/** What Lev can do to a PR through its forge. */
+export type PullAction = "merge";
+
+export type MergeGate = { open: true } | { open: false; reason: string };
+
+/** A PR in Awaiting merge, with what its forge can do and what the merge gate says. */
+export type AwaitingPull = Pick<
+	PullRequest,
+	"repo" | "number" | "title" | "url" | "baseBranch" | "headSha"
+> & {
+	actions: PullAction[];
+	mergeGate: MergeGate;
 };
 
 export type BotCheck = {

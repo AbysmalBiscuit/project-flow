@@ -309,6 +309,8 @@ export type Backends = {
 	) => string | undefined;
 	/** The forge that holds the repo of the project of `ref`. */
 	forgeOf: (ref: ProjectRef) => Forge | null;
+	/** The forge on the host of `url`, or null when no forge serves that host. */
+	forgeOfUrl: (url: string) => Forge | null;
 	/** The declared host of a forge, or undefined for a forge on its own home host. */
 	declaredHostOf: (forge: Forge) => string | undefined;
 	/** True for an error that `readerOf` gave: the project waits for a setting and no read failed. */
@@ -411,6 +413,10 @@ export function buildBackends(options: {
 		},
 		forgeOf: (ref) =>
 			forges.get(refHost(ref) ?? registry[ref.tracker].homeHost) ?? null,
+		forgeOfUrl(url) {
+			const host = URL.parse(url)?.host;
+			return host === undefined ? null : (forges.get(host) ?? null);
+		},
 		declaredHostOf(forge) {
 			const home = new Set(backendKinds.map((kind) => registry[kind].homeHost));
 			for (const [host, held] of forges) {

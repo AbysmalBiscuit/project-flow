@@ -283,6 +283,7 @@ export function githubPullNode(
 	item: Record<string, unknown>,
 ): Record<string, unknown> {
 	const head = item.head as { ref?: string; sha?: string } | undefined;
+	const base = item.base as { ref?: string } | undefined;
 	const mergedAt = item.merged_at ?? item.mergedAt ?? null;
 	const headOid = head?.sha ?? item.headRefOid ?? "a".repeat(40);
 	const reviewNodes = rowsOf(item.reviewRows).flatMap((row) => {
@@ -367,6 +368,7 @@ export function githubPullNode(
 					: "OPEN",
 		mergedAt,
 		headRefName: head?.ref ?? item.headRefName ?? `${item.number}-feat`,
+		...(base?.ref === undefined ? {} : { baseRefName: base.ref }),
 		headRefOid: headOid,
 		...(typeof committed === "string"
 			? {

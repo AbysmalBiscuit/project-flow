@@ -307,7 +307,7 @@ export function mergesOnItsOwn(
 	});
 }
 
-function ciOf(pull: PullRequest): PullStatus["ci"] {
+export function ciOf(pull: Pick<PullRequest, "checks">): PullStatus["ci"] {
 	if (pull.checks.length === 0) {
 		return "none";
 	}
