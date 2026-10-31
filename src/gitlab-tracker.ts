@@ -111,7 +111,10 @@ function linkedRef(item: z.infer<typeof linkedWorkItem>): TicketRef {
 
 /** The ticket of one work item. GitLab names a blocker link from either end, so each end reads it. */
 function ticketOf(project: string, item: WorkItem): Ticket {
-	const read = Object.assign({}, ...item.widgets) as z.infer<typeof widget>;
+	const read: z.infer<typeof widget> = {};
+	for (const next of item.widgets) {
+		Object.assign(read, next);
+	}
 	const links = read.linkedItems?.nodes ?? [];
 	const linked = (type: string) =>
 		links
