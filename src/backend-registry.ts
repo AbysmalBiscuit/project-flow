@@ -15,6 +15,7 @@ import {
 import type { Fetch } from "./fetch.ts";
 import { checkForgejoToken } from "./forgejo-api.ts";
 import { forgejoForge } from "./forgejo-forge.ts";
+import { forgejoTracker } from "./forgejo.ts";
 import { githubPullOfUrl } from "./github-forge.ts";
 import { githubHost } from "./github-pin.ts";
 import {
@@ -28,11 +29,12 @@ import {
 import {
 	checkGitlabToken,
 	gitlabForge,
-	gitlabHost,
 	gitlabPullOfUrl,
 	missingGitlabToken,
 	rejectedGitlabToken,
 } from "./gitlab-forge.ts";
+import { gitlabHost } from "./gitlab-pin.ts";
+import { gitlabTracker } from "./gitlab-tracker.ts";
 import {
 	checkLinearKey,
 	linearTracker,
@@ -134,9 +136,7 @@ type Backend<Kind extends BackendKind> = {
 	) => Promise<TokenCheck>;
 	/** Wraps the fetch of the repo reads, such as in a cache of its responses. */
 	prepareFetch?: (fetch: Fetch, context: RepoFetchContext) => RepoFetch;
-} & (Kind extends TrackerKind
-	? { tracker: Factory<Tracker>; home: Home }
-	: unknown) &
+} & (Kind extends TrackerKind ? { tracker: Factory<Tracker> } : unknown) &
 	(Kind extends ForgeKind ? { forge: Factory<Forge> } : unknown);
 
 /** The help texts of Settings that name each backend. */
@@ -232,6 +232,8 @@ export function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 				},
 				pullOfUrl: gitlabPullOfUrl,
 			},
+			tracker: ({ host, token, fetch }) =>
+				host === gitlabHost ? gitlabTracker(host, token, fetch) : null,
 			forge: ({ host, token, fetch }) =>
 				host === gitlabHost ? gitlabForge(host, token, fetch) : null,
 		},
@@ -277,6 +279,8 @@ export function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 			},
 			forge: ({ host, token, tokenEnv, repoFetch }) =>
 				forgejoForge({ host, token, tokenEnv }, repoFetch),
+			tracker: ({ host, token, tokenEnv, repoFetch }) =>
+				forgejoTracker({ host, token, tokenEnv }, repoFetch),
 		},
 	};
 }

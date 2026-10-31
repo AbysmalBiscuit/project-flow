@@ -24,7 +24,7 @@ test("an incremental poll that leaves out a ticket keeps its link to a PR of the
 		async (base) => {
 			expect(await ticketOf(base, "WID-1")).toMatchObject({
 				state: "awaitingMerge",
-				pull: `${gitlabRepo}#1`,
+				pull: `${gitlabRepo}!1`,
 			});
 			issues.splice(0, issues.length, changed);
 			const before = sent.length;
@@ -38,9 +38,9 @@ test("an incremental poll that leaves out a ticket keeps its link to a PR of the
 			});
 			expect(await ticketOf(base, "WID-1")).toMatchObject({
 				state: "awaitingMerge",
-				pull: `${gitlabRepo}#1`,
+				pull: `${gitlabRepo}!1`,
 			});
-			expect(await ticketOf(base, `${gitlabRepo}#1`)).toBeUndefined();
+			expect(await ticketOf(base, `${gitlabRepo}!1`)).toBeUndefined();
 		},
 		[linearPin],
 		gitlabEnv,

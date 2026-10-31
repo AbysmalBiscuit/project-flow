@@ -21,6 +21,7 @@ export function settingsResponse(
 	configuration: Configuration,
 	backends: BackendViews,
 	catalogue: FoundProject[],
+	discoveryErrors: string[],
 	snapshots: SettingsSnapshot[],
 	factoryTokenReports: FactoryTokenReport[],
 	factoryEntries: FactoryEntry[],
@@ -28,6 +29,8 @@ export function settingsResponse(
 ): Configuration &
 	BackendViews & {
 		projects: SettingsProject[];
+		/** The error of each declared host whose repo discovery failed. */
+		discoveryErrors: string[];
 		factoryTokenReports: FactoryTokenReport[];
 		factoryEntries: FactoryEntry[];
 		stateSources: StateSource[];
@@ -38,6 +41,7 @@ export function settingsResponse(
 		...configuration,
 		...backends,
 		projects: settingsProjects(configuration, catalogue, snapshots),
+		discoveryErrors,
 		factoryTokenReports,
 		factoryEntries,
 		stateSources: stateSources(snapshots),
@@ -88,6 +92,7 @@ function withoutTrackers(text: string): string {
 		switches: _switches,
 		hints: _hints,
 		projects: _projects,
+		discoveryErrors: _discoveryErrors,
 		factoryTokenReports: _factoryTokenReports,
 		factoryEntries: _factoryEntries,
 		stateSources: _stateSources,

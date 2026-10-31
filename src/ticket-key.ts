@@ -1,4 +1,4 @@
-import type { TicketState, TrackerKind } from "./domain.ts";
+import type { PullRequest, TicketState, TrackerKind } from "./domain.ts";
 import { settingsKey } from "./project-ref.ts";
 
 // Keys compare without case, so every id folds the key to lower case.
@@ -6,23 +6,24 @@ import { settingsKey } from "./project-ref.ts";
 const numberMark = "#";
 const idSeparator = "\n";
 
-const numberedKeyShape = /^([^/\s#]+\/[^/\s#]+)#(\d+)$/;
+/** The pattern of a repo path: one or more groups, then a name. */
+export const repoPathPattern = "[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+";
+
+const numberedKeyShape = new RegExp(`^(${repoPathPattern})#(\\d+)$`);
 
 export function numberedKey(repo: string, number: number | string): string {
 	return `${repo}${numberMark}${number}`;
 }
 
-export function pullKey(pull: { repo: string; number: number }): string {
-	return numberedKey(pull.repo, pull.number);
+type PullName = Pick<PullRequest, "repo" | "number" | "mark">;
+
+export function pullKey(pull: PullName): string {
+	return `${pull.repo}${pull.mark ?? numberMark}${pull.number}`;
 }
 
 /** The id of a PR across hosts: the declared host of the PR qualifies its repo. */
-export function pullId(pull: {
-	repo: string;
-	host?: string;
-	number: number;
-}): string {
-	return foldKey(numberedKey(settingsKey(pull.repo, pull.host), pull.number));
+export function pullId(pull: PullName & Pick<PullRequest, "host">): string {
+	return foldKey(pullKey({ ...pull, repo: settingsKey(pull.repo, pull.host) }));
 }
 
 export function teamKey(team: string, number: number | string): string {
@@ -65,19 +66,26 @@ export function sameTicketKey(left: string, right: string): boolean {
 	return foldKey(left) === foldKey(right);
 }
 
-/** The key inside its own project: `#number` for a numbered key, else the whole key. */
+/** A ticket key or a PR key: a repo path, its mark, then a number. */
+const markedKeyShape = new RegExp(`^(${repoPathPattern})([#!]\\d+)$`);
+
+/** The key inside its own project: `#number` or `!number` for a numbered key, else the whole key. */
 export function shortKey(key: string): string {
-	const mark = key.lastIndexOf(numberMark);
-	return mark === -1 ? key : key.slice(mark);
+	return key.match(markedKeyShape)?.[2] ?? key;
 }
 
-/** A pull key as `#number` when the pull is in the repo of the ticket, else the whole key. */
+/**
+ * A pull key as `#number` or `!number` when the pull is in the repo of the
+ * ticket, else the whole key. A ticket key can lead with its host, so a ticket
+ * repo that ends with the pull repo is the same repo.
+ */
 export function pullRef(pull: string, ticketKey: string | null): string {
-	const pullRepo = keyRepo(pull);
+	const pullRepo = foldKey(pull.match(markedKeyShape)?.[1]);
+	const ticketRepo = foldKey(ticketKey?.match(markedKeyShape)?.[1]);
 	const sameRepo =
-		pullRepo !== null &&
-		ticketKey !== null &&
-		foldKey(pullRepo) === foldKey(keyRepo(ticketKey));
+		pullRepo !== undefined &&
+		ticketRepo !== undefined &&
+		(ticketRepo === pullRepo || ticketRepo.endsWith(`/${pullRepo}`));
 	return sameRepo ? shortKey(pull) : pull;
 }
 

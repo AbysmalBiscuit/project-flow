@@ -30,7 +30,7 @@ describe("the CI of a GitLab PR", () => {
 	test("a failed pipeline of external statuses, which has no jobs, keeps its PR In review", async () => {
 		await withLinkedPull({}, async (base) => {
 			expect(await ciOf(base, "WID-1")).toBe("passing");
-			expect(await stateOf(base, `${gitlabRepo}#3`)).toBe("inReview");
+			expect(await stateOf(base, `${gitlabRepo}!3`)).toBe("inReview");
 		});
 	});
 

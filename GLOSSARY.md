@@ -31,7 +31,7 @@ An open PR that links to no ticket, through a closing reference, a tracker attac
 _Avoid_: Orphan PR, loose PR
 
 **Tracker**:
-The external system that owns a ticket, such as GitHub or Linear. It holds the ticket's status, labels, parent ticket and blocker links.
+The external system that owns a ticket, such as GitHub, GitLab or Linear. It holds the ticket's status, labels, parent ticket and blocker links.
 _Avoid_: Source, provider, tool
 
 **Forge**:
@@ -39,13 +39,13 @@ The external system that hosts the git refs and PRs of a repo, such as GitHub, G
 _Avoid_: Code host, git provider
 
 **Declared host**:
-A self-hosted forge host that the `hosts` list of the configuration names, with its forge kind and the env var of its token. github.com and gitlab.com need no declaration, so a configuration cannot declare them. GitLab issues are not tickets, so a configuration cannot pin a project on gitlab.com.
+A self-hosted forge host that the `hosts` list of the configuration names, with its forge kind and the env var of its token. github.com and gitlab.com need no declaration, so a configuration cannot declare them.
 _Avoid_: Custom host, enterprise host
 
 ### Grouping
 
 **Parent ticket**:
-A ticket that other tickets sit under in the tracker. A parent ticket is outside when the project's tickets do not include it.
+A ticket that other tickets sit under in the tracker. A parent ticket is outside when the project's tickets do not include it. Forgejo has no sub-tickets, so a task list item such as `- [ ] #12` in the body of a Forgejo ticket makes that ticket the parent ticket of #12 in the same repo. The first ticket that lists #12 is its parent ticket.
 _Avoid_: Epic (when a parent ticket is meant), parent issue
 
 **Sub-ticket**:

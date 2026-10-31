@@ -14,13 +14,22 @@ import {
 	type ReviewEvidence,
 } from "./forgejo-api.ts";
 import type { Forge, PullLink } from "./ports.ts";
-import { numberedKey } from "./ticket-key.ts";
+import { closingKeys as bodyClosingKeys } from "./pull-links.ts";
+import { keyRepo, numberedKey } from "./ticket-key.ts";
 
-/** The client of one forge, and the review evidence of each merged PR that it read. */
+/** The host and client of one forge, and the review evidence of each merged PR that it read. */
 type Reads = {
+	host: string;
 	client: ForgejoClient;
 	merged: Map<string, ReviewEvidence>;
 };
+
+/** The Forgejo ticket keys that the body of a PR closes. A Forgejo ticket key carries its host. */
+function hostedClosingKeys(reads: Reads, repo: string, body: string): string[] {
+	return bodyClosingKeys(body, repo).flatMap((key) =>
+		keyRepo(key) === null ? [] : [`${reads.host}/${key}`],
+	);
+}
 
 type Listed = { pull: ForgejoPull; closingKeys: string[] };
 
@@ -52,7 +61,12 @@ async function pullOf(
 		draft,
 		branch: pull.head.ref,
 		body: pull.body ?? "",
-		closingKeys,
+		closingKeys: [
+			...new Set([
+				...closingKeys,
+				...hostedClosingKeys(reads, repo, pull.body ?? ""),
+			]),
+		],
 		headSha: pull.merged ? "" : pull.head.sha,
 		headCommittedAt:
 			pull.merged || draft
@@ -161,6 +175,7 @@ function pullOfUrl({
 /** Reads the PRs, branches, checks and reviews of the repos on one Forgejo host. */
 export function forgejoForge(access: ForgejoAccess, fetchImpl: Fetch): Forge {
 	const reads: Reads = {
+		host: access.host,
 		client: forgejoClient(access, fetchImpl),
 		merged: new Map(),
 	};

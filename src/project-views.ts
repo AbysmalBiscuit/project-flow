@@ -82,7 +82,12 @@ function trackedRows(options: PollOptions, configuration: Configuration) {
 		.filter((row) => trackedPin(row, configuration.tracked) !== undefined);
 	const all = rows.map((row) => {
 		const repo = refRepo(listedRef(row));
-		return { project: repo ?? row.name, repo, tickets: row.tickets };
+		return {
+			project: row.host === undefined ? (repo ?? row.name) : row.name,
+			tracker: row.tracker,
+			repo,
+			tickets: row.tickets,
+		};
 	});
 	return { rows, all };
 }
