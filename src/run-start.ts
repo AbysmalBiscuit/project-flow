@@ -248,6 +248,7 @@ export function queuedOf(
 ): Queued | undefined {
 	if (
 		ticket.state !== "open" ||
+		ticket.tracker === "forgejo" ||
 		!waitsForRun(ticket, newestRun, requests) ||
 		pendingRequest(ticket, requests)?.claim === true
 	) {

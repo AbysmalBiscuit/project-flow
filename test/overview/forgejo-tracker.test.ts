@@ -218,7 +218,7 @@ describe("a tracked Forgejo repo", () => {
 		);
 	});
 
-	test("offers no run start on its tickets", async () => {
+	test("neither offers nor queues a run start on a ticket with the ready label", async () => {
 		await withApp(
 			JSON.stringify({
 				hosts,
@@ -227,12 +227,30 @@ describe("a tracked Forgejo repo", () => {
 					{ name: "hub", url: "http://127.0.0.1:1", readyLabel: "ready" },
 				],
 			}),
-			linearWithCodeberg([], {}, []),
+			linearWithCodeberg(
+				[],
+				{
+					answers: {
+						"/issues?": () =>
+							json(
+								issues.map((issue) =>
+									issue.number === 2
+										? { ...issue, labels: [{ name: "ready" }] }
+										: issue,
+								),
+							),
+					},
+				},
+				[],
+			),
 			env,
 			async (base) => {
-				const { tickets } = await report(base);
-				expect(tickets.length).toBeGreaterThan(0);
-				expect(tickets.flatMap((ticket) => ticket.runStart ?? [])).toEqual([]);
+				const ticket = (await report(base)).tickets.find(
+					(item) => item.key === keyOf(2),
+				);
+				expect(ticket).toBeDefined();
+				expect(ticket?.runStart).toBeUndefined();
+				expect(ticket?.queued).toBeUndefined();
 			},
 		);
 	});
