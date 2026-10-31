@@ -234,7 +234,14 @@ export function reviewState(
 		for (const tag of cycle.tags) {
 			tags.push(tag);
 		}
-		if (cycle.state === "inReview") {
+		const ci = ciOf({
+			...pull,
+			checks: pull.checks.filter(
+				(check) =>
+					!Object.values(botCheck).some((pattern) => pattern.test(check.name)),
+			),
+		});
+		if (cycle.state === "inReview" || ci === "failing" || ci === "pending") {
 			waiting = true;
 		}
 	}

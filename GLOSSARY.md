@@ -114,7 +114,7 @@ An open ticket in a review that has begun and has not finished. The tracker stat
 _Avoid_: Under review, PR open
 
 **Awaiting merge**:
-An open ticket whose every open PR has finished its review cycle and waits for a human to merge it. Auto-merge is off, or auto-merge is set to ask. A ticket stays In review until its PR merges when its reviews are done and auto-merge is on. The workcell `merge_auto` setting applies only to a PR that a workcell run opened. A factory run reports such a PR, or a workcell progress comment names it.
+An open ticket whose every open PR has finished its review cycle and waits for a human to merge it. The CI of each open PR passes or has no checks, on every forge. Failing or pending CI keeps the ticket In review. Auto-merge is off, or auto-merge is set to ask. A ticket stays In review until its PR merges when its reviews are done and auto-merge is on. The workcell `merge_auto` setting applies only to a PR that a workcell run opened. A factory run reports such a PR, or a workcell progress comment names it.
 _Avoid_: Ready, pending merge, mergeable
 
 **Backlog**:
