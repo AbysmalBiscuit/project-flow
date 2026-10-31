@@ -35,7 +35,7 @@ const entry = z.discriminatedUnion("kind", [
 
 /**
  * `GET /runs/{id}/stages/{node_path}/transcript`: a page of entries, oldest first.
- * A factory that predates `ended` never ends a stage, as before it.
+ * A factory that predates `ended` never ends a stage.
  */
 const transcript = z.object({
 	entries: z.array(z.unknown()),
