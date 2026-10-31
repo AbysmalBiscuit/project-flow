@@ -31,7 +31,7 @@ const mergeRequest = z.object({
 
 type MergeRequest = z.infer<typeof mergeRequest>;
 
-const pipeline = z.object({ id: z.number(), sha: z.string() });
+const pipeline = z.object({ id: z.number(), status: z.string() });
 
 const job = z.object({
 	name: z.string(),
@@ -54,8 +54,8 @@ const branch = z.object({ name: z.string() });
 
 type Evidence = Pick<PullRequest, "checks" | "comments" | "reviews">;
 
-/** The check of a pipeline job, in the status and conclusion words of the review rules. */
-function jobCheck({
+/** The check of a pipeline or a job, in the status and conclusion words of the review rules. */
+function statusCheck({
 	name,
 	status,
 	allow_failure,
@@ -186,11 +186,17 @@ export function gitlabForge(
 			z.array(pipeline),
 			repo,
 		);
-		const head = pipelines.body.find((item) => item.sha === request.sha);
+		// GitLab lists the newest pipeline first. A merged-results pipeline runs on
+		// a temporary commit, so its SHA can differ from the head of the PR.
+		const [current] = pipelines.body;
 		const jobs =
-			head === undefined
+			current === undefined
 				? []
-				: await readAll(apiUrl(repo, `/pipelines/${head.id}/jobs`), job, repo);
+				: await readAll(
+						apiUrl(repo, `/pipelines/${current.id}/jobs`),
+						job,
+						repo,
+					);
 		const approved = await read(
 			apiUrl(repo, `${base}/approvals`),
 			approvals,
@@ -202,7 +208,17 @@ export function gitlabForge(
 			repo,
 		);
 		return {
-			checks: jobs.map(jobCheck),
+			checks:
+				// A pipeline of external commit statuses has no jobs.
+				jobs.length === 0 && current !== undefined
+					? [
+							statusCheck({
+								name: "pipeline",
+								status: current.status,
+								allow_failure: false,
+							}),
+						]
+					: jobs.map(statusCheck),
 			reviews: approved.body.approved_by.map(({ user }) => ({
 				login: user.username,
 				commitId: request.sha ?? "",
