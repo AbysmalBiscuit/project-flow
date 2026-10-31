@@ -1,7 +1,7 @@
 [merge]
 method = "squash"
 
-[workflow.standard]
+[standard.parameters]
 merge_auto = "ask"
 merge_rebase = "never"
 
