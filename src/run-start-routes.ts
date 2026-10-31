@@ -7,7 +7,12 @@ import { type PollOptions, runningOverview } from "./poll.ts";
 import type { Clock, FactoryReader, Notifier } from "./ports.ts";
 import { ticketSnapshot } from "./replies.ts";
 import { routeTable } from "./route-table.ts";
-import { runStartOf, startRefusal, type StartRequest } from "./run-start.ts";
+import {
+	runStartOf,
+	startRefusal,
+	type StartRequest,
+	takesClaimedStart,
+} from "./run-start.ts";
 import { foldKey, numberedKeyParts, sameTicketKey } from "./ticket-key.ts";
 import { trackerError, type TrackerOf } from "./tracker-route.ts";
 import { runFor, runsFor } from "./workcell.ts";
@@ -100,7 +105,9 @@ export function runStartRoutes({
 				{ status: 409 },
 			);
 		}
-		const parts = ticket.tracker === "github" ? numberedKeyParts(key) : null;
+		const parts = takesClaimedStart(ticket.tracker)
+			? numberedKeyParts(key)
+			: null;
 		if (parts === null) {
 			return Response.json(
 				{ error: "a claimed start needs a GitHub ticket" },
