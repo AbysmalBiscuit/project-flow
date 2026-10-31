@@ -4,12 +4,15 @@ import {
 	foldKey,
 	keyNumber,
 	numberedKey,
+	repoPathPattern,
 	sameTicketKey,
 	teamKey,
 } from "./ticket-key.ts";
 
-const closing =
-	/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s*(?:([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)#(\d+)|#(\d+)|([A-Za-z][A-Za-z0-9]*)-(\d+))\b/gi;
+const closing = new RegExp(
+	String.raw`\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s*(?:(${repoPathPattern})#(\d+)|#(\d+)|([A-Za-z][A-Za-z0-9]*)-(\d+))\b`,
+	"gi",
+);
 
 function closingKeys(body: string, repo: string): string[] {
 	const keys: string[] = [];

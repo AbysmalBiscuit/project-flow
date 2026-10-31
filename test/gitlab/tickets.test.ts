@@ -127,6 +127,34 @@ describe("a tracked GitLab repo", () => {
 	});
 });
 
+describe("a tracked GitLab repo in a subgroup", () => {
+	const nested = "AbysmalBiscuit/tools/project-flow-scratch";
+
+	test("a PR that closes a ticket by its subgroup key links the ticket", async () => {
+		await withServer(
+			gitlabFake({
+				repo: nested,
+				open: {
+					1: {
+						description: `Closes ${nested}#6`,
+						source_branch: "linked-change",
+					},
+				},
+			}),
+			3600,
+			async (base) => {
+				const report = await reportOf(base, nested);
+				expect(viewOf(report, `${nested}#6`)).toMatchObject({
+					state: "awaitingMerge",
+					pullUrl: `https://gitlab.com/${gitlabRepo}/-/merge_requests/1`,
+				});
+			},
+			[{ tracker: "gitlab", repo: nested }],
+			gitlabEnv,
+		);
+	});
+});
+
 describe("a GitLab ticket across trackers", () => {
 	const blockedLinear = (description: string) => ({
 		id: "issue-1",

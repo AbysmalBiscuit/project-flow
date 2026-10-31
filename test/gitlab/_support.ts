@@ -21,11 +21,11 @@ export const gitlabEnv = {
 	GITLAB_TOKEN: "recorded-gitlab-token",
 };
 
-const api = `https://gitlab.com/api/v4/projects/${encodeURIComponent(gitlabRepo)}`;
-
 type MergeRequest = (typeof opened)[number];
 
 export type GitlabFake = {
+	/** The path that the recorded repo answers as, such as a path in a subgroup. */
+	repo?: string;
 	/** Changes to the recorded open PRs, by iid. */
 	open?: Record<number, Partial<MergeRequest>>;
 	/** The merged PRs of the repo. The scratch repo has none. */
@@ -106,6 +106,7 @@ export function gitlabFake(options: GitlabFake = {}): Fetch {
 		...options.open?.[request.iid],
 	}));
 	const merged = options.merged ?? [];
+	const api = `https://gitlab.com/api/v4/projects/${encodeURIComponent(options.repo ?? gitlabRepo)}`;
 	return async (input, init) => {
 		const url = new URL(urlOf(input));
 		options.sent?.push(url.href);
