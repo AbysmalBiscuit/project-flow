@@ -1,5 +1,5 @@
 import type { ProjectReport } from "./domain.ts";
-import { sameTicketKey } from "./ticket-key.ts";
+import { namedEntry } from "./ticket-key.ts";
 
 /**
  * Opens the PR of an unlinked PR card in a new tab, since it has no ticket for
@@ -21,9 +21,7 @@ export function openUnlinkedPr(
 	if (unlinked?.pullUrl === undefined) {
 		return false;
 	}
-	const panelCard = report.tickets.find(
-		(item) => item.key !== null && sameTicketKey(item.key, key),
-	);
+	const panelCard = namedEntry(report.tickets, { key });
 	if (
 		panelCard === unlinked &&
 		unlinked.awaitingPulls?.some((pull) => pull.actions.includes("merge"))

@@ -7,9 +7,10 @@ import type { RunStart } from "./domain.ts";
 import type { FactoryEntry } from "./factories.ts";
 import { takesClaim } from "./factory-claim.ts";
 import { panel } from "./panel-styles.ts";
+import { MergeButton } from "./pull-merge.tsx";
 import { pageQuery } from "./queries.ts";
 import { useStartRun } from "./run-mutations.ts";
-import { SplitButton } from "./split-button.tsx";
+import { SplitButton, type SplitChoice } from "./split-button.tsx";
 import { runStartCopy } from "./terms.ts";
 import type { TicketRef } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
@@ -38,9 +39,11 @@ function claimLabel({ factory, free }: ClaimChoice): string {
 export function RunStartButton({
 	ticket,
 	start,
+	mergeChoices,
 }: {
 	ticket: TicketRef;
 	start: RunStart;
+	mergeChoices: readonly SplitChoice[];
 }) {
 	const [asking, setAsking] = useState<ClaimChoice | "label" | null>(null);
 	const startRun = useStartRun(ticket.tracker, ticket.project, ticket.key);
@@ -59,11 +62,19 @@ export function RunStartButton({
 	const labelStart =
 		start.factory === undefined ? undefined : () => setAsking("label");
 	if (labelStart === undefined && choices.length === 0 && !requested) {
-		return null;
+		return <MergeButton choices={mergeChoices} />;
 	}
+	const menu: SplitChoice[] = [
+		...choices.map((choice) => ({
+			label: claimLabel(choice),
+			disabled,
+			onPick: () => setAsking(choice),
+		})),
+		...mergeChoices,
+	];
 	return (
 		<div className={clsx(panel.runAction)} data-run-start={ticket.key}>
-			{choices.length === 0 ? (
+			{menu.length === 0 ? (
 				<Button
 					label={label}
 					tone="primary"
@@ -77,10 +88,7 @@ export function RunStartButton({
 					tone="primary"
 					disabled={disabled}
 					{...(labelStart === undefined ? {} : { onClick: labelStart })}
-					choices={choices.map((choice) => ({
-						label: claimLabel(choice),
-						onPick: () => setAsking(choice),
-					}))}
+					choices={menu}
 				/>
 			)}
 			{startRun.error === null ? null : (

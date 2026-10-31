@@ -638,6 +638,9 @@ export const mergeGateReason = {
 
 export const pullMergeCopy = {
 	merge: (number: number) => `Merge #${number}`,
+	blocked: (number: number, reason: string) => `Merge #${number}: ${reason}`,
+	menu: "Merge",
+	choices: "Merge choices",
 	merging: "Merging",
 	title: "Merge the PR?",
 	body: (number: number, title: string, base: string | undefined) =>

@@ -27,7 +27,7 @@ import {
 } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
 import { pathProject, projectPath } from "./paths.ts";
-import { PullMerge } from "./pull-merge.tsx";
+import { MergeButton, usePullMerge } from "./pull-merge.tsx";
 import { pageQuery, pageQueryClient, usePostReply } from "./queries.ts";
 import { RunAction } from "./run-action.tsx";
 import { QueuedChip } from "./run-marks.tsx";
@@ -128,6 +128,10 @@ export function TicketPanel({
 	);
 	const known = view ?? outside;
 	const item = needsYouItem(report, ticket);
+	const merge = usePullMerge(
+		view?.awaitingPulls ?? [],
+		view?.unlinkedPr === true ? onClose : undefined,
+	);
 	useEffect(() => {
 		if (report !== null && report.tracker !== tracker) {
 			openTicket({ ...ticket, tracker: report.tracker }, "replace");
@@ -294,11 +298,19 @@ export function TicketPanel({
 						<QueuedChip queued={view.queued} />
 					)}
 					{view?.runStart === undefined ? null : (
-						<RunStartButton ticket={ticket} start={view.runStart} />
+						<RunStartButton
+							ticket={ticket}
+							start={view.runStart}
+							mergeChoices={view.factoryRun === undefined ? merge.choices : []}
+						/>
 					)}
 					{view?.factoryRun === undefined ? null : (
-						<RunAction run={view.factoryRun} />
+						<RunAction run={view.factoryRun} mergeChoices={merge.choices} />
 					)}
+					{view?.runStart === undefined && view?.factoryRun === undefined ? (
+						<MergeButton choices={merge.choices} />
+					) : null}
+					{merge.feedback}
 					<span className={clsx(panel.actions)}>
 						{dock ? null : (
 							<Button
@@ -337,9 +349,6 @@ export function TicketPanel({
 						)}
 					</span>
 				</div>
-				{view?.awaitingPulls?.map((pull) => (
-					<PullMerge key={pull.url} pull={pull} />
-				))}
 			</div>
 			{missing ? (
 				<p className={clsx(panel.note)}>{threadMissingLabel}</p>

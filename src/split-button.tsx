@@ -43,6 +43,9 @@ export type SplitChoice = {
 	label: string;
 	/** A danger choice stands out from the other ways to do the action, such as a cancel. */
 	tone?: "danger";
+	disabled?: boolean;
+	/** The choice stays in reach while the main action is disabled, so its menu still opens. */
+	independent?: boolean;
 	onPick: () => void;
 };
 
@@ -105,7 +108,7 @@ export function SplitButton({
 				aria-haspopup="menu"
 				aria-expanded={open}
 				aria-controls={menuId}
-				disabled={disabled}
+				disabled={disabled && !choices.some((choice) => choice.independent)}
 				onClick={() => setOpen((next) => !next)}
 			>
 				<Caret />
@@ -124,9 +127,11 @@ export function SplitButton({
 							className={clsx(
 								frame.menuItem,
 								control.clear,
+								control.off,
 								control.focus,
 								choice.tone === "danger" && styles.dangerChoice,
 							)}
+							disabled={choice.disabled === true}
 							onClick={() => {
 								setOpen(false);
 								choice.onPick();
