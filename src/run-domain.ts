@@ -300,6 +300,12 @@ export type Queued = {
 export type RunCheckpoint = {
 	/** The path of the current stage. Null when the run is at no stage. */
 	stage: string | null;
+	/**
+	 * The stage whose transcript a view of the run shows when it follows no live
+	 * stage: the stage where the run is or stopped when it records a transcript,
+	 * else the last finished stage that records one. Null when the run has none.
+	 */
+	lastAgentStage: string | null;
 	/** The stages that the run finished, in order. */
 	completedStages: string[];
 	/** The retries of each stage, by stage name. */

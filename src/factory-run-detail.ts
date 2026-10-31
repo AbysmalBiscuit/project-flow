@@ -20,6 +20,7 @@ import {
 import { isLive, type ReadRun, type StatusRows } from "./factory-run-rows.ts";
 import type { Fetch } from "./fetch.ts";
 import { resumableRunStatusKinds } from "./kinds.ts";
+import { lastAgentStage, startNodes } from "./run-agent-stage.ts";
 import { runUsage } from "./run-usage.ts";
 
 export type CheckpointRead = RunCheckpoint | "missing" | "not served";
@@ -98,9 +99,6 @@ const workflowGraph = z.object({
 		}),
 	),
 });
-
-/** Each call of a child graph opens at one of these start nodes. */
-const startNodes = new Set(["start", "Start"]);
 
 /**
  * The child stages of each caller node, over all its calls. The checkpoint
@@ -313,10 +311,18 @@ export function runDetailReader(deps: {
 				),
 				graphOf(read, runId),
 			]);
-			const stage = stagePath(answer);
+			const path = stagePath(answer);
+			const stage = path === "" ? null : path;
+			const shownGraph = graph === null ? null : runGraph(graph, answer);
 			const used = await usage;
 			return {
-				stage: stage === "" ? null : stage,
+				stage,
+				lastAgentStage: lastAgentStage({
+					stage,
+					completedStages: answer.completed_nodes,
+					graph: shownGraph,
+					succeeded: answer.status === "success",
+				}),
 				completedStages: answer.completed_nodes,
 				retries: answer.node_retries,
 				visits: answer.visits,
@@ -326,7 +332,7 @@ export function runDetailReader(deps: {
 					: used === "not served"
 						? { usageNotServed: true }
 						: { usage: used }),
-				graph: graph === null ? null : runGraph(graph, answer),
+				graph: shownGraph,
 			};
 		} catch (error) {
 			if (error instanceof NotServed) {
