@@ -1,6 +1,7 @@
 import { blockerProject, openBlockers, type TicketGraph } from "./blockers.ts";
 import type { Configuration } from "./configuration.ts";
 import type {
+	AwaitingPull,
 	CrossProjectBlocker,
 	FactoryRun,
 	LiveRun,
@@ -19,6 +20,7 @@ import {
 	stateOfTicket,
 } from "./lanes.ts";
 import { ticketRelations } from "./links.ts";
+import { awaitingPull, type PullActionsOf } from "./merge-gate.ts";
 import { linked } from "./pull-links.ts";
 import {
 	type AutoMergeSources,
@@ -51,6 +53,7 @@ type TicketWalk = {
 	states: Configuration["states"];
 	stateMapping: NonNullable<Configuration["stateMappings"][string]>;
 	runStarts: RunStarts;
+	pullActionsOf: PullActionsOf;
 	lanes: ReturnType<typeof placeOnBoard>;
 	colours: ReturnType<typeof categoryColours>;
 	now: Date;
@@ -74,6 +77,7 @@ export function walkTickets(walk: TicketWalk) {
 	const views: TicketView[] = [];
 	const relationsByKey = new Map<string, ReturnType<typeof ticketRelations>>();
 	const pullByKey = new Map<string, PullRequest>();
+	const awaitingByKey = new Map<string, AwaitingPull[]>();
 	const shownByKey = new Map<string, TicketState>();
 	const failedKeys = new Set<string>();
 	const blockedRuns = new Map<string, FactoryRun>();
@@ -146,6 +150,18 @@ export function walkTickets(walk: TicketWalk) {
 			if (pull !== undefined) {
 				pullByKey.set(foldKey(ticket.key), pull);
 			}
+			if (
+				ticket.state === "open" &&
+				shown.state === "awaitingMerge" &&
+				review.state === "awaitingMerge"
+			) {
+				awaitingByKey.set(
+					foldKey(ticket.key),
+					links
+						.filter((pull) => !pull.merged)
+						.map((pull) => awaitingPull(pull, walk.pullActionsOf)),
+				);
+			}
 		}
 		if (blockers.length > 0 && ticket.state === "open") {
 			counts.blocked += 1;
@@ -174,6 +190,7 @@ export function walkTickets(walk: TicketWalk) {
 		views,
 		relationsByKey,
 		pullByKey,
+		awaitingByKey,
 		shownByKey,
 		failedKeys,
 		blockedRuns,

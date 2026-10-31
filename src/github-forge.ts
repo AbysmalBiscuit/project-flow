@@ -1,9 +1,14 @@
+import { z } from "zod";
+
 import type { Fetch } from "./fetch.ts";
+import { githubHeaders } from "./github-pages.ts";
 import { loadLinkedPulls, type ReviewEvidence } from "./github-pulls.ts";
 import type { GithubReads } from "./github-reads.ts";
 import { readAutoMerge } from "./github-repo-query.ts";
 import { type Forge, TrackerError } from "./ports.ts";
 import { numberedKey } from "./ticket-key.ts";
+
+const mergeRefusal = z.object({ message: z.string() });
 
 export function githubForge(
 	token: string,
@@ -76,6 +81,30 @@ export function githubForge(
 				return null;
 			}
 			return { repo, number: Number(number) };
+		},
+		async merge({ repo, number, headSha }) {
+			const response = await fetchImpl(
+				`https://api.github.com/repos/${repo}/pulls/${number}/merge`,
+				{
+					method: "PUT",
+					headers: {
+						...githubHeaders(token),
+						"content-type": "application/json",
+					},
+					body: JSON.stringify({ merge_method: "squash", sha: headSha }),
+				},
+			);
+			if (!response.ok) {
+				const refused = mergeRefusal.safeParse(
+					await response.json().catch(() => null),
+				);
+				throw new TrackerError(
+					refused.success
+						? refused.data.message
+						: `GitHub merge failed (HTTP ${response.status})`,
+					response.status,
+				);
+			}
 		},
 	};
 }

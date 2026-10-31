@@ -27,6 +27,7 @@ import {
 } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
 import { pathProject, projectPath } from "./paths.ts";
+import { PullMerge } from "./pull-merge.tsx";
 import { pageQuery, pageQueryClient, usePostReply } from "./queries.ts";
 import { RunAction } from "./run-action.tsx";
 import { QueuedChip } from "./run-marks.tsx";
@@ -334,6 +335,9 @@ export function TicketPanel({
 						)}
 					</span>
 				</div>
+				{view?.awaitingPulls?.map((pull) => (
+					<PullMerge key={pull.url} pull={pull} />
+				))}
 			</div>
 			{missing ? (
 				<p className={clsx(panel.note)}>{threadMissingLabel}</p>

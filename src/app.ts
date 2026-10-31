@@ -31,6 +31,7 @@ import type { CheckoutSource, TodoSource } from "./ports.ts";
 import { listedRef } from "./project-ref.ts";
 import { projectRoutes, reportFor } from "./project-routes.ts";
 import { attentionFor, overview, projectViews } from "./project-views.ts";
+import { pullRoutes } from "./pull-routes.ts";
 import { replyRoutes } from "./reply-routes.ts";
 import { runStartRoutes } from "./run-start-routes.ts";
 import { settledRequests } from "./run-start.ts";
@@ -655,6 +656,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				},
 			},
 			...projectRoutes(pollOptions, () => configuration),
+			...pullRoutes(pollOptions, () => configuration),
 			...inboxRoutes(opened.store, clock),
 			...replyRoutes({
 				trackerOf,

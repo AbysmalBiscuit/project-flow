@@ -194,6 +194,7 @@ function pullFromGraphql(
 		title: pull.title,
 		draft: pull.isDraft,
 		branch: pull.headRefName,
+		...(pull.baseRefName === undefined ? {} : { baseBranch: pull.baseRefName }),
 		body: pull.body ?? "",
 		closingKeys: keys,
 		headSha: pull.headRefOid,

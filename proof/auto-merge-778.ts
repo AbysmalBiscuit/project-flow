@@ -82,6 +82,7 @@ const options: PollOptions = {
 		readerOf: () => ({ tracker }),
 		forgeLabelOf: () => undefined,
 		forgeOf: () => null,
+		forgeOfUrl: () => null,
 		declaredHostOf: (forge) => (forge === hosted ? declared : undefined),
 		explains: () => false,
 	},
