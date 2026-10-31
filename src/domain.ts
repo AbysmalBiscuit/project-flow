@@ -497,6 +497,8 @@ export type Ticket = {
 	tracker: TrackerKind;
 	key: string | null;
 	title: string;
+	/** The page of the ticket, as its tracker names it. */
+	url?: string;
 	state: "open" | "closed";
 	stateReason: string | null;
 	updatedAt: string;

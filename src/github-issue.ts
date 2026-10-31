@@ -13,7 +13,7 @@ export const nestedPageSize = 20;
 
 export const issueTicketFields = (
 	labelPage: number,
-) => `number title state stateReason updatedAt createdAt closedAt body
+) => `number title url state stateReason updatedAt createdAt closedAt body
 				labels(first: ${labelPage}) { nodes { name } ${connectionPage} }
 				assignees(first: 10) { nodes { login } }
 				milestone { title }
@@ -66,6 +66,7 @@ function parentOf(
 export const githubIssue = z.object({
 	number: z.number(),
 	title: z.string(),
+	url: z.string().optional(),
 	state: z.string(),
 	stateReason: z.string().nullable().optional(),
 	updatedAt: z.string(),
@@ -166,6 +167,7 @@ export function ticketFromGithubIssue(
 		tracker: "github",
 		key: githubKey(repo, issue.number),
 		title: issue.title,
+		...(issue.url === undefined ? {} : { url: issue.url }),
 		state: state === "closed" ? "closed" : "open",
 		stateReason: githubReason(issue.stateReason ?? null),
 		updatedAt: issue.updatedAt,

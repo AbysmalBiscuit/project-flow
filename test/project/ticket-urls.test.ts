@@ -69,16 +69,19 @@ describe("ticket URLs", () => {
 					name: "Widget launch",
 					slugId: linearSlug,
 				},
-				issues: linearIssues,
+				issues: linearIssues.map((item) => ({
+					...item,
+					url: `https://linear.app/acme/issue/${item.identifier}/slug`,
+				})),
 				github: githubFetch(),
 			}),
 			{ GITHUB_TOKEN: "recorded-token", LINEAR_API_KEY: "recorded-linear-key" },
 			async (base) => {
 				expect(urls(await report(base, "Widget launch"))).toEqual({
-					"WID-1": "https://linear.app/issue/WID-1",
-					"WID-2": "https://linear.app/issue/WID-2",
-					"WID-3": "https://linear.app/issue/WID-3",
-					"WID-4": "https://linear.app/issue/WID-4",
+					"WID-1": "https://linear.app/acme/issue/WID-1/slug",
+					"WID-2": "https://linear.app/acme/issue/WID-2/slug",
+					"WID-3": "https://linear.app/acme/issue/WID-3/slug",
+					"WID-4": "https://linear.app/acme/issue/WID-4/slug",
 				});
 			},
 		);

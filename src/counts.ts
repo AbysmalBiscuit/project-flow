@@ -343,6 +343,7 @@ export function projectCounts(
 		runByKey,
 		outsideParents(tickets, graph.groups),
 		unlinkedViews,
+		(ticket) => known(index, ticket)?.url,
 	);
 	return {
 		counts: project,

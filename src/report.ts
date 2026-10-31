@@ -12,10 +12,13 @@ import type {
 	TicketView,
 } from "./domain.ts";
 import { placeTickets } from "./grouping.ts";
-import { shownGraph, type ticketRelations } from "./links.ts";
+import {
+	type KnownTicketUrl,
+	shownGraph,
+	type ticketRelations,
+} from "./links.ts";
 import type { HidingFilter } from "./terms.ts";
 import { foldKey, pullKey } from "./ticket-key.ts";
-import { ticketUrl } from "./ticket-ref.ts";
 import {
 	laneAgeCap,
 	savedProjectView,
@@ -67,6 +70,7 @@ export function projectReport(
 	runByKey: Map<string, LiveRun> = new Map(),
 	outsideParents: OutsideParent[] = [],
 	unlinkedPrs: TicketView[] = [],
+	knownUrl: KnownTicketUrl = () => undefined,
 ): ProjectReport {
 	const placed = placeTickets(
 		tickets,
@@ -133,7 +137,7 @@ export function projectReport(
 		const source = view.key === null ? undefined : ticketsByKey.get(view.key);
 		return {
 			...view,
-			...(source === undefined ? {} : ticketUrl(source.tracker, source.key)),
+			...(source?.url === undefined ? {} : { url: source.url }),
 			...(placedItem === undefined
 				? {}
 				: {
@@ -179,6 +183,7 @@ export function projectReport(
 		counts.tracker,
 		boardTickets,
 		relationsByKey,
+		knownUrl,
 	);
 	return {
 		name: counts.name,

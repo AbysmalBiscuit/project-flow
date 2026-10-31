@@ -3,7 +3,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { PullRequest, Snapshot } from "../../src/domain.ts";
+import type {
+	ProjectReport,
+	PullRequest,
+	Snapshot,
+	Ticket,
+} from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
 import { pendingStatus } from "../../src/stale-reads.ts";
 import { sqliteStore } from "../../src/store.ts";
@@ -13,6 +18,7 @@ import {
 	hostedWidget,
 	hosts,
 	recordingFetch,
+	tokenEnv,
 	widget,
 	withStarted,
 } from "./_support.ts";
@@ -46,6 +52,7 @@ async function withHostedRow(
 	configuration: Record<string, unknown>,
 	checks: (base: string) => Promise<void>,
 	fetchImpl?: Fetch,
+	rowHost: string = host,
 ): Promise<void> {
 	const root = await mkdtemp(join(tmpdir(), "project-flow-hosts-"));
 	const databasePath = join(root, "project-flow.sqlite");
@@ -53,9 +60,9 @@ async function withHostedRow(
 	seeded.store.mergeTickets([
 		{
 			key: "acme/widget",
-			name: hostedName,
+			name: `${rowHost}/acme/widget`,
 			tracker: "github",
-			host,
+			host: rowHost,
 			branches: [],
 			startedKeys: [],
 			...row,
@@ -281,5 +288,63 @@ describe("the review rules of a PR on a declared host", () => {
 		} finally {
 			await checkout.cleanup();
 		}
+	});
+});
+
+describe("the pages of a project on a declared host with a port", () => {
+	const portHost = `${host}:8443`;
+	const page = `https://${portHost}/acme/widget`;
+	const ticket = (number: number, body: string): Ticket => ({
+		id: String(number),
+		tracker: "github",
+		key: `acme/widget#${number}`,
+		title: `Ticket ${number}`,
+		state: "open",
+		stateReason: null,
+		updatedAt: "2026-10-01T00:00:00.000Z",
+		body,
+		blockedBy: [],
+		milestone: null,
+		parent: null,
+		labels: [],
+		url: `${page}/issues/${number}`,
+	});
+
+	test("a ticket, its graph ends and its PR keep the host", async () => {
+		await withHostedRow(
+			{
+				tickets: [ticket(1, ""), ticket(2, "Blocked by: #1")],
+				pulls: [
+					{
+						...storedPull(7, { host: portHost }),
+						url: `${page}/pull/7`,
+						closingKeys: ["acme/widget#2"],
+					},
+				],
+			},
+			{
+				hosts: [{ host: portHost, forge: "github", tokenEnv }],
+				tracked: [{ ...widget, host: portHost }],
+			},
+			async (base) => {
+				const response = await fetch(
+					new URL(
+						`/api/projects/${encodeURIComponent(`${portHost}/acme/widget`)}`,
+						base,
+					),
+				);
+				const report = (await response.json()) as ProjectReport;
+				const second = report.tickets.find(
+					(item) => item.key === "acme/widget#2",
+				);
+				expect(second?.url).toBe(`${page}/issues/2`);
+				expect(second?.pullUrl).toBe(`${page}/pull/7`);
+				const link = report.graphLinks[0];
+				expect(link?.from.url).toBe(`${page}/issues/1`);
+				expect(link?.to.url).toBe(`${page}/issues/2`);
+			},
+			undefined,
+			portHost,
+		);
 	});
 });

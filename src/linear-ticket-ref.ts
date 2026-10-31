@@ -11,8 +11,3 @@ export function linearTicketRef(token: string): TicketRef | null {
 		? null
 		: { tracker: "linear", project: "", key: key.toUpperCase() };
 }
-
-/** The web page of the Linear ticket with `key`. Linear sends a link with no workspace to the ticket's page. */
-export function linearTicketUrl(key: string): string {
-	return `https://linear.app/issue/${key}`;
-}
