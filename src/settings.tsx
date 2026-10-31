@@ -103,7 +103,6 @@ function Menu({
 	stateSources,
 	polling,
 	onSave,
-	onTrack,
 	onResetStates,
 }: {
 	loaded: Configuration;
@@ -116,10 +115,6 @@ function Menu({
 	onSave: (
 		next: Configuration,
 		baseline: Configuration,
-	) => Promise<string | null>;
-	onTrack: (
-		tracked: ProjectPin[],
-		baselineTracked: ProjectPin[],
 	) => Promise<string | null>;
 	onResetStates: () => Promise<string | null>;
 }) {
@@ -220,9 +215,6 @@ function Menu({
 						trackers={backends.trackers}
 						draft={draft}
 						onChange={patch}
-						onTrack={(project, on) => {
-							void onTrackClick(project, on);
-						}}
 					/>
 					<ReviewSection
 						draft={draft}
@@ -282,39 +274,6 @@ function Menu({
 			baseline.current = { ...baseline.current, ...reset };
 			setSaved((current) => ({ ...current, ...reset }));
 			setDraft((current) => ({ ...current, ...reset }));
-		}
-	}
-
-	/** The switch saves the tracked list at once, and the other draft edits wait for Save. */
-	async function onTrackClick(
-		project: SettingsProject,
-		on: boolean,
-	): Promise<void> {
-		const before = baseline.current.tracked;
-		const tracked = on
-			? [...withoutProject(before, project), project.ref]
-			: withoutProject(before, project);
-		const settle = (pins: ProjectPin[]) => {
-			baseline.current = { ...baseline.current, tracked: pins };
-			setSaved((current) => ({ ...current, tracked: pins }));
-			setDraft((current) => ({ ...current, tracked: pins }));
-		};
-		settle(tracked);
-		setFailed(false);
-		setMessage(settingsCopy.savingToast);
-		setToast(0);
-		const error = await onTrack(tracked, before);
-		setFailed(error !== null);
-		setMessage(error ?? settingsCopy.savedToast);
-		setToast((shown) => shown + 1);
-		if (error !== null) {
-			// A failed save takes back only the pins of this project, so queued clicks keep their edits.
-			const others = withoutProject(baseline.current.tracked, project);
-			settle(
-				on
-					? others
-					: [...others, ...before.filter((pin) => isTracked([pin], project))],
-			);
 		}
 	}
 
@@ -440,13 +399,11 @@ function ProjectsTable({
 	trackers,
 	draft,
 	onChange,
-	onTrack,
 }: {
 	projects: SettingsProject[];
 	trackers: BackendViews["trackers"];
 	draft: Configuration;
 	onChange: (next: Partial<Configuration>) => void;
-	onTrack: (project: SettingsProject, on: boolean) => void;
 }) {
 	const filters: { kind: TrackerFilter; label: string }[] = [
 		{ kind: "all", label: settingsCopy.all },
@@ -555,7 +512,6 @@ function ProjectsTable({
 							project={project}
 							draft={draft}
 							onChange={onChange}
-							onTrack={(on) => onTrack(project, on)}
 						/>
 					))}
 				</tbody>
@@ -568,12 +524,10 @@ function ProjectRow({
 	project,
 	draft,
 	onChange,
-	onTrack,
 }: {
 	project: SettingsProject;
 	draft: Configuration;
 	onChange: (next: Partial<Configuration>) => void;
-	onTrack: (on: boolean) => void;
 }) {
 	const id = `${project.tracker}-${project.key.replace(/[^A-Za-z0-9]+/g, "-")}`;
 	const trackerLabel = useTrackerLabel();
@@ -595,7 +549,13 @@ function ProjectRow({
 					id={`track-${id}`}
 					checked={tracked}
 					label={`${settingsCopy.tracked} ${project.name}`}
-					onChange={onTrack}
+					onChange={(next) =>
+						onChange({
+							tracked: next
+								? [...draft.tracked, project.ref]
+								: withoutProject(draft.tracked, project),
+						})
+					}
 				/>
 			</td>
 			<td className={clsx(fields.switchCell)}>
@@ -704,18 +664,6 @@ export function Page() {
 						...live,
 						states: shippedStates,
 						stateMappings: {},
-					}));
-				} catch (cause) {
-					return cause instanceof Error ? cause.message : "save failed";
-				}
-				return null;
-			}}
-			onTrack={async (tracked, baselineTracked) => {
-				try {
-					await save.mutateAsync((live) => ({
-						...live,
-						tracked,
-						baselineTracked,
 					}));
 				} catch (cause) {
 					return cause instanceof Error ? cause.message : "save failed";
