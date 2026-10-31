@@ -42,8 +42,8 @@ const recordedThenFailing: Fetch = async (input, init) => {
 
 const running = await start({
 	configPath: process.argv[2] ?? "",
-	token: "recorded-token",
-	linearKey: null,
+	credentials: { github: "recorded-token", linear: null },
+	env: {},
 	fetch: answerRecordedRepoRead(recordedThenFailing),
 	databasePath,
 	hostname: "127.0.0.1",

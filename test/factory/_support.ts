@@ -259,7 +259,11 @@ export async function serveGithub(
 		readyLabel?: string;
 		args?: string[];
 		labels?: Record<number, string[]>;
+		/** A declared host whose pin of the same repo comes before the github.com pin. */
+		declaredHostFirst?: string;
 		hubAnswers?: Answers;
+		env?: Record<string, string>;
+		databasePath?: string;
 		otherFactories?: {
 			name: string;
 			url: string;
@@ -314,7 +318,21 @@ export async function serveGithub(
 	const app = await serve(
 		options.args ?? [],
 		{
-			pinned: [{ tracker: "github", repo }],
+			...(options.declaredHostFirst === undefined
+				? { pinned: [{ tracker: "github", repo }] }
+				: {
+						hosts: [
+							{
+								host: options.declaredHostFirst,
+								forge: "github",
+								tokenEnv: "ACME_FORGE_TOKEN",
+							},
+						],
+						pinned: [
+							{ tracker: "github", repo, host: options.declaredHostFirst },
+							{ tracker: "github", repo },
+						],
+					}),
 			factories: [
 				{
 					name: "work hub",
@@ -342,8 +360,11 @@ export async function serveGithub(
 			trackerWrites(writes, tracker),
 		),
 		{
-			env: { GITHUB_TOKEN: "recorded-token" },
+			env: options.env ?? { GITHUB_TOKEN: "recorded-token" },
 			now: () => new Date(now),
+			...(options.databasePath === undefined
+				? {}
+				: { databasePath: options.databasePath }),
 		},
 	);
 	return {

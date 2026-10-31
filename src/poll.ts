@@ -4,15 +4,15 @@ import {
 	departedNeedsYouIds,
 	notificationsFor,
 } from "./attention.ts";
+import type { Backends } from "./backends.ts";
 import type { AutoMerge, Configuration, Factory } from "./configuration.ts";
 import {
 	checkoutBasenames,
-	checkoutNamesProject,
-	githubRepoForTodo,
-	linearKeysForNames,
-	linearNamesFromCheckouts,
+	checkoutProjects,
+	namedTicketKeys,
 	projectSnapshots,
 	startedTodoKeys,
+	todoProjects,
 	todoRows,
 } from "./discovery.ts";
 import type {
@@ -25,10 +25,9 @@ import type {
 	ProjectPoll,
 	PullRequest,
 	Snapshot,
+	TrackerKind,
 	WorkcellRun,
 } from "./domain.ts";
-import { missingToken } from "./github.ts";
-import { missingLinearKey } from "./linear.ts";
 import { reconcilePoll } from "./poll-merge.ts";
 import type {
 	CheckoutSource,
@@ -47,9 +46,11 @@ import {
 	listedRef,
 	pinRef,
 	projectId,
+	refBoard,
 	refListed,
 	refRepo,
 	sameProject,
+	settingsKey,
 } from "./project-ref.ts";
 import {
 	overview,
@@ -87,19 +88,21 @@ function emptySnapshot(
 		pulls: [],
 		branches: [],
 		startedKeys,
+		...(project.host === undefined ? {} : { host: project.host }),
 		...(project.owner === undefined ? {} : { owner: project.owner }),
 		...(project.number === undefined ? {} : { number: project.number }),
 	};
 }
 
-function missingTracker(
+function unreadProject(
 	project: TrackedProject,
+	error: string,
 	startedKeys: string[],
 ): ProjectPoll {
 	return {
 		ref: project.ref,
 		ok: false,
-		error: project.tracker === "github" ? missingToken : missingLinearKey,
+		error,
 		full: false,
 		row: emptySnapshot(project, project.name ?? project.key, startedKeys),
 	};
@@ -157,18 +160,20 @@ function oncePerTurn(run: (publish: boolean) => void) {
 function readSince(
 	options: PollOptions,
 	project: TrackedProject,
+	tracker: Tracker,
 	stored: Snapshot | undefined,
 	polledAt: Date,
 ): Date | null {
 	const id = projectId(project.ref);
 	const lastGood = options.store.lastGoodPollAt(project.ref);
-	// A GitHub sub-issue keeps its updatedAt when its parent link changes, so
-	// only a full read at an interval catches the change. A GitHub project with
-	// a stored row starts that interval at its first read after a restart.
-	if (project.tracker === "github" && stored !== undefined) {
+	const intervalStart =
+		stored === undefined
+			? undefined
+			: tracker.fullReadIntervalStart?.(polledAt);
+	if (intervalStart !== undefined) {
 		options.lastFullPollAt.set(
 			id,
-			options.lastFullPollAt.get(id) ?? polledAt.getTime(),
+			options.lastFullPollAt.get(id) ?? intervalStart.getTime(),
 		);
 	}
 	const lastFull = options.lastFullPollAt.get(id) ?? null;
@@ -184,33 +189,39 @@ function readSince(
 	return full ? null : lastGood;
 }
 
+/** The PRs of a project, each list with the forge that read it. */
 async function listPulls(
 	options: PollOptions,
 	project: TrackedProject,
 	tracker: Tracker,
 	since: Date | null,
-): Promise<PullRequest[]> {
+): Promise<{ forge: Forge; pulls: PullRequest[] }[]> {
 	const refs = await tracker.pullRefs?.(project, since);
 	if (refs !== undefined) {
-		const pulls: PullRequest[] = [];
-		for (const [forge, links] of linksByForge(refs, options.forges)) {
+		const lists: { forge: Forge; pulls: PullRequest[] }[] = [];
+		for (const [forge, links] of linksByForge(refs, options.backends.forges)) {
 			const repos = links.map((link) => link.repo);
-			pulls.push(...(await forge.listLinkedPulls(links, repos)));
+			lists.push({ forge, pulls: await forge.listLinkedPulls(links, repos) });
 		}
-		return pulls;
+		return lists;
 	}
-	const forge = options.forge;
+	const forge = options.backends.forgeOf(project.ref);
 	if (forge === null) {
 		return [];
 	}
 	const repo = refRepo(project.ref);
 	if (repo !== null) {
-		return forge.listPulls(repo);
+		return [{ forge, pulls: await forge.listPulls(repo) }];
 	}
 	const linked = await tracker.pullLinks?.(project);
 	return linked === undefined
 		? []
-		: forge.listLinkedPulls(linked.links, linked.repos);
+		: [
+				{
+					forge,
+					pulls: await forge.listLinkedPulls(linked.links, linked.repos),
+				},
+			];
 }
 
 async function readListed(
@@ -222,31 +233,46 @@ async function readListed(
 	startedKeys: string[],
 	readRepos: Set<string>,
 ): Promise<PolledProject> {
-	const forge = options.forge;
+	const forge = options.backends.forgeOf(project.ref);
 	const listedTickets = await tracker.listTickets(
 		project,
 		since,
 		since === null ? [] : (stored?.tickets ?? []),
 	);
-	const pulls = await listPulls(options, project, tracker, since);
+	const lists = await listPulls(options, project, tracker, since);
 	const repo = refRepo(project.ref);
 	const branches =
 		repo !== null && forge !== null ? await forge.listBranches(repo) : [];
-	if (forge !== null) {
-		const repos = new Set([
-			...pulls.map((pull) => pull.repo),
-			...(repo === null ? [] : [repo]),
-		]);
-		for (const repo of repos) {
-			if (readRepos.has(repo)) {
-				continue;
-			}
-			readRepos.add(repo);
-			try {
-				options.repoAutoMerge[repo] = await forge.repoAutoMerge(repo);
-			} catch {
-				options.repoAutoMerge[repo] = false;
-			}
+	const { declaredHostOf } = options.backends;
+	const pulls = lists.flatMap((list) => {
+		const host = declaredHostOf(list.forge);
+		return host === undefined
+			? list.pulls
+			: list.pulls.map((pull) => ({ ...pull, host }));
+	});
+	const repoReads = new Map(
+		lists.flatMap((list) =>
+			list.pulls.map(
+				(pull) =>
+					[
+						settingsKey(pull.repo, declaredHostOf(list.forge)),
+						{ repo: pull.repo, forge: list.forge },
+					] as const,
+			),
+		),
+	);
+	if (repo !== null && forge !== null) {
+		repoReads.set(settingsKey(repo, declaredHostOf(forge)), { repo, forge });
+	}
+	for (const [id, read] of repoReads) {
+		if (readRepos.has(id)) {
+			continue;
+		}
+		readRepos.add(id);
+		try {
+			options.repoAutoMerge[id] = await read.forge.repoAutoMerge(read.repo);
+		} catch {
+			options.repoAutoMerge[id] = false;
 		}
 	}
 	return {
@@ -265,11 +291,7 @@ async function readListed(
 
 export type PollOptions = {
 	configuration: ConfigurationPort;
-	github: Tracker | null;
-	linear: Tracker | null;
-	forge: Forge | null;
-	/** The forge of each host that a PR reference can name. */
-	forges: ReadonlyMap<string, Forge>;
+	backends: Backends;
 	store: Store;
 	clock: Clock;
 	notifier: Notifier;
@@ -305,9 +327,12 @@ export type PollOptions = {
 };
 
 export async function poll(options: PollOptions): Promise<Configuration> {
-	options.github?.beginPoll?.();
-	options.linear?.beginPoll?.();
-	options.forge?.beginPoll?.();
+	for (const tracker of options.backends.trackers.values()) {
+		tracker.beginPoll?.();
+	}
+	for (const forge of options.backends.forges.values()) {
+		forge.beginPoll?.();
+	}
 	await options.holdLists;
 	if (options.stopped) {
 		options.polling = false;
@@ -351,80 +376,46 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 			options.workcellAuto[repo] = checkout.mergeAuto;
 		}
 	}
-	const linear = options.linear;
-	const github = options.github;
-	let githubPage: {
-		projects: FoundProject[];
-		viewer: Viewer | null;
-		error?: string;
-	} = {
-		projects: [],
-		viewer: null,
-	};
-	let linearViewer: Viewer | null = null;
+	const trackers = options.backends.trackers;
+	const viewers = new Map<TrackerKind, Viewer>();
+	const discovered: FoundProject[] = [];
 	let failed: string | null = null;
-	if (github !== null) {
+	for (const [kind, tracker] of trackers) {
 		try {
-			githubPage = await github.findProjects();
-			if (githubPage.error !== undefined) {
-				failed = githubPage.error;
+			const page = await tracker.findProjects();
+			if (page.error !== undefined) {
+				failed = page.error;
 			}
+			if (page.viewer !== null) {
+				viewers.set(kind, page.viewer);
+			}
+			mergeFound(discovered, page.projects);
 		} catch (error) {
 			failed = error instanceof Error ? error.message : "poll failed";
 		}
 	}
-	const discovered = [...githubPage.projects];
-	if (linear !== null) {
-		try {
-			const linearPage = await linear.findProjects();
-			linearViewer = linearPage.viewer;
-			mergeFound(discovered, linearPage.projects);
-		} catch (error) {
-			failed = error instanceof Error ? error.message : "poll failed";
-		}
-	}
-	options.viewers = [githubPage.viewer, linearViewer].flatMap((viewer) =>
-		viewer === null ? [] : [viewer],
+	options.viewers = [...viewers.values()];
+	mergeFound(
+		discovered,
+		checkoutProjects(checkouts, (kind) => viewers.get(kind) ?? null),
 	);
-	const viewer = githubPage.viewer;
-	for (const checkout of checkouts) {
-		if (checkout.tracker !== "github" || checkout.repo.trim() === "") {
-			continue;
-		}
-		if (
-			!checkoutNamesProject(
-				checkout.hasTrackerConfig,
-				checkout.originOwner,
-				viewer,
-			)
-		) {
-			continue;
-		}
-		mergeFound(discovered, [
-			{ key: checkout.repo.trim(), tracker: "github", updatedAt: null },
-		]);
-	}
 	const rows = todoRows(todoListing);
-	for (const row of rows) {
-		const repo = githubRepoForTodo(row.project, checkoutBasenames(checkouts));
-		if (repo === null) {
-			continue;
-		}
-		mergeFound(discovered, [{ key: repo, tracker: "github", updatedAt: null }]);
-	}
-	if (linear !== null) {
-		const keys = linearKeysForNames(linearNamesFromCheckouts(checkouts, rows));
-		mergeFound(discovered, (await linear.projectsForKeys?.(keys)) ?? []);
+	mergeFound(discovered, todoProjects(rows, checkouts));
+	const keys = namedTicketKeys(checkouts, rows);
+	for (const tracker of trackers.values()) {
+		mergeFound(discovered, (await tracker.projectsForKeys?.(keys)) ?? []);
 	}
 	const found = [...discovered];
 	const trackedProjects = new Map<FoundProject, TrackedProject>();
 	for (const pin of configuration.tracked) {
 		const ref = pinRef(pin);
 		const known = found.find((project) => sameProject(listedRef(project), ref));
+		const board = refBoard(ref);
+		const findPinned = trackers.get(ref.tracker)?.findPinnedProject;
 		const located =
 			known ??
-			(ref.kind === "github-project" && github?.findPinnedProject !== undefined
-				? await github.findPinnedProject(ref.owner, ref.number)
+			(board !== null && findPinned !== undefined
+				? await findPinned(board.owner, board.number)
 				: { ...refListed(ref), updatedAt: null });
 		if (located === null) {
 			continue;
@@ -488,9 +479,9 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 	const readProject = async (project: TrackedProject): Promise<void> => {
 		const id = projectId(project.ref);
 		const read = ++options.projectReads.count;
-		const tracker = project.tracker === "github" ? github : linear;
-		if (tracker === null) {
-			const outcome = missingTracker(project, startedKeys);
+		const reader = options.backends.readerOf(project.ref, configuration.hosts);
+		if ("error" in reader) {
+			const outcome = unreadProject(project, reader.error, startedKeys);
 			outcomes.set(id, outcome);
 			noteRead(options, id, read, outcome);
 			notePollProgress(options, configuration, tracked, outcomes);
@@ -499,7 +490,8 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 		const stored = storedRows.find((row) =>
 			sameProject(listedRef(row), project.ref),
 		);
-		const since = readSince(options, project, stored, polledAt);
+		const { tracker } = reader;
+		const since = readSince(options, project, tracker, stored, polledAt);
 		const full = since === null;
 		if (full) {
 			options.fullPoll.add(id);
@@ -692,16 +684,16 @@ export async function pollProject(
 		sameProject(listedRef(row), project.ref),
 	);
 	const startedKeys = stored?.startedKeys ?? [];
-	const tracker =
-		project.tracker === "github" ? options.github : options.linear;
+	const reader = options.backends.readerOf(project.ref, configuration.hosts);
 	let outcome: ProjectPoll;
-	if (tracker === null) {
-		outcome = missingTracker(project, startedKeys);
+	if ("error" in reader) {
+		outcome = unreadProject(project, reader.error, startedKeys);
 	} else {
+		const { tracker } = reader;
 		tracker.forgetProject?.(project);
 		const repo = refRepo(project.ref);
 		if (repo !== null) {
-			options.forge?.forgetRepo?.(repo);
+			options.backends.forgeOf(project.ref)?.forgetRepo?.(repo);
 		}
 		try {
 			const listing = await readListed(

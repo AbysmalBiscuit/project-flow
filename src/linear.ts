@@ -20,6 +20,9 @@ import { type FoundProject, type Tracker, TrackerError } from "./ports.ts";
 export const missingLinearKey =
 	"LINEAR_API_KEY is missing: set LINEAR_API_KEY to list Linear projects.";
 
+export const rejectedLinearKey =
+	"LINEAR_API_KEY was rejected by Linear (HTTP 401): set a valid key.";
+
 const pageInfo = linearPageInfo;
 
 const projectsQuery = `query MemberProjects($viewer: ID!, $after: String) {

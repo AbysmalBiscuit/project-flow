@@ -96,8 +96,8 @@ const silent: Fetch = (_input, init) =>
 const startedAt = performance.now();
 const running = await start({
 	configPath,
-	token: "recorded-token",
-	linearKey: null,
+	credentials: { github: "recorded-token", linear: null },
+	env: {},
 	fetch: silent,
 	databasePath,
 	hostname: "127.0.0.1",

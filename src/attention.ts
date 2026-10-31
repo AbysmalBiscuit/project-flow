@@ -22,6 +22,7 @@ import {
 	projectHasPmBot,
 	routedQuestion,
 } from "./open-ask.ts";
+import { settingsKey } from "./project-ref.ts";
 import { linked } from "./pull-links.ts";
 import {
 	type AutoMergeSources,
@@ -109,7 +110,11 @@ export function attentionOf(
 			const itemComments = commentSources(item, tickets, pulls);
 			const ask = openAsk(
 				itemComments,
-				projectHasPmBot(pmBot, view.row.key, view.row.tracker),
+				projectHasPmBot(
+					pmBot,
+					settingsKey(view.row.key, view.row.host),
+					view.row.tracker,
+				),
 			);
 			const reply =
 				item.reason === "ask" && ask !== null

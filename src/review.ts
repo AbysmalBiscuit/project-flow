@@ -1,7 +1,7 @@
 import type { AutoMerge } from "./configuration.ts";
 import type { BotReview, Comment, PullRequest, PullStatus } from "./domain.ts";
 import { type KnownBot, knownBots } from "./known-bots.ts";
-import { repoKey } from "./project-ref.ts";
+import { repoKey, settingsKey } from "./project-ref.ts";
 import { pullKey } from "./ticket-key.ts";
 import { workcellRun } from "./workcell.ts";
 
@@ -45,10 +45,12 @@ function expectedBotsFromHistory(
 	return knownBots.filter((bot) => found.has(bot));
 }
 
+/** The expected bots of each repo, by the `settingsKey` of the repo on the host of its PRs. */
 export function expectedBotsByRepo(
 	pulls: Pick<
 		PullRequest,
 		| "repo"
+		| "host"
 		| "merged"
 		| "retained"
 		| "checks"
@@ -58,14 +60,16 @@ export function expectedBotsByRepo(
 	>[],
 	overrides: Record<string, KnownBot[]>,
 ): Map<string, KnownBot[]> {
-	const repos = new Set(pulls.map((pull) => pull.repo));
+	const repos = new Set(pulls.map((pull) => settingsKey(pull.repo, pull.host)));
 	const bots = new Map<string, KnownBot[]>();
 	for (const repo of repos) {
 		const saved = repoKey(overrides, repo);
 		bots.set(
 			repo,
 			saved === undefined
-				? expectedBotsFromHistory(pulls.filter((pull) => pull.repo === repo))
+				? expectedBotsFromHistory(
+						pulls.filter((pull) => settingsKey(pull.repo, pull.host) === repo),
+					)
 				: (overrides[saved] ?? []),
 		);
 	}
@@ -242,7 +246,8 @@ function botCycle(
 ): { state: "inReview" | "awaitingMerge"; tags: string[] } {
 	const tags: string[] = [];
 	let waiting = false;
-	for (const bot of expectedByRepo.get(pull.repo) ?? []) {
+	for (const bot of expectedByRepo.get(settingsKey(pull.repo, pull.host)) ??
+		[]) {
 		const pass = botPass(pull, bot);
 		if (pass.warning !== null) {
 			tags.push(pass.warning);
@@ -258,6 +263,8 @@ export type AutoMergeSources = {
 	config: Record<string, AutoMerge>;
 	workcell: Record<string, AutoMerge>;
 	repo: Record<string, boolean>;
+	/** The declared host of the project whose PRs these sources judge. */
+	projectHost: string | undefined;
 };
 
 /** True when every open PR merges with no human. Workcell `merge_auto` applies only to `workcellPulls`. */
@@ -273,18 +280,29 @@ export function mergesOnItsOwn(
 		return false;
 	}
 	return open.every((pull) => {
+		const projectValue = (key: string) =>
+			pull.host !== undefined && key === pull.repo
+				? undefined
+				: auto.config[key];
 		const configured =
-			auto.config[pull.repo] ?? auto.config[projectKey] ?? auto.config[project];
+			auto.config[settingsKey(pull.repo, pull.host)] ??
+			projectValue(settingsKey(projectKey, auto.projectHost)) ??
+			projectValue(project);
 		if (configured !== undefined) {
 			return configured === "yes";
 		}
-		const workcell = workcellPulls.has(pullKey(pull))
-			? auto.workcell[pull.repo]
-			: undefined;
+		// A checkout names its repo without a host, so its value applies only to a PR on github.com.
+		const workcell =
+			pull.host === undefined && workcellPulls.has(pullKey(pull))
+				? auto.workcell[pull.repo]
+				: undefined;
 		if (workcell !== undefined) {
 			return workcell === "yes";
 		}
-		return pull.autoMerge === true || auto.repo[pull.repo] === true;
+		return (
+			pull.autoMerge === true ||
+			auto.repo[settingsKey(pull.repo, pull.host)] === true
+		);
 	});
 }
 

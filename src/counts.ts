@@ -31,7 +31,6 @@ import {
 	stateOfTicket,
 } from "./lanes.ts";
 import { ticketRelations } from "./links.ts";
-import { projectHasPmBot } from "./open-ask.ts";
 import { staleView } from "./poll-merge.ts";
 import { linked } from "./pull-links.ts";
 import { projectReport } from "./report.ts";
@@ -105,9 +104,7 @@ export function projectCounts(
 	graph: TicketGraph,
 	expectedBots: Map<string, KnownBot[]>,
 	status: FetchStatus,
-	rules: Omit<NeedsYouRules, "pmBot"> & {
-		pmBot: Record<string, boolean>;
-	},
+	rules: NeedsYouRules,
 	mappings: Pick<Configuration, "laneMappings" | "states" | "stateMappings">,
 	runStarts: RunStarts,
 	now: Date,
@@ -305,11 +302,7 @@ export function projectCounts(
 		shownByKey,
 		failedKeys,
 		blockedRuns,
-		{
-			labels: rules.labels,
-			viewerLogins: rules.viewerLogins,
-			pmBot: projectHasPmBot(rules.pmBot, key, tracker),
-		},
+		rules,
 		autoMerge,
 		workcellPulls,
 		key,

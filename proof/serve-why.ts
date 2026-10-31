@@ -223,8 +223,8 @@ process.env.XDG_DATA_HOME = root;
 
 const running = await start({
 	configPath: config,
-	token: "recorded-token",
-	linearKey: "recorded-linear-key",
+	credentials: { github: "recorded-token", linear: "recorded-linear-key" },
+	env: {},
 	fetch: answerRecordedRepoRead(recorded),
 	databasePath: join(root, "store.sqlite"),
 	hostname: "127.0.0.1",

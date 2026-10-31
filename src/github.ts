@@ -30,6 +30,9 @@ export { conditionalFetch, type ValidatorStore } from "./github-rest-cache.ts";
 export const missingToken =
 	'GITHUB_TOKEN is missing: set GITHUB_TOKEN or run "gh auth login".';
 
+export const rejectedToken =
+	"GITHUB_TOKEN was rejected by GitHub (HTTP 401): set a valid token.";
+
 export async function checkToken(
 	token: string,
 	fetchImpl: Fetch,
@@ -164,6 +167,10 @@ function githubTracker(
 		findProjects() {
 			return findGithubProjects(token, fetchImpl);
 		},
+		// A GitHub sub-issue keeps its updatedAt when its parent link changes, so
+		// only a full read at an interval catches the change. A stored project
+		// starts that interval at its first read after a restart.
+		fullReadIntervalStart: (polledAt) => polledAt,
 		findPinnedProject(owner, number) {
 			return githubProjectByNumber(token, fetchImpl, owner, number);
 		},

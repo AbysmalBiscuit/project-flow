@@ -6,23 +6,15 @@ import { dirname, join } from "node:path";
 
 import { version } from "../package.json";
 import { start } from "./app.ts";
+import { readCredentials, rejectedCredential } from "./backends.ts";
 import { configArgsForCheckout, parseFlags, usage } from "./cli-flags.ts";
 import { loadConfiguration } from "./configuration.ts";
 import { listDevkitCheckouts, listDevkitTodos } from "./devkit-checkouts.ts";
 import type { FactoryTokenMint } from "./factory-tokens.ts";
 import type { Fetch } from "./fetch.ts";
-import { checkToken, missingToken } from "./github.ts";
-import { checkLinearKey } from "./linear.ts";
 import { openBrowser } from "./open-browser.ts";
 import type { CheckoutSource, TodoSource } from "./ports.ts";
-import { TrackerError } from "./ports.ts";
 import { readGhAuthToken, runFactoryMint } from "./token-commands.ts";
-
-export { missingToken };
-export const rejectedToken =
-	"GITHUB_TOKEN was rejected by GitHub (HTTP 401): set a valid token.";
-export const rejectedLinearKey =
-	"LINEAR_API_KEY was rejected by Linear (HTTP 401): set a valid key.";
 
 export type RunIo = {
 	env: Record<string, string | undefined>;
@@ -66,20 +58,6 @@ export function defaultStorePath(
 function defaultConfigPath(env: Record<string, string | undefined>): string {
 	const root = env.XDG_CONFIG_HOME ?? join(homedir(), ".config");
 	return join(root, "project-flow", "config.json");
-}
-
-async function resolveToken(
-	io: RunIo,
-	envToken: string | null,
-): Promise<string | null> {
-	if (envToken !== null) {
-		return envToken;
-	}
-	const fromGh = await io.readGhToken(io.env);
-	if (fromGh === null || fromGh.trim() === "") {
-		return null;
-	}
-	return fromGh;
 }
 
 async function openStore(path: string): Promise<void> {
@@ -135,20 +113,13 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			writeErr(`created configuration file: ${configPath}`);
 		}
 		const configuration = await loadConfiguration(configPath);
-		const fromEnv = io.env.GITHUB_TOKEN;
-		const envToken =
-			fromEnv !== undefined && fromEnv.trim() !== "" ? fromEnv : null;
-		const token = await resolveToken(io, envToken);
-		const linearKey = io.env.LINEAR_API_KEY?.trim() ?? "";
-		const needsLinear = configuration.tracked.some(
-			(pin) => pin.tracker === "linear",
-		);
+		const credentials = await readCredentials(io);
 		const databasePath = io.databasePath ?? defaultStorePath(io.env);
 		await openStore(databasePath);
 		const running = await start({
 			configPath,
-			token,
-			linearKey: linearKey === "" ? null : linearKey,
+			credentials,
+			env: io.env,
 			fetch: io.fetch,
 			databasePath,
 			hostname: hostFlag ?? io.hostname ?? "127.0.0.1",
@@ -186,42 +157,17 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 				writeErr("warning: could not open the browser"),
 			);
 		}
-		const credential = (async (): Promise<string | null> => {
-			const warn = (message: string) => {
-				writeErr(message);
-				return null;
-			};
-			try {
-				if (token !== null) {
-					const user = await checkToken(token, io.fetch);
-					if (user.status === 401) {
-						return rejectedToken;
-					}
-					if (!user.ok) {
-						return warn(`GitHub token check failed (HTTP ${user.status}).`);
-					}
-				}
-				if (needsLinear && linearKey !== "") {
-					const rejected = await checkLinearKey(linearKey, io.fetch).then(
-						() => false,
-						(error: unknown) => {
-							if (error instanceof TrackerError && error.status === 401) {
-								return true;
-							}
-							throw error;
-						},
-					);
-					if (rejected) {
-						return rejectedLinearKey;
-					}
-				}
-				return null;
-			} catch (error) {
-				return warn(
-					error instanceof Error ? error.message : "credential check failed",
-				);
-			}
-		})();
+		const credential = rejectedCredential(
+			credentials,
+			configuration,
+			io.fetch,
+			writeErr,
+		).catch((error: unknown) => {
+			writeErr(
+				error instanceof Error ? error.message : "credential check failed",
+			);
+			return null;
+		});
 		const stop = io.waitForStop ?? new Promise<void>(() => {});
 		const outcome = await Promise.race([
 			credential.then((message) => ({ kind: "credential" as const, message })),

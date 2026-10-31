@@ -143,8 +143,8 @@ if (mode === "refresh") {
 
 const running = await start({
 	configPath,
-	token: "recorded-token",
-	linearKey: "recorded-linear-key",
+	credentials: { github: "recorded-token", linear: "recorded-linear-key" },
+	env: {},
 	fetch: answerRecordedRepoRead(recorded),
 	databasePath: join(dir, "project-flow.sqlite"),
 	hostname: "127.0.0.1",

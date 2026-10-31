@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { Overview } from "../../src/domain.ts";
-import { rejectedToken, run } from "../../src/main.ts";
+import { rejectedToken } from "../../src/github.ts";
+import { run } from "../../src/main.ts";
 import { tempConfig, testIo } from "../support/app.ts";
 import { urlOf } from "../support/fetch.ts";
 import { recordedDiscovery, unrecorded } from "../support/github.ts";

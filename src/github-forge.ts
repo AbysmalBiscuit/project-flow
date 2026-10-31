@@ -5,8 +5,6 @@ import { readAutoMerge } from "./github-repo-query.ts";
 import { type Forge, TrackerError } from "./ports.ts";
 import { githubKey } from "./ticket-key.ts";
 
-export const githubHost = "github.com";
-
 export function githubForge(
 	token: string,
 	fetchImpl: Fetch,

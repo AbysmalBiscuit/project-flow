@@ -154,6 +154,27 @@ proc = Bun.spawn([gh, "auth", "token"], {
 
 The app reads `LINEAR_API_KEY` from the environment. A blank value does not count. With the key set, the app finds Linear projects. With no key, each Linear project shows an error that names `LINEAR_API_KEY`. The projects of the other tracker poll. A rejected token or key exits and names that credential.
 
+### Declared hosts
+
+The `hosts` list declares each self-hosted host with its forge kind and the env var of its token. A GitHub repo pin names its host with `host`:
+
+```json
+{
+	"hosts": [
+		{ "host": "git.acme.dev", "forge": "github", "tokenEnv": "ACME_TOKEN" }
+	],
+	"tracked": [
+		{ "tracker": "github", "repo": "acme/widget", "host": "git.acme.dev" }
+	]
+}
+```
+
+A pin with no `host` is on github.com. A pin with `host` set to `github.com` is the same project as a pin with no `host`. The load fails when a pin names a host that `hosts` does not declare. The load also fails when `hosts` declares `github.com`, `gitlab.com` or one host two times. The name `gitlab.com` stays reserved until its adapter exists, so a pin cannot use it.
+
+With no token in the env var, each project of the host shows an error that names the env var. The projects of other hosts poll. With a token, the project shows an error when no adapter can read the host. The app does not send that token to another host.
+
+`expectedBots`, `pmBot` and `autoMerge` keep the settings of a repo on a declared host under `host/owner/name`, such as `git.acme.dev/acme/widget`. The same repo on github.com keeps its own settings under `owner/name`. A bare key does not apply to a repo on a declared host.
+
 ## Store
 
 The store is a Bun SQLite file. The path is `$XDG_DATA_HOME/project-flow/project-flow.sqlite`. When `XDG_DATA_HOME` is unset, the path is `~/.local/share/project-flow/project-flow.sqlite`.

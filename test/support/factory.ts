@@ -151,7 +151,12 @@ export async function serve(
 	args: string[],
 	config: Record<string, unknown>,
 	fetchImpl: Fetch,
-	io: { env?: Record<string, string>; now?: () => Date } = {},
+	io: {
+		env?: Record<string, string>;
+		now?: () => Date;
+		/** A store that outlives the app, so a second start reads what the first stored. */
+		databasePath?: string;
+	} = {},
 ): Promise<{
 	base: string;
 	configPath: string;
@@ -174,7 +179,7 @@ export async function serve(
 			fetch: fetchImpl,
 			readGhToken: async () => null,
 			listCheckouts: async () => [],
-			databasePath: join(root, "store.sqlite"),
+			databasePath: io.databasePath ?? join(root, "store.sqlite"),
 			stdout: (line) => listened(line),
 			waitForStop: stopped,
 			runTickMs: 25,

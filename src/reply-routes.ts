@@ -9,7 +9,7 @@ import { recordedReply, replyRequest } from "./replies.ts";
 import { routeTable } from "./route-table.ts";
 import type { staleReads } from "./stale-reads.ts";
 import { threadResponse } from "./thread-response.ts";
-import { trackerError, trackerFor, type Trackers } from "./tracker-route.ts";
+import { trackerError, type TrackerOf } from "./tracker-route.ts";
 
 const replyBody = z.object({
 	tracker: z.enum(trackerKinds),
@@ -22,7 +22,7 @@ const replyBody = z.object({
 });
 
 async function replyResponse(
-	trackers: Trackers,
+	trackerOf: TrackerOf,
 	request: Request,
 	options: PollOptions,
 	notifier: Notifier,
@@ -32,7 +32,7 @@ async function replyResponse(
 	if (!parsed.success) {
 		return Response.json({ error: "invalid reply" }, { status: 400 });
 	}
-	const tracker = trackerFor(trackers, parsed.data.tracker);
+	const { tracker } = trackerOf(parsed.data.tracker, parsed.data.project);
 	if (tracker?.postReply === undefined) {
 		return Response.json({ error: "tracker unavailable" }, { status: 404 });
 	}
@@ -62,7 +62,7 @@ async function replyResponse(
 }
 
 export type ReplyRouteOptions = {
-	trackers: Trackers;
+	trackerOf: TrackerOf;
 	pollOptions: PollOptions;
 	notifier: Notifier;
 	configuration: () => Configuration;
@@ -73,7 +73,7 @@ export type ReplyRouteOptions = {
 
 /** The routes that read the thread of a ticket and post a reply to it. */
 export function replyRoutes({
-	trackers,
+	trackerOf,
 	pollOptions,
 	notifier,
 	configuration,
@@ -86,7 +86,7 @@ export function replyRoutes({
 			GET: (request) =>
 				staleRead(readKey(request), () =>
 					threadResponse(
-						trackers,
+						trackerOf,
 						request.params.tracker,
 						request.params.key,
 						request,
@@ -97,7 +97,7 @@ export function replyRoutes({
 		"/api/replies": {
 			POST: (request) =>
 				replyResponse(
-					trackers,
+					trackerOf,
 					request,
 					pollOptions,
 					notifier,
