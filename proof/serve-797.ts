@@ -37,7 +37,7 @@ const asks = {
 		{
 			id: 9,
 			node_path: "review/senior_question",
-			text: "The review found two gaps.\n\n**Severity:** major\n\n- `src/token.ts` has no test for the `read:org` check\n- the scope error names no fix\n\nShould the run add the test and the error text?\n\n<script>alert(1)</script>",
+			text: "This waits on Lev: the review found two gaps.\n\n**Severity:** major\n\n- `src/token.ts` has no test for the `read:org` check\n- the scope error names no fix\n\nShould the run add the test and the error text?\n\n<script>alert(1)</script>",
 			answer: null,
 		},
 	],
