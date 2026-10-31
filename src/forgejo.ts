@@ -57,15 +57,19 @@ async function readBlockers(
 	return dependencies.map((dependency) => ({
 		tracker: "forgejo",
 		project: settingsKey(dependency.repository.full_name, host),
-		key: numberedKey(dependency.repository.full_name, dependency.number),
+		key: numberedKey(
+			settingsKey(dependency.repository.full_name, host),
+			dependency.number,
+		),
 		state: dependency.state === "closed" ? "closed" : "open",
 		title: dependency.title,
 	}));
 }
 
+/** A ticket of `hostedRepo`, the `host/owner/name` form, so that one repo name on two hosts gives two tickets. */
 function ticketOf(
 	issue: ForgejoIssue,
-	repo: string,
+	hostedRepo: string,
 	parent: number | undefined,
 	blockedBy: TicketRef[],
 ): Ticket {
@@ -73,7 +77,7 @@ function ticketOf(
 	return {
 		id: String(issue.number),
 		tracker: "forgejo",
-		key: numberedKey(repo, issue.number),
+		key: numberedKey(hostedRepo, issue.number),
 		title: issue.title,
 		url: issue.html_url,
 		state: issue.state === "closed" ? "closed" : "open",
@@ -84,7 +88,7 @@ function ticketOf(
 		body: issue.body ?? "",
 		blockedBy,
 		milestone: issue.milestone?.title ?? null,
-		parent: parent === undefined ? null : numberedKey(repo, parent),
+		parent: parent === undefined ? null : numberedKey(hostedRepo, parent),
 		labels: (issue.labels ?? []).map(({ name }) => name),
 		...(assignees.length === 0
 			? {}
@@ -140,7 +144,12 @@ export function forgejoTracker(
 							? stored.blockedBy
 							: await readBlockers(client, access.host, repo, issue.number);
 				tickets.push(
-					ticketOf(issue, repo, parents.get(issue.number), blockedBy),
+					ticketOf(
+						issue,
+						settingsKey(repo, access.host),
+						parents.get(issue.number),
+						blockedBy,
+					),
 				);
 			}
 			return { name: repo, tickets };

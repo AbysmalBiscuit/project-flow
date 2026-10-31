@@ -188,7 +188,7 @@ A repo on a declared Forgejo host is a project with the `forgejo` tracker. The p
 }
 ```
 
-Codeberg is a Forgejo host with no special case, so it needs a declaration. Settings lists each repo that the token of a declared Forgejo host can read. Milestones set the workstreams, and native issue dependencies give the blocker links. Forgejo has no sub-issues, so a task list item such as `- [ ] #12` makes the issue that holds it the parent ticket of #12. A factory cannot start a run on a Forgejo ticket, and the side panel does not read its thread.
+Codeberg is a Forgejo host with no special case, so it needs a declaration. A Forgejo ticket key carries its host, such as `codeberg.org/owner/repo#12`, so one repo name on two hosts gives two tickets. A reference in a Forgejo ticket body names a ticket only on the host of that ticket. Settings lists each repo that the token of a declared Forgejo host can read. Milestones set the workstreams, and native issue dependencies give the blocker links. Forgejo has no sub-issues, so a task list item such as `- [ ] #12` makes the issue that holds it the parent ticket of #12. A factory cannot start a run on a Forgejo ticket, and the side panel does not read its thread.
 
 With no token in the env var, each project of the host shows an error that names the env var. The projects of other hosts poll. With a token, the project shows an error when no adapter can read the host. The app does not send that token to another host.
 

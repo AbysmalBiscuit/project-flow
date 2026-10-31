@@ -2,9 +2,11 @@ import { describe, expect, test } from "bun:test";
 
 import type { ProjectReport, SettingsProject } from "../../src/domain.ts";
 import issues from "../fixtures/forgejo-issues.json";
+import openPulls from "../fixtures/forgejo-open-pulls.json";
 import { withApp } from "../project-harness.ts";
-import { json } from "../support/fetch.ts";
+import { json, urlOf } from "../support/fetch.ts";
 import {
+	codeberg,
 	env,
 	host,
 	hosts,
@@ -19,15 +21,17 @@ import { readOverview, readWhere, settledSettings } from "../support/reads.ts";
 
 const pin = { tracker: "forgejo", repo: scratch, host };
 const tracked = JSON.stringify({ hosts, tracked: [pin] });
-const keyOf = (number: number) => `${scratch}#${number}`;
+const keyOf = (number: number) => `${host}/${scratch}#${number}`;
 
 async function forgejoCard(base: string) {
 	const { projects } = await readOverview(base);
 	return projects.find((project) => project.tracker === "forgejo");
 }
 
-async function report(base: string): Promise<ProjectReport> {
-	const name = `${host}/${scratch}`;
+async function report(
+	base: string,
+	name = `${host}/${scratch}`,
+): Promise<ProjectReport> {
 	const response = await fetch(
 		new URL(`/api/projects/${encodeURIComponent(name)}?view=all`, base),
 	);
@@ -251,6 +255,97 @@ describe("a tracked Forgejo repo", () => {
 				expect(ticket).toBeDefined();
 				expect(ticket?.runStart).toBeUndefined();
 				expect(ticket?.queued).toBeUndefined();
+			},
+		);
+	});
+});
+
+describe("Forgejo tickets on two hosts", () => {
+	const acme = "git.acme.dev";
+	const keyOn = (on: string, number: number) => `${on}/${scratch}#${number}`;
+
+	test("keep the blockers of each host apart when the repo names match", async () => {
+		const codebergOnly = linearWithCodeberg([], {}, []);
+		await withApp(
+			JSON.stringify({
+				hosts: [...hosts, { host: acme, forge: "forgejo", tokenEnv }],
+				tracked: [pin, { ...pin, host: acme }],
+			}),
+			async (input, init) => {
+				const url = urlOf(input);
+				if (!url.startsWith(`https://${acme}/`)) {
+					return codebergOnly(input, init);
+				}
+				const path = url.slice(`https://${acme}`.length);
+				return path.includes("/issues/5/dependencies")
+					? json([])
+					: (codeberg(`https://${host}${path}`, {}) ?? json([], 404));
+			},
+			env,
+			async (base) => {
+				const blockedBy = async (on: string) =>
+					(await report(base, `${on}/${scratch}`)).tickets
+						.find((item) => item.key === keyOn(on, 5))
+						?.blockedBy?.map(({ key }) => key);
+				expect(await blockedBy(host)).toEqual([keyOn(host, 4)]);
+				expect(await blockedBy(acme)).toEqual([]);
+			},
+		);
+	});
+});
+
+describe("an issue URL in a Forgejo ticket body", () => {
+	test("names a ticket only on the host of that ticket", async () => {
+		const bodies = () =>
+			json(
+				issues.map((issue) =>
+					issue.number === 1
+						? {
+								...issue,
+								body: `Blocked by: https://${host}/${scratch}/issues/4`,
+							}
+						: issue.number === 2
+							? {
+									...issue,
+									body: `Blocked by: https://other.example/${scratch}/issues/4`,
+								}
+							: issue,
+				),
+			);
+		await withApp(
+			tracked,
+			linearWithCodeberg([], { answers: { "/issues?": bodies } }, []),
+			env,
+			async (base) => {
+				const blocked = (await report(base)).tickets.flatMap((item) =>
+					item.blocked === true ? [item.key] : [],
+				);
+				expect(blocked).toContain(keyOf(1));
+				expect(blocked).not.toContain(keyOf(2));
+			},
+		);
+	});
+});
+
+describe("a Forgejo PR whose branch names no ticket", () => {
+	test("moves the ticket that its body closes", async () => {
+		const renamed = () =>
+			json(
+				openPulls.map((pull) =>
+					pull.number === 10
+						? { ...pull, head: { ...pull.head, ref: "export-page" } }
+						: pull,
+				),
+			);
+		await withApp(
+			tracked,
+			linearWithCodeberg([], { answers: { "/pulls?state=open": renamed } }, []),
+			env,
+			async (base) => {
+				const ticket = (await report(base)).tickets.find(
+					(item) => item.key === keyOf(6),
+				);
+				expect(ticket?.state).toBe("awaitingMerge");
 			},
 		);
 	});
