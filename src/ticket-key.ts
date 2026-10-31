@@ -125,22 +125,30 @@ export function ticketRefId(ref: {
 	return id(ref.project, ref.tracker, foldKey(ref.key));
 }
 
-export function needsYouSeenId(item: { project: string; key: string }): string {
-	return id("needsYou", itemId(item.project, item.key));
+/** An item that Needs you lists. A PR on a declared host carries the host. */
+type AttentionItem = { project: string; key: string; host?: string };
+
+/** The id of a Needs you item: the host of a PR qualifies its key. */
+export function attentionItemId(item: AttentionItem): string {
+	return itemId(item.project, settingsKey(item.key, item.host));
+}
+
+export function needsYouSeenId(item: AttentionItem): string {
+	return id("needsYou", attentionItemId(item));
 }
 
 export function needsYouNotificationId(
-	item: { project: string; key: string },
+	item: AttentionItem,
 	at: string,
 ): string {
 	return id(needsYouSeenId(item), at);
 }
 
 export function commentNotificationId(
-	item: { project: string; key: string },
+	item: AttentionItem,
 	stamp: string,
 ): string {
-	return id("comment", itemId(item.project, item.key), stamp);
+	return id("comment", attentionItemId(item), stamp);
 }
 
 export function blockerClearedId(

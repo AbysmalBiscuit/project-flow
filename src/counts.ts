@@ -90,6 +90,7 @@ function unlinkedPrView(
 		pull: pullKey(pull),
 		pullUrl: pull.url,
 		unlinkedPr: true,
+		...(pull.host === undefined ? {} : { host: pull.host }),
 		workstream: unlinkedPrGroup,
 		workstreamKey: unlinkedPrGroup,
 		theme: unlinkedPrGroup,

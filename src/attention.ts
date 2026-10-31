@@ -31,15 +31,14 @@ import {
 	reviewState,
 } from "./review.ts";
 import {
+	attentionItemId,
 	blockerClearedId,
 	commentNotificationId,
 	foldKey,
-	itemId,
 	needsYouNotificationId,
 	needsYouSeenId,
 	pullId,
 	pullKey,
-	sameTicketKey,
 	ticketId,
 	ticketRefId,
 } from "./ticket-key.ts";
@@ -75,9 +74,8 @@ function commentSources(
 		const linkedPulls = linked(ticket, pulls);
 		return [...(ticket.comments ?? []), ...linkedPulls.flatMap(pullComments)];
 	}
-	const pull = pulls.find((candidate) =>
-		sameTicketKey(pullKey(candidate), item.key),
-	);
+	const id = foldKey(settingsKey(item.key, item.host));
+	const pull = pulls.find((candidate) => pullId(candidate) === id);
 	return pull === undefined ? [] : pullComments(pull);
 }
 
@@ -123,13 +121,14 @@ export function attentionOf(
 					? (ask.answer?.comment ?? null)
 					: null;
 			const newest = newestComment(itemComments);
-			comments.set(itemId(item.project, item.key), {
+			comments.set(attentionItemId(item), {
 				stamp: newest.stamp,
 				replyStamp: reply?.createdAt ?? "",
 				authors: newest.authors,
 				project: item.project,
 				tracker: item.tracker,
 				key: item.key,
+				...(item.host === undefined ? {} : { host: item.host }),
 			});
 		}
 		for (const blocker of view.counts.crossProjectBlockers) {
@@ -177,12 +176,9 @@ export function departedNeedsYouIds(
 	after: Attention,
 	loadedProjects: ReadonlySet<string>,
 ): string[] {
-	const current = new Set(
-		after.needsYou.map((item) => itemId(item.project, item.key)),
-	);
+	const current = new Set(after.needsYou.map((item) => attentionItemId(item)));
 	return before.needsYou.flatMap((item) =>
-		!loadedProjects.has(item.project) ||
-		current.has(itemId(item.project, item.key))
+		!loadedProjects.has(item.project) || current.has(attentionItemId(item))
 			? []
 			: [needsYouSeenId(item)],
 	);
@@ -222,10 +218,10 @@ export function notificationsFor(
 	};
 	if (triggers.needsYou) {
 		const previous = new Set(
-			before.needsYou.map((item) => itemId(item.project, item.key)),
+			before.needsYou.map((item) => attentionItemId(item)),
 		);
 		for (const item of after.needsYou) {
-			const id = itemId(item.project, item.key);
+			const id = attentionItemId(item);
 			if (previous.has(id)) {
 				continue;
 			}
@@ -257,7 +253,7 @@ export function notificationsFor(
 				continue;
 			}
 			const item = after.needsYou.find(
-				(candidate) => itemId(candidate.project, candidate.key) === id,
+				(candidate) => attentionItemId(candidate) === id,
 			);
 			push(
 				"comment",
@@ -335,6 +331,25 @@ function needsYouItem(
 		...(pull === undefined ? {} : { pull: pullStatus(pull) }),
 		...(factoryAsk === undefined ? {} : { factoryAsk }),
 	};
+}
+
+/** The item of a PR with no ticket. The item carries the declared host of the PR. */
+function pullItem(
+	project: string,
+	pull: PullRequest,
+	ask: OpenAsk | null,
+	reason: NeedsYouItem["reason"],
+): NeedsYouItem {
+	const item = needsYouItem(
+		project,
+		"github",
+		pullKey(pull),
+		pull.title,
+		ask,
+		reason,
+		[pull],
+	);
+	return pull.host === undefined ? item : { ...item, host: pull.host };
 }
 
 /**
@@ -462,11 +477,7 @@ export function needsYouItems(
 			continue;
 		}
 		listed.add(pullId(pull));
-		items.push(
-			needsYouItem(project, "github", pullKey(pull), pull.title, ask, "ask", [
-				pull,
-			]),
-		);
+		items.push(pullItem(project, pull, ask, "ask"));
 	}
 	for (const pull of unlinkedPulls) {
 		if (listed.has(pullId(pull))) {
@@ -478,17 +489,7 @@ export function needsYouItems(
 		if (mergesOnItsOwn([pull], project, projectKey, autoMerge, workcellPulls)) {
 			continue;
 		}
-		items.push(
-			needsYouItem(
-				project,
-				"github",
-				pullKey(pull),
-				pull.title,
-				null,
-				"awaitingMerge",
-				[pull],
-			),
-		);
+		items.push(pullItem(project, pull, null, "awaitingMerge"));
 	}
 	items.sort((left, right) => Number(left.answered) - Number(right.answered));
 	return items;

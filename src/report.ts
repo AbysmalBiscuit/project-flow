@@ -13,6 +13,7 @@ import type {
 } from "./domain.ts";
 import { placeTickets } from "./grouping.ts";
 import { shownGraph, type ticketRelations } from "./links.ts";
+import { settingsKey } from "./project-ref.ts";
 import type { HidingFilter } from "./terms.ts";
 import { foldKey, pullKey } from "./ticket-key.ts";
 import {
@@ -112,7 +113,9 @@ export function projectReport(
 		},
 		{ id: "backlog", title: "Backlog", items: backlog },
 	];
-	const needsKeys = new Set(needs.map((item) => foldKey(item.key)));
+	const needsKeys = new Set(
+		needs.map((item) => foldKey(settingsKey(item.key, item.host))),
+	);
 	const placedByKey = new Map(
 		placed.flatMap((item) =>
 			item.ticket.key === null
@@ -161,7 +164,8 @@ export function projectReport(
 	const boardTickets = [
 		...ticketViews,
 		...unlinkedPrs.map((view) =>
-			view.key !== null && needsKeys.has(foldKey(view.key))
+			view.key !== null &&
+			needsKeys.has(foldKey(settingsKey(view.key, view.host)))
 				? { ...view, needsYou: true as const }
 				: view,
 		),

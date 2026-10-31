@@ -60,7 +60,7 @@ import {
 } from "./project-views.ts";
 import { linksByForge } from "./pull-links.ts";
 import type { StartRequest } from "./run-start.ts";
-import { needsYouSeenId } from "./ticket-key.ts";
+import { needsYouNotificationId, needsYouSeenId } from "./ticket-key.ts";
 
 function mergeFound(
 	found: FoundProject[],
@@ -638,10 +638,16 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 		options.seenNotifications.delete(id);
 	}
 	options.store.forgetSeededIds(departed);
+	const seenIdOf = new Map(
+		after.needsYou.map((item) => [
+			needsYouNotificationId(item, polledAt.toISOString()),
+			needsYouSeenId(item),
+		]),
+	);
 	for (const entry of notifications) {
 		options.seenNotifications.add(entry.id);
-		if (entry.trigger === "needsYou") {
-			const seenId = needsYouSeenId(entry);
+		const seenId = seenIdOf.get(entry.id);
+		if (entry.trigger === "needsYou" && seenId !== undefined) {
 			options.seenNotifications.add(seenId);
 			options.store.recordSeededIds([seenId]);
 		}

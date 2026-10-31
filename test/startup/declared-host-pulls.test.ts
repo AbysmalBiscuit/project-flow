@@ -120,6 +120,84 @@ describe("a project that holds PR #1 on github.com and on a declared host", () =
 		return items.map((item) => item.pull?.url);
 	}
 
+	test("the project report marks only the PR that needs you", async () => {
+		await withPulls(
+			{
+				pulls: [homePull({ comments: [openAsk] }), hostedPull({ draft: true })],
+			},
+			{},
+			async (base) => {
+				const response = await settledRead(
+					new URL(`/api/projects/${encodeURIComponent(hostedKey)}`, base),
+				);
+				const report = (await response.json()) as {
+					tickets: { pullUrl?: string; needsYou?: true }[];
+				};
+				expect(
+					report.tickets.flatMap(({ pullUrl, needsYou }) =>
+						pullUrl === undefined ? [] : [{ pullUrl, needsYou }],
+					),
+				).toEqual([
+					{ pullUrl: homeUrl, needsYou: true },
+					{ pullUrl: hostedUrl, needsYou: undefined },
+				]);
+			},
+		);
+	});
+
+	test("an ask on the PR on github.com notifies while the PR on the host already asks", async () => {
+		const homeAsk = {
+			number: 1,
+			title: "Change 1",
+			state: "open",
+			draft: false,
+			html_url: homeUrl,
+			head: { ref: "change-1", sha: "head" },
+			body: "",
+		};
+		const recorded = {
+			issues: [],
+			pulls: [] as Record<string, unknown>[],
+			checksBySha: {},
+			commentsByPull: {
+				1: [
+					{
+						user: { login: "agent" },
+						body: openAsk.body,
+						created_at: "2026-10-02T00:00:00Z",
+					},
+				],
+			},
+			reviewsByPull: {},
+			reactionsByPull: {},
+		};
+		await withStoredRows(
+			[widgetRow({ pulls: [hostedPull({ comments: [openAsk] })] })],
+			{ hosts, tracked: [widget] },
+			async (base) => {
+				await settledOverview(base, readOverview<{ polling?: true }>);
+				expect(await needsYouUrls(base)).toEqual([hostedUrl]);
+				recorded.pulls.push(homeAsk);
+				const refresh = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(refresh.status).toBe(204);
+				const inbox = await readWhere<{ trigger: string; key: string }[]>(
+					new URL("/api/inbox", base),
+					(entries) => entries.length > 0,
+				);
+				expect(inbox.map(({ trigger, key }) => ({ trigger, key }))).toEqual([
+					{ trigger: "needsYou", key: "acme/widget#1" },
+				]);
+				expect((await needsYouUrls(base)).toSorted()).toEqual(
+					[homeUrl, hostedUrl].toSorted(),
+				);
+			},
+			githubFetch(recorded),
+			new Date(Date.now() - 60 * 1000),
+		);
+	});
+
 	test("a link to the PR on github.com leaves the PR on the host unlinked", async () => {
 		await withPulls(
 			{

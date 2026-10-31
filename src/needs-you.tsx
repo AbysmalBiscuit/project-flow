@@ -26,7 +26,7 @@ import {
 	reasonOrder,
 	reasonTab,
 } from "./terms.ts";
-import { itemId, ticketRefId } from "./ticket-key.ts";
+import { attentionItemId, itemId, ticketRefId } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 
 const allReasons = "all";
@@ -131,7 +131,7 @@ function NeedsGroups({
 						<ul className={clsx(needs.list)}>
 							{grouped.map((item) => (
 								<NeedsItem
-									key={itemId(item.project, item.key)}
+									key={attentionItemId(item)}
 									item={item}
 									selected={selected === itemId(item.project, item.key)}
 									onOpen={() => onOpen(item)}
