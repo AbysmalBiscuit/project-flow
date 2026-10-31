@@ -85,12 +85,14 @@ describe("settings", () => {
 				fetch(new URL("/api/settings", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						const { trackers, forges, switches } = (await response.json()) as {
-							trackers: unknown;
-							forges: unknown;
-							switches: unknown;
-						};
-						expect({ trackers, forges, switches }).toEqual(
+						const { trackers, forges, hints, switches } =
+							(await response.json()) as {
+								trackers: unknown;
+								forges: unknown;
+								hints: unknown;
+								switches: unknown;
+							};
+						expect({ trackers, forges, hints, switches }).toEqual(
 							listedBackends("missing"),
 						);
 						resolve();

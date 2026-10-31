@@ -216,7 +216,11 @@ function Menu({
 						draft={draft}
 						onChange={patch}
 					/>
-					<ReviewSection draft={draft} onChange={patch} />
+					<ReviewSection
+						draft={draft}
+						laneHint={backends.hints.laneMappings}
+						onChange={patch}
+					/>
 					<NotificationsSection
 						draft={draft}
 						permission={permission}
@@ -226,6 +230,7 @@ function Menu({
 					<FactoriesSection
 						draft={draft}
 						entries={factoryEntries}
+						runStartHint={backends.hints.runStart}
 						onChange={patch}
 					/>
 					<SettingsBar

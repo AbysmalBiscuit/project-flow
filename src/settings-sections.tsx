@@ -272,9 +272,11 @@ export function ProjectViewsSection({
 
 export function ReviewSection({
 	draft,
+	laneHint,
 	onChange,
 }: {
 	draft: Configuration;
+	laneHint: string;
 	onChange: (next: Partial<Configuration>) => void;
 }) {
 	return (
@@ -296,7 +298,7 @@ export function ReviewSection({
 					onChange={(viewerLogins) => onChange({ viewerLogins })}
 				/>
 			</Row>
-			<Row title={settingsCopy.laneMappings} hint={settingsCopy.laneHint}>
+			<Row title={settingsCopy.laneMappings} hint={laneHint}>
 				<MappingEditor
 					mappings={draft.laneMappings}
 					onChange={(laneMappings) => onChange({ laneMappings })}

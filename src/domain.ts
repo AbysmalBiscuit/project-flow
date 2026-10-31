@@ -50,6 +50,8 @@ export type BackendViews = {
 	})[];
 	forges: BackendView<ForgeKind>[];
 	switches: BackendSwitch[];
+	/** Settings hints that name the backends. */
+	hints: { runStart: string; laneMappings: string };
 };
 
 export * from "./kinds.ts";

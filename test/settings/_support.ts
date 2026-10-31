@@ -693,6 +693,12 @@ export function listedBackends(credential: "present" | "missing") {
 			},
 		],
 		forges: [github],
+		hints: {
+			runStart:
+				"Start run on a GitHub ticket adds the start and queue label. Start run on a Linear ticket writes the workflow state and labels that its hub source names. A GitHub ticket with the label and the queue status of a factory shows as queued. A Linear ticket in the state and labels of its hub source's ready mapping shows as queued.",
+			laneMappings:
+				"Map a state to a tracker status name for one Linear team or GitHub project.",
+		},
 		switches: [
 			{
 				setting: "factoryGithubTokens",

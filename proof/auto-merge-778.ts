@@ -73,7 +73,12 @@ const options: PollOptions = {
 	backends: {
 		trackers: new Map([["linear", tracker]]),
 		forges,
-		views: { trackers: [], forges: [], switches: [] },
+		views: {
+			trackers: [],
+			forges: [],
+			switches: [],
+			hints: { runStart: "", laneMappings: "" },
+		},
 		readerOf: () => ({ tracker }),
 		forgeLabelOf: () => undefined,
 		forgeOf: () => null,

@@ -478,10 +478,13 @@ describe("settings", () => {
 			).json()) as Configuration & {
 				trackers: unknown;
 				forges: unknown;
+				hints: unknown;
 				switches: unknown;
 			};
-			const { trackers, forges, switches } = before;
-			expect({ trackers, forges, switches }).toEqual(listedBackends("present"));
+			const { trackers, forges, hints, switches } = before;
+			expect({ trackers, forges, hints, switches }).toEqual(
+				listedBackends("present"),
+			);
 			expect(JSON.stringify(before)).not.toContain("recorded-token");
 			expect(JSON.stringify(before)).not.toContain("recorded-linear-key");
 
@@ -548,6 +551,7 @@ describe("settings", () => {
 				).json()) as Configuration & {
 					trackers: unknown;
 					forges: unknown;
+					hints: unknown;
 					switches: unknown;
 				};
 				expect(again.tracked).toEqual([{ tracker: "github", repo: shown }]);
@@ -562,6 +566,7 @@ describe("settings", () => {
 				expect({
 					trackers: again.trackers,
 					forges: again.forges,
+					hints: again.hints,
 					switches: again.switches,
 				}).toEqual(listedBackends("present"));
 				expect(JSON.stringify(again)).not.toContain("recorded-linear-key");
