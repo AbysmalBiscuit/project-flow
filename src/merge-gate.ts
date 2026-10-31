@@ -5,27 +5,22 @@ import type {
 	PullRequest,
 } from "./domain.ts";
 import { openImportantQuestions } from "./important-questions.ts";
+import { ciOf } from "./review.ts";
 import { mergeGateReason } from "./terms.ts";
-
-const passingConclusions = new Set(["success", "skipped", "neutral"]);
 
 /** The actions that the forge of the PR at `url` can take. */
 export type PullActionsOf = (url: string) => PullAction[];
 
 /** Whether Project Flow lets Lev merge an awaiting PR, and the reason when it does not. */
 function mergeGate(pull: PullRequest): MergeGate {
-	const finished = pull.checks.flatMap((check) =>
-		check.status === "completed" && check.conclusion !== null
-			? [check.conclusion]
-			: [],
-	);
-	if (finished.some((conclusion) => !passingConclusions.has(conclusion))) {
+	const ci = ciOf(pull);
+	if (ci === "failing") {
 		return { open: false, reason: mergeGateReason.failedCheck };
 	}
 	if (openImportantQuestions(pull.body).length > 0) {
 		return { open: false, reason: mergeGateReason.openQuestion };
 	}
-	if (finished.length < pull.checks.length) {
+	if (ci === "pending") {
 		return { open: false, reason: mergeGateReason.pendingCheck };
 	}
 	return { open: true };
