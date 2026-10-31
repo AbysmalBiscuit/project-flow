@@ -191,6 +191,16 @@ const refused = [
 		reason: "A check failed",
 	},
 	{
+		name: "a check that ended with action required",
+		fake: {
+			checks: [
+				passedCheck,
+				{ name: "deploy", status: "completed", conclusion: "action_required" },
+			],
+		},
+		reason: "A check failed",
+	},
+	{
 		name: "an open Important Question",
 		fake: { body: openQuestionBody },
 		reason: "An Important Question is open",
