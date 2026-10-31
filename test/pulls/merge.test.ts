@@ -274,6 +274,61 @@ describe("merge an awaiting PR", () => {
 		});
 	}
 
+	const crossSite = [
+		{
+			name: "a form post from another site",
+			headers: {
+				"content-type": "text/plain",
+				origin: "https://attacker.example",
+			},
+			status: 403,
+		},
+		{
+			name: "a JSON post from another site",
+			headers: {
+				"content-type": "application/json",
+				origin: "https://attacker.example",
+			},
+			status: 403,
+		},
+		{
+			name: "a text post with no origin",
+			headers: { "content-type": "text/plain" },
+			status: 415,
+		},
+	];
+
+	for (const { name, headers, status } of crossSite) {
+		test(`${name} is refused, and GitHub gets no request`, async () => {
+			const fake = mergeFake();
+			await withApp(widgetConfig, fake.fetch, githubEnv, async (base) => {
+				const sent = await fetch(new URL("/api/pulls/merge", base), {
+					method: "POST",
+					headers,
+					body: JSON.stringify({ url: pullUrl }),
+				});
+				expect(sent.status).toBe(status);
+				expect(fake.merges).toEqual([]);
+			});
+		});
+	}
+
+	test("a merge from the page origin is accepted", async () => {
+		const fake = mergeFake();
+		await withApp(widgetConfig, fake.fetch, githubEnv, async (base) => {
+			const sent = await fetch(new URL("/api/pulls/merge", base), {
+				method: "POST",
+				headers: {
+					"content-type": "application/json",
+					origin: new URL(base).origin,
+				},
+				body: JSON.stringify({ url: pullUrl }),
+			});
+			expect(sent.status).toBe(204);
+			expect(fake.merges).toHaveLength(1);
+		});
+	});
+
 	test("a merge of a PR that is not in Awaiting merge is refused, and GitHub gets no request", async () => {
 		const fake = mergeFake();
 		await withApp(widgetConfig, fake.fetch, githubEnv, async (base) => {
