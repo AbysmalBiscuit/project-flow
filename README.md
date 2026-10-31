@@ -55,7 +55,9 @@ The file can be empty `{}`. `src/configuration.ts` holds the schema. That schema
 - `viewerLogins` adds logins that count as Lev. A blank entry does not count. The tracker logins always count. The default is `[]`.
 - `notificationTriggers` turns each notification on or off. `needsYou` fires for a new needs-you item. `comment` fires for a new comment. `blockerCleared` fires when a cross-project blocker clears. The default for each one is `true`.
 
-A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin names a `project` slug. Each pin sets `tracker` to `github` or `linear`. `tracked` holds pins of this shape.
+A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin names a `project` slug. A GitLab pin names the `repo` path of a gitlab.com repo, with each group and subgroup. Each pin sets `tracker` to `github`, `linear` or `gitlab`. `tracked` holds pins of this shape.
+
+A GitLab project is one repo and its issues and tasks. Its milestones set the workstreams. A `blocks` or `is_blocked_by` link shows as a blocker, and a `relates_to` link does not. A GitLab group or epic is not a project.
 
 ```json
 {
@@ -152,7 +154,9 @@ proc = Bun.spawn([gh, "auth", "token"], {
 });
 ```
 
-The app reads `GITLAB_TOKEN` from the environment to read PRs on gitlab.com. A blank value does not count. GitLab has no CLI fallback. With no token, a project that links a gitlab.com PR shows an error that names `GITLAB_TOKEN`. That project keeps its tickets, and the PRs of each forge that has a token. A rejected token stops the start. A self-hosted GitLab host does not read PRs yet.
+The app reads `GITLAB_TOKEN` from the environment to read tickets and PRs on gitlab.com. A blank value does not count. GitLab has no CLI fallback. With the token set, Settings lists each GitLab repo that the token is a member of. With no token, each GitLab project shows an error that names `GITLAB_TOKEN`. A project that links a gitlab.com PR shows the same error. That project keeps its tickets, and the PRs of each forge that has a token. A rejected token stops the start. A self-hosted GitLab host does not read tickets or PRs yet.
+
+GitLab numbers merge requests apart from issues. The app writes the key of a GitLab PR as `repo!number`, and the key of a GitLab ticket as `repo#number`.
 
 GitLab has no repo auto-merge setting that the app reads. The auto-merge of a GitLab PR comes from the `autoMerge` configuration, the workcell keys and the "merge when the pipeline succeeds" flag of the PR. A merge train does not make a PR merge without a human.
 
@@ -173,7 +177,7 @@ The `hosts` list declares each self-hosted host with its forge kind and the env 
 }
 ```
 
-A pin with no `host` is on github.com. A pin with `host` set to `github.com` is the same project as a pin with no `host`. The load fails when a pin names a host that `hosts` does not declare. The load also fails when `hosts` declares `github.com`, `gitlab.com` or one host two times. The app knows `gitlab.com` as a forge with no declaration. GitLab issues are not tickets, so a pin cannot use `gitlab.com`.
+A pin with no `host` is on github.com. A pin with `host` set to `github.com` is the same project as a pin with no `host`. The load fails when a pin names a host that `hosts` does not declare. The load also fails when `hosts` declares `github.com`, `gitlab.com` or one host two times. The app knows `gitlab.com` as a tracker and a forge with no declaration. A GitLab pin has no `host`, and reads gitlab.com.
 
 A repo on a declared Forgejo host is a project with the `forgejo` tracker. The pin names the repo and its host:
 

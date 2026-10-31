@@ -18,7 +18,7 @@ import type {
 import type { HidingFilter } from "./terms.ts";
 import type { GroupBy } from "./view-settings.ts";
 
-export const trackerKinds = ["github", "linear", "forgejo"] as const;
+export const trackerKinds = ["github", "linear", "gitlab", "forgejo"] as const;
 
 export type TrackerKind = (typeof trackerKinds)[number];
 
@@ -240,6 +240,8 @@ export type PullRequest = {
 	 */
 	retained?: true;
 	autoMerge?: boolean;
+	/** The mark between the repo and the number in the PR's key, on a forge that numbers PRs apart from tickets. */
+	mark?: "!";
 	checks: BotCheck[];
 	comments: BotComment[];
 	reviews: BotReview[];
@@ -536,9 +538,10 @@ export type PollReconcile = {
 	globalError: string | null;
 };
 
-/** The tickets of one project, with its repo when the project is a GitHub repo. */
+/** The tickets of one project, with its repo when the project is one repo. */
 export type ProjectGroup = {
 	project: string;
+	tracker: TrackerKind;
 	repo: string | null;
 	tickets: Ticket[];
 };

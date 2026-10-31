@@ -3,8 +3,12 @@
  * `bun test/fixtures/gitlab/record.ts`. The scratch repo reads need no token.
  * The notes read needs `GITLAB_TOKEN`, so the run skips it with no token.
  * The rows of the third-party repo keep only the fields that the forge reads.
+ * The membership list of projects needs a token, so the run records the
+ * scratch project itself, and the fake lists it as the one member project.
  */
 import { join } from "node:path";
+
+import { workItemsQuery } from "../../../src/gitlab-tracker.ts";
 
 const api = "https://gitlab.com/api/v4/projects";
 const scratch = `${api}/${encodeURIComponent("AbysmalBiscuit/project-flow-scratch")}`;
@@ -110,4 +114,40 @@ await write(
 		await read(`${publicRepo}/merge_requests/${mergedPull}`),
 		mergeRequestFields,
 	),
+);
+
+const workItems: Record<string, unknown> = {};
+for (const [state, sort] of [
+	["opened", "CREATED_DESC"],
+	["closed", "UPDATED_DESC"],
+] as const) {
+	const response = await fetch("https://gitlab.com/api/graphql", {
+		method: "POST",
+		headers: { ...headers, "content-type": "application/json" },
+		body: JSON.stringify({
+			query: workItemsQuery,
+			variables: {
+				path: "AbysmalBiscuit/project-flow-scratch",
+				state,
+				sort,
+				after: null,
+			},
+		}),
+	});
+	if (!response.ok) {
+		throw new Error(`work items ${state}: HTTP ${response.status}`);
+	}
+	workItems[state] = await response.json();
+}
+await write("work-items.json", workItems);
+await write(
+	"project.json",
+	picked(await read(scratch), [
+		"id",
+		"path_with_namespace",
+		"name_with_namespace",
+		"web_url",
+		"last_activity_at",
+		"archived",
+	]),
 );

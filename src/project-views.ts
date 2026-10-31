@@ -84,6 +84,7 @@ function trackedRows(options: PollOptions, configuration: Configuration) {
 		const repo = refRepo(listedRef(row));
 		return {
 			project: row.host === undefined ? (repo ?? row.name) : row.name,
+			tracker: row.tracker,
 			repo,
 			tickets: row.tickets,
 		};

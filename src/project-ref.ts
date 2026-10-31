@@ -1,7 +1,7 @@
 import type { ProjectPin } from "./configuration.ts";
 import type { TrackerKind } from "./domain.ts";
 
-// GitHub and Forgejo owner and repo names compare without case. Linear keys
+// GitHub, GitLab and Forgejo repo paths compare without case. Linear keys
 // compare as they are.
 
 /**
@@ -11,6 +11,7 @@ import type { TrackerKind } from "./domain.ts";
 export type ProjectRef =
 	| { kind: "linear-project"; tracker: "linear"; key: string }
 	| { kind: "github-repo"; tracker: "github"; key: string; host?: string }
+	| { kind: "gitlab-repo"; tracker: "gitlab"; key: string }
 	| { kind: "forgejo-repo"; tracker: "forgejo"; key: string; host: string }
 	| {
 			kind: "github-project";
@@ -72,6 +73,9 @@ export function pinRef(pin: ProjectPin): ProjectRef {
 	if (pin.tracker === "linear") {
 		return { kind: "linear-project", tracker: "linear", key: pin.project };
 	}
+	if (pin.tracker === "gitlab") {
+		return { kind: "gitlab-repo", tracker: "gitlab", key: pin.repo };
+	}
 	if (pin.tracker === "forgejo") {
 		return forgejoRepo(pin.repo, pin.host);
 	}
@@ -85,6 +89,9 @@ export function pinRef(pin: ProjectPin): ProjectRef {
 export function listedRef(project: ListedRef): ProjectRef {
 	if (project.tracker === "linear") {
 		return { kind: "linear-project", tracker: "linear", key: project.key };
+	}
+	if (project.tracker === "gitlab") {
+		return { kind: "gitlab-repo", tracker: "gitlab", key: project.key };
 	}
 	if (project.tracker === "forgejo") {
 		// An empty host is declared by no configuration, so its reader answers the error.
@@ -143,12 +150,16 @@ export function refPin(ref: ProjectRef): ProjectPin {
 			return { tracker: "forgejo", repo: ref.key, host: ref.host };
 		case "github-project":
 			return { tracker: "github", owner: ref.owner, project: ref.number };
+		case "gitlab-repo":
+			return { tracker: "gitlab", repo: ref.key };
 	}
 }
 
-/** The repo of a repo project, or null for any other kind. */
+/** The repo of a project that is one repo, or null for any other kind. */
 export function refRepo(ref: ProjectRef): string | null {
-	return ref.kind === "github-repo" || ref.kind === "forgejo-repo"
+	return ref.kind === "github-repo" ||
+		ref.kind === "gitlab-repo" ||
+		ref.kind === "forgejo-repo"
 		? ref.key
 		: null;
 }

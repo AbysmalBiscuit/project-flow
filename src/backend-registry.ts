@@ -29,11 +29,12 @@ import {
 import {
 	checkGitlabToken,
 	gitlabForge,
-	gitlabHost,
 	gitlabPullOfUrl,
 	missingGitlabToken,
 	rejectedGitlabToken,
 } from "./gitlab-forge.ts";
+import { gitlabHost } from "./gitlab-pin.ts";
+import { gitlabTracker } from "./gitlab-tracker.ts";
 import {
 	checkLinearKey,
 	linearTracker,
@@ -231,6 +232,8 @@ export function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 				},
 				pullOfUrl: gitlabPullOfUrl,
 			},
+			tracker: ({ host, token, fetch }) =>
+				host === gitlabHost ? gitlabTracker(host, token, fetch) : null,
 			forge: ({ host, token, fetch }) =>
 				host === gitlabHost ? gitlabForge(host, token, fetch) : null,
 		},

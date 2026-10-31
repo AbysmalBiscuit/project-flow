@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import type { ProjectReport } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
 import approvals from "../fixtures/gitlab/approvals.json";
@@ -5,6 +7,8 @@ import branches from "../fixtures/gitlab/branches.json";
 import jobs from "../fixtures/gitlab/jobs.json";
 import opened from "../fixtures/gitlab/merge-requests-opened.json";
 import pipelines from "../fixtures/gitlab/pipelines.json";
+import scratchProject from "../fixtures/gitlab/project.json";
+import workItems from "../fixtures/gitlab/work-items.json";
 import { withServer } from "../support/app.ts";
 import { json, urlOf } from "../support/fetch.ts";
 import { linearFake } from "../support/linear.ts";
@@ -17,11 +21,11 @@ export const gitlabEnv = {
 	GITLAB_TOKEN: "recorded-gitlab-token",
 };
 
-const api = `https://gitlab.com/api/v4/projects/${encodeURIComponent(gitlabRepo)}`;
-
 type MergeRequest = (typeof opened)[number];
 
 export type GitlabFake = {
+	/** The path that the recorded repo answers as, such as a path in a subgroup. */
+	repo?: string;
 	/** Changes to the recorded open PRs, by iid. */
 	open?: Record<number, Partial<MergeRequest>>;
 	/** The merged PRs of the repo. The scratch repo has none. */
@@ -32,6 +36,18 @@ export type GitlabFake = {
 	jobs?: Record<string, unknown[]>;
 	/** The HTTP status of `GET /user`. */
 	userStatus?: number;
+	/**
+	 * The link type of a work item to another, by the iid of each end. GitLab
+	 * refuses blocker links on the tier of the scratch repo, which links its
+	 * tickets as `relates_to`. A test sets the type of a recorded link here.
+	 */
+	linkTypes?: Record<string, Record<string, string>>;
+	/** The pages of the member projects. The recorded scratch project is the one page by default. */
+	memberPages?: unknown[][];
+	/** The parent of a work item, by iid, ahead of the recorded one. */
+	parents?: Record<string, { repo: string; iid: string; title: string }>;
+	/** The description of a work item, by iid, ahead of the recorded one. */
+	descriptions?: Record<string, string>;
 	/** Each GitLab request URL that the app sent. */
 	sent?: string[];
 };
@@ -43,21 +59,110 @@ function byKey<Value>(
 	return key === undefined ? undefined : record?.[key];
 }
 
+type WorkItemState = keyof typeof workItems;
+
+const workItemsBody = z.object({
+	variables: z.object({
+		path: z.string(),
+		state: z.enum(["opened", "closed"]),
+	}),
+});
+
+/** A recorded answer as the repo at `repo` would give it. */
+function asRepo<Value>(recorded: Value, repo: string): Value {
+	return JSON.parse(JSON.stringify(recorded).replaceAll(gitlabRepo, repo));
+}
+
+function parentOf({
+	repo,
+	iid,
+	title,
+}: NonNullable<GitlabFake["parents"]>[string]) {
+	return {
+		iid,
+		title,
+		state: "OPEN",
+		webUrl: `https://gitlab.com/${repo}/-/work_items/${iid}`,
+		namespace: { fullPath: repo },
+	};
+}
+
+/** The recorded work items of one state, with the link types and descriptions of the fake. */
+function workItemsOf(
+	state: WorkItemState,
+	{ linkTypes = {}, descriptions = {}, parents = {} }: GitlabFake,
+) {
+	const recorded = workItems[state];
+	return {
+		data: {
+			project: {
+				workItems: {
+					...recorded.data.project.workItems,
+					nodes: recorded.data.project.workItems.nodes.map((item) => {
+						const parent = parents[item.iid];
+						return {
+							...item,
+							description: descriptions[item.iid] ?? item.description,
+							widgets: item.widgets.map((widget) =>
+								"parent" in widget && parent !== undefined
+									? { parent: parentOf(parent) }
+									: "linkedItems" in widget && widget.linkedItems !== undefined
+										? {
+												linkedItems: {
+													nodes: widget.linkedItems.nodes.map((link) => ({
+														...link,
+														linkType:
+															linkTypes[item.iid]?.[link.workItem.iid] ??
+															link.linkType,
+													})),
+												},
+											}
+										: widget,
+							),
+						};
+					}),
+				},
+			},
+		},
+	};
+}
+
 /**
  * Answers the GitLab API from the responses that `test/fixtures/gitlab/record.ts`
  * recorded. The notes read needs a token to record, so it answers an empty list.
  */
 export function gitlabFake(options: GitlabFake = {}): Fetch {
-	const openRequests = opened.map((request) => ({
+	const repo = options.repo ?? gitlabRepo;
+	const openRequests = asRepo(opened, repo).map((request) => ({
 		...request,
 		...options.open?.[request.iid],
 	}));
 	const merged = options.merged ?? [];
-	return async (input) => {
+	const api = `https://gitlab.com/api/v4/projects/${encodeURIComponent(repo)}`;
+	return async (input, init) => {
 		const url = new URL(urlOf(input));
 		options.sent?.push(url.href);
 		if (url.href === "https://gitlab.com/api/v4/user") {
 			return json({ id: 2274988, username: "lev" }, options.userStatus ?? 200);
+		}
+		if (url.href === "https://gitlab.com/api/graphql") {
+			const { variables } = workItemsBody.parse(
+				JSON.parse(String(init?.body ?? "")),
+			);
+			return json(
+				variables.path === repo
+					? asRepo(workItemsOf(variables.state, options), repo)
+					: { data: { project: null } },
+			);
+		}
+		if (
+			url.pathname === "/api/v4/projects" &&
+			url.searchParams.get("membership") === "true"
+		) {
+			const pages = options.memberPages ?? [[scratchProject]];
+			const index = Number(url.searchParams.get("page") ?? "1") - 1;
+			const next = index + 1 < pages.length ? String(index + 2) : "";
+			return json(pages[index] ?? [], 200, { "x-next-page": next });
 		}
 		const path = url.pathname.slice(new URL(api).pathname.length);
 		if (!url.href.startsWith(api)) {
@@ -133,6 +238,11 @@ export function linearWithGitlab(
 			? gitlab(input, init)
 			: linear(input, init);
 }
+
+export const gitlabPin = {
+	tracker: "gitlab" as const,
+	repo: gitlabRepo,
+};
 
 export const linearPin = {
 	tracker: "linear" as const,

@@ -1,4 +1,5 @@
 import type { TicketRef } from "./domain.ts";
+import type { RefScope } from "./ref-scope.ts";
 import { numberedKey } from "./ticket-key.ts";
 
 const hostedRepoShape = /^([^/\s]+)\/[^/\s]+\/[^/\s]+$/;
@@ -8,16 +9,16 @@ const sameRepoShape = /^#(\d+)$/;
 
 /**
  * The ticket that an issue URL, a repo key or a bare `#number` names on the
- * host of `repo`. `repo` is the `host/owner/name` form of the repo that holds
- * the text, so a reference to another host or from another tracker names no
- * Forgejo ticket.
+ * host of the scope's repo. That repo is the `host/owner/name` form of the
+ * repo that holds the text, so a reference to another host or from another
+ * tracker names no Forgejo ticket.
  */
 export function forgejoTicketRef(
 	token: string,
-	repo: string | null,
+	{ repo, tracker }: RefScope,
 ): TicketRef | null {
 	const host = repo?.match(hostedRepoShape)?.[1];
-	if (repo === null || host === undefined) {
+	if (tracker !== "forgejo" || repo === null || host === undefined) {
 		return null;
 	}
 	const ref = (project: string, number: string): TicketRef => ({
