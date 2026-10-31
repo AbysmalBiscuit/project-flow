@@ -85,6 +85,15 @@ function statusCheck({
 	}
 }
 
+const passingConclusions = new Set(["success", "skipped", "neutral"]);
+
+function passes(check: BotCheck): boolean {
+	return (
+		check.status === "completed" &&
+		passingConclusions.has(check.conclusion ?? "")
+	);
+}
+
 export function gitlabPullOfUrl({
 	protocol,
 	pathname,
@@ -211,24 +220,24 @@ export function gitlabForge(
 			repo,
 		);
 		const checks = jobs.map(statusCheck);
+		const pipelineCheck =
+			current === undefined
+				? null
+				: statusCheck({
+						name: "pipeline",
+						status: current.status,
+						allow_failure: false,
+					});
 		// A pipeline of external commit statuses has no jobs, and the jobs list
 		// leaves out trigger jobs, so the pipeline status stands for what is unlisted.
 		const unlisted =
-			current !== undefined &&
-			(jobs.length === 0 ||
-				(current.status === "failed" &&
-					!checks.some((check) => check.conclusion === "failure")));
+			pipelineCheck !== null &&
+			(jobs.length === 0 || (!passes(pipelineCheck) && checks.every(passes)));
 		return {
-			checks: unlisted
-				? [
-						...checks,
-						statusCheck({
-							name: "pipeline",
-							status: current.status,
-							allow_failure: false,
-						}),
-					]
-				: checks,
+			checks:
+				unlisted && pipelineCheck !== null
+					? [...checks, pipelineCheck]
+					: checks,
 			// GitLab owns the approval reset policy, and its approvals API gives no
 			// commit for an approval, so each current approval counts on the head.
 			reviews: approved.body.approved_by.map(({ user }) => ({

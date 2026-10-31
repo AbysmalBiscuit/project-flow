@@ -65,6 +65,29 @@ describe("the CI of a GitLab PR", () => {
 	});
 
 	test.each([
+		["running", "pending"],
+		["pending", "pending"],
+		["canceled", "failing"],
+	] as const)(
+		"a %s pipeline whose listed jobs passed gives %s CI",
+		async (status, ci) => {
+			await withLinkedPull(
+				{
+					pipelines: { 1: [{ ...recordedPipeline, status }] },
+					jobs: {
+						[recordedPipeline.id]: [
+							{ name: "test", status: "success", allow_failure: false },
+						],
+					},
+				},
+				async (base) => {
+					expect(await ciOf(base, "WID-1")).toBe(ci);
+				},
+			);
+		},
+	);
+
+	test.each([
 		[false, "pending"],
 		[true, "passing"],
 	] as const)(
