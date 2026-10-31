@@ -80,10 +80,7 @@ type Backend<Kind extends BackendKind> = {
 } & (Kind extends TrackerKind ? { tracker: Factory<Tracker> } : unknown) &
 	(Kind extends ForgeKind ? { forge: Factory<Forge> } : unknown);
 
-/**
- * The one record that names each backend. A registry holds the adapters of one
- * app start, so that the tracker and the forge of a kind share one client.
- */
+/** The help texts of Settings that name each backend. */
 const backendHints: BackendViews["hints"] = {
 	runStart:
 		"Start run on a GitHub ticket adds the start and queue label. Start run on a Linear ticket writes the workflow state and labels that its hub source names. A GitHub ticket with the label and the queue status of a factory shows as queued. A Linear ticket in the state and labels of its hub source's ready mapping shows as queued.",
@@ -91,6 +88,10 @@ const backendHints: BackendViews["hints"] = {
 		"Map a state to a tracker status name for one Linear team or GitHub project.",
 };
 
+/**
+ * The one record that names each backend. A registry holds the adapters of one
+ * app start, so that the tracker and the forge of a kind share one client.
+ */
 function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 	let github: ReturnType<typeof githubAdapters> | undefined;
 	const githubOf = ({ host, token, repoFetch }: AdapterContext) => {
