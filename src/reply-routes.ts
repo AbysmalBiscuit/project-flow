@@ -15,6 +15,7 @@ const replyBody = z.object({
 	tracker: z.enum(trackerKinds),
 	project: z.string().trim().min(1),
 	key: z.string().trim().min(1),
+	host: z.string().trim().min(1).optional(),
 	body: z.string().optional(),
 	option: z.number().int().positive().optional(),
 	parentId: z.string().optional(),
@@ -32,7 +33,11 @@ async function replyResponse(
 	if (!parsed.success) {
 		return Response.json({ error: "invalid reply" }, { status: 400 });
 	}
-	const { tracker } = trackerOf(parsed.data.tracker, parsed.data.project);
+	const { tracker } = trackerOf(
+		parsed.data.tracker,
+		parsed.data.project,
+		parsed.data.host,
+	);
 	if (tracker?.postReply === undefined) {
 		return Response.json({ error: "tracker unavailable" }, { status: 404 });
 	}

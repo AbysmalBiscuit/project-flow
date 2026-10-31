@@ -259,11 +259,7 @@ function InboxList({
 											data-trigger={entry.trigger}
 											data-read={entry.read ? "true" : "false"}
 											onClick={() => {
-												openTicket({
-													project: entry.project,
-													tracker: entry.tracker,
-													key: entry.key,
-												});
+												openTicket(entry);
 												if (!entry.read) {
 													markOne(entry.id);
 												}

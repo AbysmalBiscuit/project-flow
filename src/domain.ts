@@ -200,6 +200,8 @@ export type TicketView = {
 	startsCollapsed?: true;
 	/** The view is an unlinked PR, not a ticket. */
 	unlinkedPr?: true;
+	/** The declared host of an unlinked PR. A PR on github.com has none. */
+	host?: string;
 };
 
 export type CrossProjectBlocker = {
@@ -384,6 +386,8 @@ export type NeedsYouItem = {
 	question?: string;
 	options?: AskOption[];
 	pull?: PullStatus;
+	/** The declared host of the PR that the item names. A PR on github.com has none. */
+	host?: string;
 	/** The count of Important Questions on the open PRs that have no answer. */
 	openQuestions?: number;
 	/** The factory question that the ask comes from, and the run that waits on it. */
@@ -398,6 +402,8 @@ export type Notification = {
 	project: string;
 	tracker: TrackerKind;
 	key: string;
+	/** The declared host of the PR that the notification names. */
+	host?: string;
 	text: string;
 	at: string;
 	read: boolean;
@@ -414,6 +420,7 @@ export type Attention = {
 			project: string;
 			tracker: TrackerKind;
 			key: string;
+			host?: string;
 		}
 	>;
 	blockers: Map<
@@ -590,7 +597,7 @@ export type SettingsProject = {
 
 export type SettingsSnapshot = Pick<
 	Snapshot,
-	"key" | "name" | "tracker" | "owner" | "number" | "board"
+	"key" | "name" | "tracker" | "host" | "owner" | "number" | "board"
 > & {
 	pulls: Pick<
 		PullRequest,

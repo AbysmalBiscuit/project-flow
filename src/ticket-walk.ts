@@ -33,7 +33,7 @@ import {
 	shownTicket,
 } from "./shown-ticket.ts";
 import { asRef, known, parseKey } from "./ticket-index.ts";
-import { foldKey, pullKey, ticketRefId } from "./ticket-key.ts";
+import { foldKey, pullId, ticketRefId } from "./ticket-key.ts";
 import { progressNamesPull, runFor } from "./workcell.ts";
 
 type TicketWalk = {
@@ -80,20 +80,20 @@ export function walkTickets(walk: TicketWalk) {
 	const runByKey = new Map<string, LiveRun>();
 	const cross = new Map<string, CrossProjectBlocker>();
 	const linkedByTicket = new Map<string, PullRequest[]>();
-	const linkedKeys = new Set<string>();
+	const linkedIds = new Set<string>();
 	const subTickets = subTicketCounts(tickets);
 	const workcellPulls = new Set(
 		factoryRuns.flatMap((run) =>
-			run.pull === undefined ? [] : [pullKey(run.pull)],
+			run.pull === undefined ? [] : [pullId(run.pull)],
 		),
 	);
 	for (const ticket of tickets) {
 		const blockers = openBlockers(ticket, graph);
 		const links = linked(ticket, pulls);
 		for (const pull of links) {
-			linkedKeys.add(pullKey(pull));
+			linkedIds.add(pullId(pull));
 			if (progressNamesPull(ticket.comments ?? [], pull)) {
-				workcellPulls.add(pullKey(pull));
+				workcellPulls.add(pullId(pull));
 			}
 		}
 		if (ticket.state === "open" && ticket.key !== null) {
@@ -180,7 +180,7 @@ export function walkTickets(walk: TicketWalk) {
 		runByKey,
 		cross,
 		linkedByTicket,
-		linkedKeys,
+		linkedIds,
 		workcellPulls,
 	};
 }

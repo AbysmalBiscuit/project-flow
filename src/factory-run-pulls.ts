@@ -4,6 +4,7 @@ import type { RunPull } from "./domain.ts";
 import { body, type Read, reader, Unreachable } from "./factory-http.ts";
 import { isLive, type ReadRun } from "./factory-run-rows.ts";
 import type { Fetch } from "./fetch.ts";
+import { githubHost } from "./github-pin.ts";
 
 /** `GET /runs/{id}`: the PR that the run opened, and its outputs. */
 const runPull = z.object({
@@ -17,6 +18,12 @@ const runPull = z.object({
 		.nullish(),
 	outputs: z.object({ merge_sha: z.string().nullish() }).nullish(),
 });
+
+/** The host of a PR URL, for a PR off github.com. */
+function declaredHost(url: string): { host?: string } {
+	const host = URL.parse(url)?.host;
+	return host === undefined || host === githubHost ? {} : { host };
+}
 
 /** The PR of each run from `GET /runs/{id}` of the factory that reports the run. */
 export function runPullReader(fetchImpl: Fetch, signal: AbortSignal) {
@@ -37,6 +44,7 @@ export function runPullReader(fetchImpl: Fetch, signal: AbortSignal) {
 					: {
 							pull: {
 								repo: `${pr.owner}/${pr.repo}`,
+								...declaredHost(pr.url),
 								number: pr.number,
 								url: pr.url,
 								merged: (outputs?.merge_sha ?? "") !== "",

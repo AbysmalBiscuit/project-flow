@@ -3,7 +3,7 @@ import type { BotReview, Comment, PullRequest, PullStatus } from "./domain.ts";
 import { type KnownBot, knownBots } from "./known-bots.ts";
 import { settingsKey } from "./project-ref.ts";
 import { repoKey } from "./repo-key.ts";
-import { pullKey } from "./ticket-key.ts";
+import { pullId } from "./ticket-key.ts";
 import { workcellRun } from "./workcell.ts";
 
 const botLogin: Record<KnownBot, string> = {
@@ -294,7 +294,7 @@ export function mergesOnItsOwn(
 		}
 		// A checkout names its repo without a host, so its value applies only to a PR on github.com.
 		const workcell =
-			pull.host === undefined && workcellPulls.has(pullKey(pull))
+			pull.host === undefined && workcellPulls.has(pullId(pull))
 				? auto.workcell[pull.repo]
 				: undefined;
 		if (workcell !== undefined) {

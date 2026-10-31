@@ -26,6 +26,7 @@ import {
 	stateOfTicket,
 } from "./lanes.ts";
 import { staleView } from "./poll-merge.ts";
+import { settingsKey } from "./project-ref.ts";
 import { type ForgeLabelOf, projectReport } from "./report.ts";
 import {
 	type AutoMergeSources,
@@ -35,7 +36,7 @@ import {
 import type { RunStarts } from "./run-start.ts";
 import { unlinkedPrGroup } from "./terms.ts";
 import { known } from "./ticket-index.ts";
-import { foldKey, pullKey, sameTicketKey } from "./ticket-key.ts";
+import { foldKey, pullId, pullKey, sameTicketKey } from "./ticket-key.ts";
 import { walkTickets } from "./ticket-walk.ts";
 
 /** The state of an unlinked PR from its review cycle, as for the PR of a ticket. */
@@ -70,6 +71,7 @@ function unlinkedPrView(
 		pull: pullKey(pull),
 		pullUrl: pull.url,
 		unlinkedPr: true,
+		...(pull.host === undefined ? {} : { host: pull.host }),
 		workstream: unlinkedPrGroup,
 		workstreamKey: unlinkedPrGroup,
 		theme: unlinkedPrGroup,
@@ -107,7 +109,9 @@ export function projectCounts(
 	const mappingKey = board?.laneKey;
 	const mapping =
 		mappingKey === undefined ? {} : (mappings.laneMappings[mappingKey] ?? {});
-	const stateMapping = mappings.stateMappings[stateSourceKey(board, key)] ?? {};
+	const stateMapping =
+		mappings.stateMappings[stateSourceKey(board, key, autoMerge.projectHost)] ??
+		{};
 	const lanes = placeOnBoard(
 		lanesFor(board, mapping, colours),
 		tickets,
@@ -126,7 +130,7 @@ export function projectCounts(
 		runByKey,
 		cross,
 		linkedByTicket,
-		linkedKeys,
+		linkedIds,
 		workcellPulls,
 	} = walkTickets({
 		name,
@@ -148,7 +152,7 @@ export function projectCounts(
 		now,
 	});
 	const active = pulls.filter((pull) => !pull.merged);
-	const unlinked = active.filter((pull) => !linkedKeys.has(pullKey(pull)));
+	const unlinked = active.filter((pull) => !linkedIds.has(pullId(pull)));
 	const unlinkedPrs = unlinked.map((pull) => ({
 		number: pull.number,
 		title: pull.title,
@@ -322,7 +326,14 @@ function progressRatio(
 	return Math.round((counts.done / total) * 100);
 }
 
-/** The key that `stateMappings` uses for the statuses of one board. */
-export function stateSourceKey(board: Board | undefined, key: string): string {
-	return board?.laneKey ?? key;
+/**
+ * The key that `stateMappings` uses for the statuses of one board. A repo with
+ * no lane key takes its `settingsKey`, so each host keeps its own mapping.
+ */
+export function stateSourceKey(
+	board: Board | undefined,
+	key: string,
+	host: string | undefined,
+): string {
+	return board?.laneKey ?? settingsKey(key, host);
 }
