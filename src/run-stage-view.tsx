@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
-import { Fragment } from "react";
+import { Fragment, useEffect, useRef } from "react";
 
 import type { ShownFactoryRun, TranscriptEntry } from "./domain.ts";
 import { liveRunStatusKinds } from "./kinds.ts";
@@ -19,6 +19,8 @@ import {
 	runContextLabel,
 	stageTranscriptData,
 	stageTranscriptLabel,
+	steerEntryLabel,
+	terminalEndedLabel,
 	toolCallLabel,
 } from "./terms.ts";
 import {
@@ -68,6 +70,10 @@ const styles = stylex.create({
 		color: colours.accent,
 		fontWeight: type.weight,
 	},
+	steer: {
+		color: colours.ink,
+		fontWeight: type.weight,
+	},
 	text: {
 		margin: 0,
 		color: colours.ink,
@@ -114,29 +120,45 @@ function Entry({ entry }: { entry: TranscriptEntry }) {
 					<span className={clsx(styles.tool)}>
 						{toolCallLabel(entry.name, entry.truncated)}
 					</span>
+				) : entry.kind === "steer" ? (
+					<span className={clsx(styles.steer)}>
+						{steerEntryLabel(entry.sender, entry.interrupt)}
+					</span>
 				) : null}
 				<time dateTime={entry.at}>{commentTime(entry.at)}</time>
 			</span>
-			{entry.kind === "message" ? (
-				<p className={clsx(styles.text)}>{entry.text}</p>
-			) : (
+			{entry.kind === "tool_call" ? (
 				<pre className={clsx(styles.code)}>{entry.input}</pre>
+			) : (
+				<p className={clsx(styles.text)}>{entry.text}</p>
 			)}
 		</li>
 	);
 }
 
-/** The stage transcript of one stage. A live stage reads its new entries again on an interval. */
-function Transcript({
+/**
+ * The stage transcript of one stage. A live stage reads its new entries again
+ * on an interval. With `follow`, the list scrolls to each new entry.
+ */
+export function Transcript({
 	runId,
 	stage,
 	live,
+	follow = false,
 }: {
 	runId: string;
 	stage: string;
 	live: boolean;
+	follow?: boolean;
 }) {
 	const { data } = useQuery(stageQuery.transcript(runId, stage, live));
+	const list = useRef<HTMLOListElement>(null);
+	const next = typeof data === "object" ? data.next : null;
+	useEffect(() => {
+		if (follow && next !== null) {
+			list.current?.scrollTo({ top: list.current.scrollHeight });
+		}
+	}, [follow, next]);
 	return (
 		<section aria-label={stageTranscriptLabel}>
 			<h4 className={clsx(panel.sectionLabel)}>{stageTranscriptLabel}</h4>
@@ -150,15 +172,20 @@ function Transcript({
 				<p className={clsx(panel.note)}>{noTranscriptLabel}</p>
 			) : (
 				<ol
+					ref={list}
 					className={clsx(styles.entries)}
 					data-transcript={stage}
 					data-transcript-next={data.next}
+					data-transcript-ended={data.ended}
 				>
 					{data.entries.map((entry) => (
 						<Entry key={entry.id} entry={entry} />
 					))}
 				</ol>
 			)}
+			{follow && typeof data === "object" && data.ended ? (
+				<p className={clsx(panel.note)}>{terminalEndedLabel}</p>
+			) : null}
 		</section>
 	);
 }

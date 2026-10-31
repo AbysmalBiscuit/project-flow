@@ -170,10 +170,18 @@ export type TranscriptEntry = {
 } & (
 	| { kind: "message"; text: string }
 	| { kind: "tool_call"; name: string; input: string; truncated: boolean }
+	| { kind: "steer"; text: string; sender: string; interrupt: boolean }
 );
 
-/** One page of a stage transcript. `next` is the cursor of the next read. */
-export type StageTranscript = { entries: TranscriptEntry[]; next: number };
+/**
+ * One page of a stage transcript. `next` is the cursor of the next read.
+ * `ended` is true when the page holds the last entry of a stage that has ended.
+ */
+export type StageTranscript = {
+	entries: TranscriptEntry[];
+	next: number;
+	ended: boolean;
+};
 
 /** A value that a run's package parameter takes, as JSON. */
 export type ParameterValue =

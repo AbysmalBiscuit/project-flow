@@ -1,0 +1,38 @@
+import { useQuery } from "@tanstack/react-query";
+
+import type { ShownFactoryRun } from "./domain.ts";
+import { liveRunStatusKinds } from "./kinds.ts";
+import { RunFact } from "./panel-sections.tsx";
+import { panel } from "./panel-styles.ts";
+import { pageQuery } from "./queries.ts";
+import { Transcript } from "./run-stage-view.tsx";
+import { RunSteer, useCurrentStage } from "./run-steer.tsx";
+import { noTerminalStageLabel, terminalStageLabel } from "./terms.ts";
+import { clsx } from "./ui.ts";
+
+/**
+ * The Terminal tab: the transcript of the stage where the run is now, and a
+ * steer box for it. A run that has ended shows its last stage and no steer box.
+ */
+export function RunTerminal({ run }: { run: ShownFactoryRun }) {
+	const { data: checkpoint } = useQuery(pageQuery.checkpoint(run));
+	const currentStage = useCurrentStage(run);
+	const live = liveRunStatusKinds.some((kind) => kind === run.statusKind);
+	const stage =
+		currentStage ??
+		(typeof checkpoint === "object"
+			? (checkpoint.completedStages.at(-1) ?? null)
+			: null);
+	if (stage === null) {
+		return <p className={clsx(panel.note)}>{noTerminalStageLabel}</p>;
+	}
+	return (
+		<div data-run-terminal={stage} data-terminal-live={live}>
+			<dl className={clsx(panel.facts)}>
+				<RunFact label={terminalStageLabel}>{stage}</RunFact>
+			</dl>
+			<Transcript key={stage} runId={run.id} stage={stage} live={live} follow />
+			{live ? <RunSteer run={run} stage={stage} /> : null}
+		</div>
+	);
+}

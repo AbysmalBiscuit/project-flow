@@ -8,17 +8,23 @@ import { agentReadMs, heldData } from "./queries.ts";
 export const stageQuery = {
 	/**
 	 * The transcript of one stage. Each read asks only for the entries after the
-	 * ones the page holds, and adds them. A live stage reads again on an interval.
+	 * ones the page holds, and adds them. A live stage reads again on an
+	 * interval until the factory says that the stage has ended.
 	 */
 	transcript: (runId: string, stage: string, live: boolean) => {
 		const queryKey = ["transcript", runId, stage];
 		return queryOptions({
 			queryKey,
 			queryFn: () => readTranscript(runId, stage, queryKey),
-			refetchInterval: live ? agentReadMs : false,
+			refetchInterval: (query) =>
+				live && !hasEnded(query.state.data) ? agentReadMs : false,
 		});
 	},
 };
+
+function hasEnded(read: TranscriptRead | undefined): boolean {
+	return typeof read === "object" && read.ended;
+}
 
 /** The read that a 404 answer stands for: a route the factory does not serve, or no run. */
 async function absentRead(
@@ -56,5 +62,6 @@ async function readTranscript(
 			...page.entries,
 		],
 		next: page.next,
+		ended: page.ended,
 	};
 }
