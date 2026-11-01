@@ -711,6 +711,51 @@ describe("review cycle", () => {
 		);
 	});
 
+	test.each([
+		["failed", "completed", "failure"],
+		["pending", "in_progress", null],
+	] as const)(
+		"a %s CI check keeps a PR In review after its bot review ends",
+		async (_label, status, conclusion) => {
+			const body = await overview({
+				issues: [issue(8)],
+				pulls: [pull(94)],
+				checksBySha: {
+					[head]: [
+						{
+							name: "Grok code review",
+							status: "completed",
+							conclusion: "failure",
+							app: { slug: "grok-code-review" },
+						},
+						{
+							name: "test",
+							status,
+							conclusion,
+							app: { slug: "github-actions" },
+						},
+					],
+				},
+				reviewsByPull: {
+					1: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
+				},
+				mergedPulls: [mergedPull()],
+			});
+			expect(body).toEqual(
+				card(
+					"inReview",
+					{
+						backlog: 0,
+						inProgress: 0,
+						inReview: 1,
+						awaitingMerge: 0,
+					},
+					["grok failure"],
+				),
+			);
+		},
+	);
+
 	test("a Codex usage-limit comment is awaiting merge with a warning tag", async () => {
 		const body = await overview({
 			issues: [issue(8)],

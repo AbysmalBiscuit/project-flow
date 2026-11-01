@@ -20,6 +20,7 @@ import { RunRemove } from "./run-remove.tsx";
 import { RunSandbox } from "./run-sandbox.tsx";
 import { RunSettings } from "./run-settings.tsx";
 import { RunSource } from "./run-source.tsx";
+import { RunTerminal } from "./run-terminal.tsx";
 import { RunThread } from "./run-thread.tsx";
 import { Segment } from "./segment.tsx";
 import { PageFrame } from "./shell.tsx";
@@ -182,6 +183,8 @@ function TabBody({
 				<RunSettings run={run} />
 			) : tab === "source" ? (
 				<RunSource run={run} />
+			) : tab === "terminal" ? (
+				<RunTerminal run={run} />
 			) : (
 				<NotServed data={runTabData[tab]} />
 			)}

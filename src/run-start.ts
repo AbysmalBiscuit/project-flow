@@ -70,6 +70,9 @@ export function runStartOf(
 	if (refused !== undefined) {
 		return { refused };
 	}
+	if (ticket.tracker === "forgejo") {
+		return { refused: "a factory cannot start a run on a Forgejo ticket" };
+	}
 	if (ticket.tracker === "linear") {
 		const starts = linearStarts(ticket, linearSources);
 		if ("refused" in starts) {
@@ -245,6 +248,7 @@ export function queuedOf(
 ): Queued | undefined {
 	if (
 		ticket.state !== "open" ||
+		ticket.tracker === "forgejo" ||
 		!waitsForRun(ticket, newestRun, requests) ||
 		pendingRequest(ticket, requests)?.claim === true
 	) {

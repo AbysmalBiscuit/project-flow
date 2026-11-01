@@ -30,6 +30,7 @@ import {
 	ticket,
 	unrecorded,
 } from "../support/github.ts";
+import { settledRead } from "../support/reads.ts";
 
 export type RunOverview = {
 	projects: { tickets: TicketView[] }[];
@@ -60,6 +61,18 @@ export async function overviewWhere(
 		}
 		await Bun.sleep(20);
 	}
+}
+
+/** The API read of the run checkpoint of the run of ticket 41, once the overview has the run. */
+export async function checkpointOf(base: string): Promise<Response> {
+	const body = await overviewWhere(
+		base,
+		(seen) => factoryRunOf(seen, 41) !== undefined,
+	);
+	const id = factoryRunOf(body, 41)?.id ?? "";
+	return settledRead(
+		new URL(`/api/factory-runs/${encodeURIComponent(id)}/checkpoint`, base),
+	);
 }
 
 /** A run row as the box `laptop` reports it: no source, and `machine` is `local`. */

@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
+import type { ProjectPin } from "../../src/configuration.ts";
 import { listDevkitCheckouts } from "../../src/devkit-checkouts.ts";
 import type { Fetch } from "../../src/fetch.ts";
 import { run, type RunIo } from "../../src/main.ts";
@@ -83,9 +84,7 @@ export async function withServer(
 	fetchImpl: Fetch,
 	intervalSeconds: number,
 	checks: (base: string, advance: (ms: number) => void) => Promise<void>,
-	pinned: (
-		{ tracker: "github"; repo: string } | { tracker: "linear"; project: string }
-	)[] = [{ tracker: "github", repo }],
+	pinned: ProjectPin[] = [{ tracker: "github", repo }],
 	env: Record<string, string | undefined> = {
 		GITHUB_TOKEN: "recorded-token",
 	},

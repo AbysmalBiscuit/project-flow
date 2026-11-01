@@ -221,13 +221,15 @@ export async function start(options: StartOptions): Promise<Running> {
 		progress: null,
 		stopped: false,
 		catalogue: [],
+		discoveryErrors: [],
 		factoryUnreachable: factories.unreachable,
 	};
 	const settingsBody = () =>
 		settingsResponse(
 			configuration,
-			backends.views,
+			backends.views(configuration.hosts),
 			pollOptions.catalogue,
+			pollOptions.discoveryErrors,
 			opened.store.readTickets(),
 			repoFetch.reports(),
 			factories.entries(),

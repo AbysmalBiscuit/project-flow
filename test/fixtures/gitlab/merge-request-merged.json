@@ -1,0 +1,12 @@
+{
+	"iid": 3702,
+	"title": "feat(commands): config shell completion",
+	"description": "## Description\n<!--- Describe your changes in detail -->\n\nAdd shell completions for config get/set.\n\n## Related Issues\n<!--- This project only accepts merge requests related to open issues -->\n<!--- If suggesting a new feature or change, please discuss it in an issue first -->\n<!--- If fixing a bug, there should be an issue describing it with steps to reproduce -->\n\nDoes not resolve, but relates to gitlab-org/cli#8167\n\n## How has this been tested?\n<!--- Please describe in detail how you tested your changes. -->\n<!--- Include details of your testing environment, and the tests you ran to -->\n<!--- see how your change affects other areas of the code, etc. -->\n\n```shellsession\n$ export PATH=$PWD:$PATH\n$ go build ./cmd/glab ; complete -r glab ; . <(glab completion -s bash)  # rinse, repeat\n```\n\nThen, invoke tab-completion for config get/set, verify sane completions are offered. For example, `glab config get <TAB><TAB>`, `glab config set glamour_style <TAB><TAB>`.\n\nAlso, ran the test suite.\n\n## Screenshots (if appropriate):",
+	"state": "merged",
+	"draft": false,
+	"source_branch": "feat/config-completion",
+	"sha": "bc0e76b722287591607ff7b19fb57aaa5d22020b",
+	"web_url": "https://gitlab.com/gitlab-org/cli/-/merge_requests/3702",
+	"merged_at": "2026-10-30T21:31:05.800Z",
+	"merge_when_pipeline_succeeds": true
+}

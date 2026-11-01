@@ -994,7 +994,16 @@ export const runContextHelp =
 export const toolCallLabel = (name: string, truncated: boolean): string =>
 	truncated ? `${name} (input cut)` : name;
 
+export const steerEntryLabel = (sender: string, interrupt: boolean): string =>
+	interrupt ? `Steer from ${sender}, with interrupt` : `Steer from ${sender}`;
+
 export const stagePaneLabel = "Stage pane";
+
+export const terminalStageLabel = "Stage";
+
+export const terminalEndedLabel = "The stage has ended.";
+
+export const noTerminalStageLabel = "The run has reached no stage yet.";
 
 export const closeStagePaneLabel = "Close the stage pane";
 

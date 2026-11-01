@@ -24,12 +24,23 @@ const entry = z.discriminatedUnion("kind", [
 		input: z.string(),
 		truncated: z.boolean(),
 	}),
+	z.object({
+		...entryFacts,
+		kind: z.literal("steer"),
+		text: z.string(),
+		sender: z.string(),
+		interrupt: z.boolean(),
+	}),
 ]);
 
-/** `GET /runs/{id}/stages/{node_path}/transcript`: a page of entries, oldest first. */
+/**
+ * `GET /runs/{id}/stages/{node_path}/transcript`: a page of entries, oldest first.
+ * A factory that predates `ended` never ends a stage.
+ */
 const transcript = z.object({
 	entries: z.array(z.unknown()),
 	next: z.number(),
+	ended: z.boolean().default(false),
 });
 
 /** An entry of a kind that Project Flow does not know drops, so the rest of the page still shows. */
@@ -74,7 +85,11 @@ export function runTranscriptReader(deps: {
 				),
 				transcript,
 			);
-			return { entries: found.entries.flatMap(shownEntry), next: found.next };
+			return {
+				entries: found.entries.flatMap(shownEntry),
+				next: found.next,
+				ended: found.ended,
+			};
 		} catch (error) {
 			if (error instanceof NotServed) {
 				return "not served";

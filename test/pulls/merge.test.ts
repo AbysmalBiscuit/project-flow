@@ -44,64 +44,41 @@ async function waitForDone(events: AsyncIterable<ChangeEvent>): Promise<void> {
 	}
 }
 
-const refused = [
+const notAwaiting = "The PR is not in Awaiting merge";
+
+/** CI that fails or waits keeps the ticket out of Awaiting merge, so the merge route does not find the PR. */
+const ciRefused = [
 	{
 		name: "a pending check",
-		fake: {
-			checks: [{ name: "ci", status: "in_progress", conclusion: null }],
-		},
-		reason: "A check is pending",
-		ci: "pending",
+		checks: [{ name: "ci", status: "in_progress", conclusion: null }],
 	},
 	{
 		name: "a failed check",
-		fake: {
-			checks: [
-				passedCheck,
-				{ name: "lint", status: "completed", conclusion: "failure" },
-			],
-		},
-		reason: "A check failed",
-		ci: "failing",
+		checks: [
+			passedCheck,
+			{ name: "lint", status: "completed", conclusion: "failure" },
+		],
 	},
 	{
 		name: "a check that ended with action required",
-		fake: {
-			checks: [
-				passedCheck,
-				{ name: "deploy", status: "completed", conclusion: "action_required" },
-			],
-		},
-		reason: "A check failed",
-		ci: "failing",
+		checks: [
+			passedCheck,
+			{ name: "deploy", status: "completed", conclusion: "action_required" },
+		],
 	},
 	{
 		name: "a stale check",
-		fake: {
-			checks: [
-				passedCheck,
-				{ name: "deploy", status: "completed", conclusion: "stale" },
-			],
-		},
-		reason: "A check failed",
-		ci: "failing",
+		checks: [
+			passedCheck,
+			{ name: "deploy", status: "completed", conclusion: "stale" },
+		],
 	},
 	{
 		name: "a check that failed to start",
-		fake: {
-			checks: [
-				passedCheck,
-				{ name: "deploy", status: "completed", conclusion: "startup_failure" },
-			],
-		},
-		reason: "A check failed",
-		ci: "failing",
-	},
-	{
-		name: "an open Important Question",
-		fake: { body: openQuestionBody },
-		reason: "An Important Question is open",
-		ci: "passing",
+		checks: [
+			passedCheck,
+			{ name: "deploy", status: "completed", conclusion: "startup_failure" },
+		],
 	},
 ];
 
@@ -156,34 +133,48 @@ describe("merge an awaiting PR", () => {
 		});
 	});
 
-	for (const { name, fake: answers, reason, ci } of refused) {
-		test(`a merge with ${name} is refused with its reason, and GitHub gets no request`, async () => {
-			const fake = mergeFake(answers);
+	for (const { name, checks } of ciRefused) {
+		test(`a merge with ${name} is refused because the ticket is not in Awaiting merge, and GitHub gets no request`, async () => {
+			const fake = mergeFake({ checks });
 			await withApp(widgetConfig, fake.fetch, githubEnv, async (base) => {
+				const ticket = await readTicket(base, repo, ticketKey);
+				expect(ticket?.state).not.toBe("awaitingMerge");
+				expect(ticket?.awaitingPulls).toBeUndefined();
 				const sent = await sendMerge(base);
 				expect(sent.status).toBe(409);
-				expect(await sent.json()).toEqual({ error: reason });
+				expect(await sent.json()).toEqual({ error: notAwaiting });
 				expect(fake.merges).toEqual([]);
-				expect(
-					(await readTicket(base, repo, ticketKey))?.awaitingPulls?.[0]
-						?.mergeGate,
-				).toEqual({ open: false, reason });
-				const needs = (await (
-					await fetch(new URL("/api/needs-you", base))
-				).json()) as { key: string; pull?: { ci: string } }[];
-				expect(needs.find((item) => item.key === ticketKey)?.pull?.ci).toBe(ci);
 			});
 		});
 	}
+
+	test("a merge with an open Important Question is refused with its reason, and GitHub gets no request", async () => {
+		const reason = "An Important Question is open";
+		const fake = mergeFake({ body: openQuestionBody });
+		await withApp(widgetConfig, fake.fetch, githubEnv, async (base) => {
+			const sent = await sendMerge(base);
+			expect(sent.status).toBe(409);
+			expect(await sent.json()).toEqual({ error: reason });
+			expect(fake.merges).toEqual([]);
+			expect(
+				(await readTicket(base, repo, ticketKey))?.awaitingPulls?.[0]
+					?.mergeGate,
+			).toEqual({ open: false, reason });
+			const needs = (await (
+				await fetch(new URL("/api/needs-you", base))
+			).json()) as { key: string; pull?: { ci: string } }[];
+			expect(needs.find((item) => item.key === ticketKey)?.pull?.ci).toBe(
+				"passing",
+			);
+		});
+	});
 
 	test("a merge of a PR that is not in Awaiting merge is refused, and GitHub gets no request", async () => {
 		const fake = mergeFake();
 		await withApp(widgetConfig, fake.fetch, githubEnv, async (base) => {
 			const sent = await sendMerge(base, `https://github.com/${repo}/pull/999`);
 			expect(sent.status).toBe(409);
-			expect(await sent.json()).toEqual({
-				error: "The PR is not in Awaiting merge",
-			});
+			expect(await sent.json()).toEqual({ error: notAwaiting });
 			expect(fake.merges).toEqual([]);
 		});
 	});
@@ -236,24 +227,20 @@ describe("merge an awaiting PR", () => {
 		});
 	});
 
-	for (const { later, reason } of [
-		{
-			later: { name: "e2e", status: "completed", conclusion: "failure" },
-			reason: "A check failed",
-		},
-		{
-			later: { name: "e2e", status: "in_progress", conclusion: null },
-			reason: "A check is pending",
-		},
+	for (const later of [
+		{ name: "e2e", status: "completed", conclusion: "failure" },
+		{ name: "e2e", status: "in_progress", conclusion: null },
 	]) {
 		test(`a check that is ${later.status} on a later page of a linked PR refuses a merge`, async () => {
 			const fake = linearMergeFake({
 				checkPages: [[passedCheck], [later]],
 			});
 			await withApp(linearConfig, fake.fetch, linearEnv, async (base) => {
+				const ticket = await readTicket(base, "Widget launch", "SWE-13029");
+				expect(ticket?.state).not.toBe("awaitingMerge");
 				const sent = await sendMerge(base, fake.pull.html_url);
 				expect(sent.status).toBe(409);
-				expect(await sent.json()).toEqual({ error: reason });
+				expect(await sent.json()).toEqual({ error: notAwaiting });
 				expect(fake.merges).toEqual([]);
 			});
 		});

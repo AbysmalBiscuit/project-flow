@@ -353,7 +353,11 @@ export function answerRecordedRepoRead(fetchImpl: Fetch): Fetch {
 	const wrapped: Fetch = async (input, init) => {
 		const body = typeof init?.body === "string" ? init.body : "";
 		const answered = await fetchImpl(input, init);
-		if (/\/commits\/[^/]+\/status\b/.test(urlOf(input))) {
+		if (
+			/^https:\/\/api\.github\.com\/repos\/.+\/commits\/[^/]+\/status\b/.test(
+				urlOf(input),
+			)
+		) {
 			return recordedStatuses(answered);
 		}
 		if (urlOf(input) !== "https://api.github.com/graphql") {

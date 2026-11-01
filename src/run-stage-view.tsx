@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
-import { Fragment } from "react";
+import { Fragment, useEffect, useRef } from "react";
 
 import type { ShownFactoryRun, TranscriptEntry } from "./domain.ts";
 import { liveRunStatusKinds } from "./kinds.ts";
@@ -10,7 +10,7 @@ import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
 import { NotServed } from "./run-checkpoint.tsx";
 import { isRunAt, StageCard, type StageFacts } from "./run-stage.tsx";
-import { stageQuery } from "./stage-queries.ts";
+import { stageQuery, stageVisit } from "./stage-queries.ts";
 import {
 	noRunDataLabel,
 	noTranscriptLabel,
@@ -19,6 +19,8 @@ import {
 	runContextLabel,
 	stageTranscriptData,
 	stageTranscriptLabel,
+	steerEntryLabel,
+	terminalEndedLabel,
 	toolCallLabel,
 } from "./terms.ts";
 import {
@@ -68,6 +70,10 @@ const styles = stylex.create({
 		color: colours.accent,
 		fontWeight: type.weight,
 	},
+	steer: {
+		color: colours.ink,
+		fontWeight: type.weight,
+	},
 	text: {
 		margin: 0,
 		color: colours.ink,
@@ -114,29 +120,57 @@ function Entry({ entry }: { entry: TranscriptEntry }) {
 					<span className={clsx(styles.tool)}>
 						{toolCallLabel(entry.name, entry.truncated)}
 					</span>
+				) : entry.kind === "steer" ? (
+					<span className={clsx(styles.steer)}>
+						{steerEntryLabel(entry.sender, entry.interrupt)}
+					</span>
 				) : null}
 				<time dateTime={entry.at}>{commentTime(entry.at)}</time>
 			</span>
-			{entry.kind === "message" ? (
-				<p className={clsx(styles.text)}>{entry.text}</p>
-			) : (
+			{entry.kind === "tool_call" ? (
 				<pre className={clsx(styles.code)}>{entry.input}</pre>
+			) : (
+				<p className={clsx(styles.text)}>{entry.text}</p>
 			)}
 		</li>
 	);
 }
 
-/** The stage transcript of one stage. A live stage reads its new entries again on an interval. */
-function Transcript({
+/**
+ * A pane worker records a steer as it reaches the worker, and the messages of
+ * a turn as the turn runs, so the cursor order can differ from the time order.
+ */
+function byRecordedTime(a: TranscriptEntry, b: TranscriptEntry): number {
+	return Date.parse(a.at) - Date.parse(b.at);
+}
+
+/**
+ * The stage transcript of one stage. A live stage reads its new entries again
+ * on an interval. With `follow`, the list scrolls to each new entry while
+ * the reader stays at its end.
+ */
+export function Transcript({
 	runId,
 	stage,
 	live,
+	visit,
+	follow = false,
 }: {
 	runId: string;
 	stage: string;
 	live: boolean;
+	visit: string;
+	follow?: boolean;
 }) {
-	const { data } = useQuery(stageQuery.transcript(runId, stage, live));
+	const { data } = useQuery(stageQuery.transcript(runId, stage, live, visit));
+	const list = useRef<HTMLOListElement>(null);
+	const atEnd = useRef(true);
+	const next = typeof data === "object" ? data.next : null;
+	useEffect(() => {
+		if (follow && next !== null && atEnd.current) {
+			list.current?.scrollTo({ top: list.current.scrollHeight });
+		}
+	}, [follow, next]);
 	return (
 		<section aria-label={stageTranscriptLabel}>
 			<h4 className={clsx(panel.sectionLabel)}>{stageTranscriptLabel}</h4>
@@ -150,15 +184,26 @@ function Transcript({
 				<p className={clsx(panel.note)}>{noTranscriptLabel}</p>
 			) : (
 				<ol
+					ref={list}
+					onScroll={(event) => {
+						const { scrollHeight, scrollTop, clientHeight } =
+							event.currentTarget;
+						// A zoomed page leaves a fraction of a pixel at the end.
+						atEnd.current = scrollHeight - scrollTop - clientHeight < 1;
+					}}
 					className={clsx(styles.entries)}
 					data-transcript={stage}
 					data-transcript-next={data.next}
+					data-transcript-ended={data.ended}
 				>
-					{data.entries.map((entry) => (
+					{data.entries.toSorted(byRecordedTime).map((entry) => (
 						<Entry key={entry.id} entry={entry} />
 					))}
 				</ol>
 			)}
+			{follow && typeof data === "object" && data.ended ? (
+				<p className={clsx(panel.note)}>{terminalEndedLabel}</p>
+			) : null}
 		</section>
 	);
 }
@@ -240,6 +285,7 @@ export function StageDetail({
 					runId={run.id}
 					stage={facts.stage.id}
 					live={isLiveStage(run, facts)}
+					visit={stageVisit(run.statusKind, facts.stage.visits)}
 				/>
 			)}
 			<RunContext run={run} />

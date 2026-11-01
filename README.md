@@ -55,7 +55,9 @@ The file can be empty `{}`. `src/configuration.ts` holds the schema. That schema
 - `viewerLogins` adds logins that count as Lev. A blank entry does not count. The tracker logins always count. The default is `[]`.
 - `notificationTriggers` turns each notification on or off. `needsYou` fires for a new needs-you item. `comment` fires for a new comment. `blockerCleared` fires when a cross-project blocker clears. The default for each one is `true`.
 
-A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin names a `project` slug. Each pin sets `tracker` to `github` or `linear`. `tracked` holds pins of this shape.
+A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin names a `project` slug. A GitLab pin names the `repo` path of a gitlab.com repo, with each group and subgroup. Each pin sets `tracker` to `github`, `linear` or `gitlab`. `tracked` holds pins of this shape.
+
+A GitLab project is one repo and its issues and tasks. Its milestones set the workstreams. A `blocks` or `is_blocked_by` link shows as a blocker, and a `relates_to` link does not. A GitLab group or epic is not a project.
 
 ```json
 {
@@ -120,7 +122,7 @@ An older file can hold `pinned`, `hidden` and `activityWindowDays`. The app load
 
 ## Tokens
 
-The app reads `GITHUB_TOKEN` from the environment. A blank value does not count. Otherwise the app reads `gh auth token`, whatever the configuration pins. A configuration with only Linear pins reads `gh` the same way, and uses that token to load linked PRs. When neither source gives a token, that configuration still starts. A linked open PR then stays off the ticket, so the ticket stays in backlog. A rejected token stops the start.
+The app reads `GITHUB_TOKEN` from the environment. A blank value does not count. Otherwise the app reads `gh auth token`, whatever the configuration pins. A configuration with only Linear pins reads `gh` the same way, and uses that token to load linked PRs. When neither source gives a token, that configuration still starts. A Linear project that links a github.com PR then shows an error that names `GITHUB_TOKEN`. The project keeps its tickets, and the PRs of each forge that has a token. A rejected token stops the start.
 
 An empty configuration starts without a token when neither source gives one. A pin that uses the GitHub tracker also starts. Each GitHub project shows an error that names `GITHUB_TOKEN`. A GitHub project found from a local checkout shows that same error.
 
@@ -152,6 +154,12 @@ proc = Bun.spawn([gh, "auth", "token"], {
 });
 ```
 
+The app reads `GITLAB_TOKEN` from the environment to read tickets and PRs on gitlab.com. A blank value does not count. GitLab has no CLI fallback. With the token set, Settings lists each GitLab repo that the token is a member of. With no token, each GitLab project shows an error that names `GITLAB_TOKEN`. A project that links a gitlab.com PR shows the same error. That project keeps its tickets, and the PRs of each forge that has a token. A rejected token stops the start. A self-hosted GitLab host does not read tickets or PRs yet.
+
+GitLab numbers merge requests apart from issues. The app writes the key of a GitLab PR as `repo!number`, and the key of a GitLab ticket as `repo#number`.
+
+GitLab has no repo auto-merge setting that the app reads. The auto-merge of a GitLab PR comes from the `autoMerge` configuration, the workcell keys and the "merge when the pipeline succeeds" flag of the PR. A merge train does not make a PR merge without a human.
+
 The app reads `LINEAR_API_KEY` from the environment. A blank value does not count. With the key set, the app finds Linear projects. With no key, each Linear project shows an error that names `LINEAR_API_KEY`. The projects of the other tracker poll. A rejected token or key exits and names that credential.
 
 ### Declared hosts
@@ -169,7 +177,22 @@ The `hosts` list declares each self-hosted host with its forge kind and the env 
 }
 ```
 
-A pin with no `host` is on github.com. A pin with `host` set to `github.com` is the same project as a pin with no `host`. The load fails when a pin names a host that `hosts` does not declare. The load also fails when `hosts` declares `github.com`, `gitlab.com` or one host two times. The name `gitlab.com` stays reserved until its adapter exists, so a pin cannot use it.
+A pin with no `host` is on github.com. A pin with `host` set to `github.com` is the same project as a pin with no `host`. The load fails when a pin names a host that `hosts` does not declare. The load also fails when `hosts` declares `github.com`, `gitlab.com` or one host two times. The app knows `gitlab.com` as a tracker and a forge with no declaration. A GitLab pin has no `host`, and reads gitlab.com.
+
+A repo on a declared Forgejo host is a project with the `forgejo` tracker. The pin names the repo and its host:
+
+```json
+{
+	"hosts": [
+		{ "host": "codeberg.org", "forge": "forgejo", "tokenEnv": "CODEBERG_TOKEN" }
+	],
+	"tracked": [
+		{ "tracker": "forgejo", "repo": "owner/repo", "host": "codeberg.org" }
+	]
+}
+```
+
+Codeberg is a Forgejo host with no special case, so it needs a declaration. A Forgejo ticket key carries its host, such as `codeberg.org/owner/repo#12`, so one repo name on two hosts gives two tickets. A reference in a Forgejo ticket body names a ticket only on the host of that ticket. Settings lists each repo that the token of a declared Forgejo host can read. Milestones set the workstreams, and native issue dependencies give the blocker links. Forgejo has no sub-issues, so a task list item such as `- [ ] #12` makes the issue that holds it the parent ticket of #12. A factory cannot start a run on a Forgejo ticket, and the side panel does not read its thread.
 
 With no token in the env var, each project of the host shows an error that names the env var. The projects of other hosts poll. With a token, the project shows an error when no adapter can read the host. The app does not send that token to another host.
 

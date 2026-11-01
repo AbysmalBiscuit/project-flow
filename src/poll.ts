@@ -112,7 +112,11 @@ const fullPollPeriodMs = 10 * 60 * 1000;
 const concurrentReads = 4;
 
 type PolledProject = ListedProject &
-	Pick<TrackedProject, "ref"> & { name: string };
+	Pick<TrackedProject, "ref"> & {
+		name: string;
+		/** The error of a linked PR host that the poll could not read, shown beside the tickets. */
+		pullError: string | null;
+	};
 
 /** The newest project read of each project: an older read that ends later never writes over it. */
 export type ProjectReads = {
@@ -189,22 +193,56 @@ function readSince(
 	return full ? null : lastGood;
 }
 
-/** The PRs of a project, each list with the forge that read it. */
+/**
+ * Records the outcome of a read that got its tickets. A read that left out the
+ * PRs of a forge with no token counts as no good read, so that the next read is
+ * full and finds those links again. An incremental read would clear the error.
+ */
+function noteGoodRead(
+	options: PollOptions,
+	outcome: ProjectPoll,
+	polledAt: Date,
+): void {
+	if (outcome.error === null) {
+		options.store.recordGoodPoll(outcome.ref, polledAt);
+	} else {
+		options.store.forgetGoodPoll(outcome.ref);
+	}
+}
+
+type PullLists = {
+	lists: { forge: Forge; pulls: PullRequest[] }[];
+	error: string | null;
+};
+
+/** The PRs of a project, each list with the forge that read it, and the error of a linked host that has no token. */
 async function listPulls(
 	options: PollOptions,
 	project: TrackedProject,
 	tracker: Tracker,
 	since: Date | null,
-): Promise<{ forge: Forge; pulls: PullRequest[] }[]> {
+	hosts: Configuration["hosts"],
+): Promise<PullLists> {
 	const refs = await tracker.pullRefs?.(project, since);
 	if (refs !== undefined) {
-		const lists: { forge: Forge; pulls: PullRequest[] }[] = [];
-		for (const [forge, links] of linksByForge(refs, options.backends.forges)) {
+		const lists: PullLists["lists"] = [];
+		const { links: byForge, missing } = linksByForge(refs, (url) =>
+			options.backends.linkOf(url, hosts),
+		);
+		for (const [forge, links] of byForge) {
 			const repos = links.map((link) => link.repo);
 			lists.push({ forge, pulls: await forge.listLinkedPulls(links, repos) });
 		}
-		return lists;
+		return { lists, error: missing };
 	}
+	return { lists: await ownPulls(options, project, tracker), error: null };
+}
+
+async function ownPulls(
+	options: PollOptions,
+	project: TrackedProject,
+	tracker: Tracker,
+): Promise<PullLists["lists"]> {
 	const forge = options.backends.forgeOf(project.ref);
 	if (forge === null) {
 		return [];
@@ -232,6 +270,7 @@ async function readListed(
 	stored: Snapshot | undefined,
 	startedKeys: string[],
 	readRepos: Set<string>,
+	hosts: Configuration["hosts"],
 ): Promise<PolledProject> {
 	const forge = options.backends.forgeOf(project.ref);
 	const listedTickets = await tracker.listTickets(
@@ -239,13 +278,19 @@ async function readListed(
 		since,
 		since === null ? [] : (stored?.tickets ?? []),
 	);
-	const lists = await listPulls(options, project, tracker, since);
+	const { lists, error: pullError } = await listPulls(
+		options,
+		project,
+		tracker,
+		since,
+		hosts,
+	);
 	const repo = refRepo(project.ref);
 	const branches =
 		repo !== null && forge !== null ? await forge.listBranches(repo) : [];
-	const { declaredHostOf } = options.backends;
+	const { keyHostOf } = options.backends;
 	const pulls = lists.flatMap((list) => {
-		const host = declaredHostOf(list.forge);
+		const host = keyHostOf(list.forge);
 		return host === undefined
 			? list.pulls
 			: list.pulls.map((pull) => ({ ...pull, host }));
@@ -255,14 +300,14 @@ async function readListed(
 			list.pulls.map(
 				(pull) =>
 					[
-						settingsKey(pull.repo, declaredHostOf(list.forge)),
+						settingsKey(pull.repo, keyHostOf(list.forge)),
 						{ repo: pull.repo, forge: list.forge },
 					] as const,
 			),
 		),
 	);
 	if (repo !== null && forge !== null) {
-		repoReads.set(settingsKey(repo, declaredHostOf(forge)), { repo, forge });
+		repoReads.set(settingsKey(repo, keyHostOf(forge)), { repo, forge });
 	}
 	for (const [id, read] of repoReads) {
 		if (readRepos.has(id)) {
@@ -286,6 +331,7 @@ async function readListed(
 			? {}
 			: { board: listedTickets.board }),
 		...(project.closed === undefined ? {} : { closed: project.closed }),
+		pullError,
 	};
 }
 
@@ -321,6 +367,8 @@ export type PollOptions = {
 	progress: PollProgress | null;
 	stopped: boolean;
 	catalogue: FoundProject[];
+	/** The error of each declared host whose repo discovery failed in the last poll. */
+	discoveryErrors: string[];
 	/** False when a tracked-list write landed after this poll started. */
 	mayPublish: () => boolean;
 	factoryUnreachable: () => boolean;
@@ -394,7 +442,23 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 			failed = error instanceof Error ? error.message : "poll failed";
 		}
 	}
-	options.viewers = [...viewers.values()];
+	const hostedViewers: Viewer[] = [];
+	const discoveryErrors: string[] = [];
+	for (const tracker of options.backends.hostedTrackers(configuration.hosts)) {
+		try {
+			const page = await tracker.findProjects();
+			if (page.viewer !== null) {
+				hostedViewers.push(page.viewer);
+			}
+			mergeFound(discovered, page.projects);
+		} catch (error) {
+			discoveryErrors.push(
+				error instanceof Error ? error.message : "discovery failed",
+			);
+		}
+	}
+	options.discoveryErrors = discoveryErrors;
+	options.viewers = [...viewers.values(), ...hostedViewers];
 	mergeFound(
 		discovered,
 		checkoutProjects(checkouts, (kind) => viewers.get(kind) ?? null),
@@ -497,22 +561,22 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 			options.fullPoll.add(id);
 		}
 		try {
-			listed.push(
-				await readListed(
-					options,
-					project,
-					tracker,
-					since,
-					stored,
-					startedKeys,
-					readRepos,
-				),
+			const item = await readListed(
+				options,
+				project,
+				tracker,
+				since,
+				stored,
+				startedKeys,
+				readRepos,
+				configuration.hosts,
 			);
+			listed.push(item);
 			listed.sort((left, right) => orderOf(left.ref) - orderOf(right.ref));
 			const outcome: ProjectPoll = {
 				ref: project.ref,
 				ok: true,
-				error: null,
+				error: item.pullError,
 				full,
 				row: null,
 			};
@@ -576,7 +640,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 	}
 	for (const outcome of outcomes.values()) {
 		if (outcome.ok) {
-			options.store.recordGoodPoll(outcome.ref, polledAt);
+			noteGoodRead(options, outcome, polledAt);
 		}
 	}
 	const finished: PollProgress = {
@@ -704,6 +768,7 @@ export async function pollProject(
 				stored,
 				startedKeys,
 				new Set(),
+				configuration.hosts,
 			);
 			const donors = storedRows.flatMap((row) =>
 				sameProject(listedRef(row), project.ref)
@@ -716,7 +781,7 @@ export async function pollProject(
 			outcome = {
 				ref: project.ref,
 				ok: true,
-				error: null,
+				error: listing.pullError,
 				full: true,
 				row:
 					shown === undefined
@@ -740,7 +805,7 @@ export async function pollProject(
 	}
 	if (outcome.ok) {
 		options.store.clearProjectError(project.ref);
-		options.store.recordGoodPoll(project.ref, polledAt);
+		noteGoodRead(options, outcome, polledAt);
 		options.lastFullPollAt.set(id, polledAt.getTime());
 	}
 	const trackedIds = new Set([

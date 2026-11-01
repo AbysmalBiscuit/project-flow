@@ -1,17 +1,22 @@
 import type { PullRequest, Ticket, TrackerKind } from "./domain.ts";
-import type { Forge, PullLink, PullRef } from "./ports.ts";
+import type { Forge, PullLink, PullRef, PullTarget } from "./ports.ts";
 import {
 	foldKey,
 	keyNumber,
+	keyRepo,
 	numberedKey,
+	repoPathPattern,
 	sameTicketKey,
 	teamKey,
 } from "./ticket-key.ts";
 
-const closing =
-	/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s*(?:([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)#(\d+)|#(\d+)|([A-Za-z][A-Za-z0-9]*)-(\d+))\b/gi;
+const closing = new RegExp(
+	String.raw`\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s*(?:(${repoPathPattern})#(\d+)|#(\d+)|([A-Za-z][A-Za-z0-9]*)-(\d+))\b`,
+	"gi",
+);
 
-function closingKeys(body: string, repo: string): string[] {
+/** The keys that the closing references of a PR body name. A bare `#number` takes `repo`. */
+export function closingKeys(body: string, repo: string): string[] {
 	const keys: string[] = [];
 	for (const match of body.matchAll(closing)) {
 		const namedRepo = match[1];
@@ -115,27 +120,51 @@ export function linked(ticket: Ticket, pulls: PullRequest[]): PullRequest[] {
 	return find(ticket.key, ticket.tracker);
 }
 
-/** The links of each forge. The host of a URL selects its forge, and a URL that names no PR on that forge gives no link. */
+/**
+ * The links of each forge. The host of a URL selects its forge, and a URL that
+ * names no PR on that forge gives no link. `missing` holds the missing-token
+ * messages of the URLs that name a PR on a forge without a token.
+ */
 export function linksByForge(
 	refs: PullRef[],
-	forges: ReadonlyMap<string, Forge>,
-): Map<Forge, PullLink[]> {
+	linkOf: (
+		url: URL,
+	) => { forge: Forge; target: PullTarget } | { error: string } | null,
+): { links: Map<Forge, PullLink[]>; missing: string | null } {
 	const links = new Map<Forge, PullLink[]>();
+	const missing = new Set<string>();
 	for (const { url, ticketKey } of refs) {
 		const parsed = URL.parse(url);
-		const forge = parsed === null ? undefined : forges.get(parsed.host);
-		const target = parsed === null ? null : (forge?.pullOfUrl(parsed) ?? null);
-		if (forge !== undefined && target !== null) {
-			links.set(forge, [...(links.get(forge) ?? []), { ...target, ticketKey }]);
+		const link = parsed === null ? null : linkOf(parsed);
+		if (link === null) {
+			continue;
 		}
+		if ("error" in link) {
+			missing.add(link.error);
+			continue;
+		}
+		const { forge, target } = link;
+		links.set(forge, [...(links.get(forge) ?? []), { ...target, ticketKey }]);
 	}
-	return links;
+	return { links, missing: missing.size === 0 ? null : [...missing].join(" ") };
 }
 
+/**
+ * True when a merged pull's body closes the ticket. A Forgejo ticket key
+ * carries its host, so a repo key of the body takes the host of the pull.
+ */
 export function closesTicket(pull: PullRequest, ticket: Ticket): boolean {
 	const key = ticket.key;
 	if (key === null || !pull.merged) {
 		return false;
 	}
-	return closedByBody(pull).some((item) => sameTicketKey(item, key));
+	const hosted = ticket.tracker === "forgejo" ? pull.host : undefined;
+	return closedByBody(pull).some((item) =>
+		sameTicketKey(
+			hosted === undefined || keyRepo(item) === null
+				? item
+				: `${hosted}/${item}`,
+			key,
+		),
+	);
 }

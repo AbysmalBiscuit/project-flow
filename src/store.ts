@@ -1,7 +1,14 @@
 import { Database } from "bun:sqlite";
 
-import type { Board, Notification, Ticket, TrackerKind } from "./domain.ts";
+import type {
+	Board,
+	Notification,
+	PullRequest,
+	Ticket,
+	TrackerKind,
+} from "./domain.ts";
 import type { ValidatorStore } from "./github.ts";
+import { gitlabHost, gitlabPullMark } from "./gitlab-pin.ts";
 import { mergeTickets } from "./poll-merge.ts";
 import type { Snapshot, Store } from "./ports.ts";
 import { listedRef, projectId } from "./project-ref.ts";
@@ -28,8 +35,16 @@ type StoredRow = {
 /** The payload text of each row that a store read or wrote. */
 const payloadText = new WeakMap<Snapshot, string>();
 
+/** A store can hold a GitLab PR from before its key took the mark, and the poll would read that PR as a second one. */
+function markedPull(pull: PullRequest): PullRequest {
+	return pull.host === gitlabHost && pull.mark === undefined
+		? { ...pull, mark: gitlabPullMark }
+		: pull;
+}
+
 function fromStored(row: StoredRow): Snapshot {
-	const payload = JSON.parse(row.payload) as StoredPayload;
+	const stored = JSON.parse(row.payload) as StoredPayload;
+	const payload = { ...stored, pulls: stored.pulls.map(markedPull) };
 	const hostPrefix = payload.host === undefined ? 0 : payload.host.length + 1;
 	const snapshot = {
 		key: row.snapshot_key.slice(row.snapshot_key.indexOf(":") + 1 + hostPrefix),

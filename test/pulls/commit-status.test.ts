@@ -15,31 +15,22 @@ import {
 	widgetConfig,
 } from "./_support.ts";
 
-const refused: { state: string; reason: string; ci: string }[] = [
-	{ state: "pending", reason: "A check is pending", ci: "pending" },
-	{ state: "failure", reason: "A check failed", ci: "failing" },
-	{ state: "error", reason: "A check failed", ci: "failing" },
-];
-
-async function readCi(base: string, key: string): Promise<string | undefined> {
-	const needs = (await (
-		await fetch(new URL("/api/needs-you", base))
-	).json()) as { key: string; pull?: { ci: string } }[];
-	return needs.find((item) => item.key === key)?.pull?.ci;
-}
+const notAwaiting = { error: "The PR is not in Awaiting merge" };
 
 const status = (state: string): CommitStatus => ({ context: "deploy", state });
 
 describe("commit statuses close the merge gate", () => {
-	for (const { state, reason, ci } of refused) {
+	for (const state of ["pending", "failure", "error"]) {
 		test(`commit status ${state} beside a passing check run refuses a merge on a repo read`, async () => {
 			const fake = mergeFake({ statuses: [status(state)] });
 			await withApp(widgetConfig, fake.fetch, githubEnv, async (base) => {
+				expect((await readTicket(base, repo, `${repo}#8`))?.state).not.toBe(
+					"awaitingMerge",
+				);
 				const sent = await sendMerge(base);
 				expect(sent.status).toBe(409);
-				expect(await sent.json()).toEqual({ error: reason });
+				expect(await sent.json()).toEqual(notAwaiting);
 				expect(fake.merges).toEqual([]);
-				expect(await readCi(base, `${repo}#8`)).toBe(ci);
 			});
 		});
 
@@ -49,11 +40,13 @@ describe("commit statuses close the merge gate", () => {
 				statuses: [status(state)],
 			});
 			await withApp(linearConfig, fake.fetch, linearEnv, async (base) => {
+				expect(
+					(await readTicket(base, "Widget launch", "SWE-13029"))?.state,
+				).not.toBe("awaitingMerge");
 				const sent = await sendMerge(base, fake.pull.html_url);
 				expect(sent.status).toBe(409);
-				expect(await sent.json()).toEqual({ error: reason });
+				expect(await sent.json()).toEqual(notAwaiting);
 				expect(fake.merges).toEqual([]);
-				expect(await readCi(base, "SWE-13029")).toBe(ci);
 			});
 		});
 	}

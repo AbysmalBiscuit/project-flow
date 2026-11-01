@@ -1,0 +1,43 @@
+[
+	{
+		"id": 2268206,
+		"user": {
+			"id": 1508376,
+			"login": "AbysmalBiscuit",
+			"login_name": "",
+			"source_id": 0,
+			"full_name": "",
+			"email": "abysmalbiscuit@noreply.codeberg.org",
+			"avatar_url": "https://codeberg.org/avatars/c062d14d50c500da154f8ecbf4bd7abf",
+			"html_url": "https://codeberg.org/AbysmalBiscuit",
+			"language": "",
+			"is_admin": false,
+			"last_login": "0001-01-01T00:00:00Z",
+			"created": "2026-09-27T15:36:12+02:00",
+			"restricted": false,
+			"active": false,
+			"prohibit_login": false,
+			"location": "",
+			"pronouns": "",
+			"website": "",
+			"description": "",
+			"visibility": "public",
+			"followers_count": 0,
+			"following_count": 0,
+			"starred_repos_count": 0,
+			"username": "AbysmalBiscuit"
+		},
+		"team": null,
+		"state": "COMMENT",
+		"body": "A review comment.",
+		"commit_id": "e8b587bc5fe0658d1f1ea07ba3f600bd59276fb1",
+		"stale": false,
+		"official": false,
+		"dismissed": false,
+		"comments_count": 0,
+		"submitted_at": "2026-10-30T16:49:32+01:00",
+		"updated_at": "2026-10-30T16:49:32+01:00",
+		"html_url": "https://codeberg.org/AbysmalBiscuit/project-flow-scratch/pulls/10#issuecomment-26858567",
+		"pull_request_url": "https://codeberg.org/AbysmalBiscuit/project-flow-scratch/pulls/10"
+	}
+]

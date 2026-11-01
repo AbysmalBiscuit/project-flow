@@ -81,10 +81,23 @@ function keptPulls(
 	const incomingKeys = new Set(
 		incoming.flatMap((pull) => pull.closingKeys.map((key) => foldKey(key))),
 	);
+	const storedById = new Map(stored.map((pull) => [pullId(pull), pull]));
+	// An incremental read names only the links of the tickets that it returned,
+	// so a pull that it read again keeps the links of the unchanged tickets.
+	const withUnchangedLinks = (pull: PullRequest): PullRequest => {
+		const unchanged = (storedById.get(pullId(pull))?.closingKeys ?? []).filter(
+			(key) =>
+				!returnedIds.has(foldKey(key)) &&
+				!pull.closingKeys.some((held) => foldKey(held) === foldKey(key)),
+		);
+		return unchanged.length === 0
+			? pull
+			: { ...pull, closingKeys: [...pull.closingKeys, ...unchanged] };
+	};
 	// An incremental read can leave out the merged pulls of unchanged tickets,
 	// so it keeps each stored merged pull as the store holds it.
 	return [
-		...incoming,
+		...incoming.map(withUnchangedLinks),
 		...stored.filter(
 			(pull) =>
 				!incomingIds.has(pullId(pull)) &&
@@ -110,6 +123,9 @@ export function reconcilePoll(
 	for (const outcome of outcomes) {
 		seen.add(projectId(outcome.ref));
 		if (outcome.ok) {
+			if (outcome.error !== null) {
+				projectErrors.push({ ref: outcome.ref, error: outcome.error });
+			}
 			if (outcome.row === null) {
 				continue;
 			}

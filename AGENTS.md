@@ -59,6 +59,7 @@ test/
     fetch.ts         fake fetch basics: request URLs, JSON answers, tracker requests
     github.ts        recorded GitHub answers: discovery, issue lists, pages, pulls
     repo-read.ts     recorded answers to the GitHub repo read query
+    forgejo.ts       recorded Codeberg answers: the scratch repo, the Codeberg fake
     checkouts.ts     temporary git checkouts and devkit worktrees
     linear.ts        recorded Linear answers: issues, the Linear fake
     factory.ts       hub and daemon fakes

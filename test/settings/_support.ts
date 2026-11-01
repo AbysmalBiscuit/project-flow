@@ -681,6 +681,13 @@ export function listedBackends(credential: "present" | "missing") {
 		hint: "Token from gh auth token",
 		credential,
 	};
+	// The settings tests set no GITLAB_TOKEN.
+	const gitlab = {
+		kind: "gitlab",
+		label: "GitLab",
+		hint: "GITLAB_TOKEN found in the environment",
+		credential: "missing",
+	};
 	return {
 		trackers: [
 			{ ...github, claimsRuns: true },
@@ -691,8 +698,9 @@ export function listedBackends(credential: "present" | "missing") {
 				credential,
 				claimsRuns: false,
 			},
+			{ ...gitlab, claimsRuns: false },
 		],
-		forges: [github],
+		forges: [github, gitlab],
 		hints: {
 			runStart:
 				"Start run on a GitHub ticket adds the start and queue label. Start run on a Linear ticket writes the workflow state and labels that its hub source names. A GitHub ticket with the label and the queue status of a factory shows as queued. A Linear ticket in the state and labels of its hub source's ready mapping shows as queued.",

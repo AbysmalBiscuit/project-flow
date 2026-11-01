@@ -41,7 +41,7 @@ describe("the Merge row of Needs you", () => {
 		});
 	});
 
-	test("the row of an awaiting PR with a pending check names the reason", async () => {
+	test("a PR with a pending check has no Merge row", async () => {
 		const fake = mergeFake({
 			checks: [
 				passedCheck,
@@ -52,10 +52,8 @@ describe("the Merge row of Needs you", () => {
 			const row = (await needsYou(base)).find(
 				(item) => item.key === `${repo}#8`,
 			);
-			expect(row?.awaitingPulls?.[0]?.mergeGate).toEqual({
-				open: false,
-				reason: "A check is pending",
-			});
+			expect(row?.reason).not.toBe("awaitingMerge");
+			expect(row?.awaitingPulls).toBeUndefined();
 		});
 	});
 });

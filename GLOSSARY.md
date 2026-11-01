@@ -31,7 +31,7 @@ An open PR that links to no ticket, through a closing reference, a tracker attac
 _Avoid_: Orphan PR, loose PR
 
 **Tracker**:
-The external system that owns a ticket, such as GitHub or Linear. It holds the ticket's status, labels, parent ticket and blocker links.
+The external system that owns a ticket, such as GitHub, GitLab or Linear. It holds the ticket's status, labels, parent ticket and blocker links.
 _Avoid_: Source, provider, tool
 
 **Forge**:
@@ -39,13 +39,13 @@ The external system that hosts the git refs and PRs of a repo, such as GitHub, G
 _Avoid_: Code host, git provider
 
 **Declared host**:
-A self-hosted forge host that the `hosts` list of the configuration names, with its forge kind and the env var of its token. github.com needs no declaration. The name gitlab.com stays reserved until its adapter exists, so a configuration cannot declare it or pin a project on it.
+A self-hosted forge host that the `hosts` list of the configuration names, with its forge kind and the env var of its token. github.com and gitlab.com need no declaration, so a configuration cannot declare them.
 _Avoid_: Custom host, enterprise host
 
 ### Grouping
 
 **Parent ticket**:
-A ticket that other tickets sit under in the tracker. A parent ticket is outside when the project's tickets do not include it.
+A ticket that other tickets sit under in the tracker. A parent ticket is outside when the project's tickets do not include it. Forgejo has no sub-tickets, so a task list item such as `- [ ] #12` in the body of a Forgejo ticket makes that ticket the parent ticket of #12 in the same repo. The first ticket that lists #12 is its parent ticket.
 _Avoid_: Epic (when a parent ticket is meant), parent issue
 
 **Sub-ticket**:
@@ -114,7 +114,7 @@ An open ticket in a review that has begun and has not finished. The tracker stat
 _Avoid_: Under review, PR open
 
 **Awaiting merge**:
-An open ticket whose every open PR has finished its review cycle and waits for a human to merge it. Auto-merge is off, or auto-merge is set to ask. A ticket stays In review until its PR merges when its reviews are done and auto-merge is on. The workcell `merge_auto` setting applies only to a PR that a workcell run opened. A factory run reports such a PR, or a workcell progress comment names it.
+An open ticket whose every open PR has finished its review cycle and waits for a human to merge it. The CI of each open PR passes or has no checks, on every forge. Failing or pending CI keeps the ticket In review. Auto-merge is off, or auto-merge is set to ask. A ticket stays In review until its PR merges when its reviews are done and auto-merge is on. The workcell `merge_auto` setting applies only to a PR that a workcell run opened. A factory run reports such a PR, or a workcell progress comment names it.
 _Avoid_: Ready, pending merge, mergeable
 
 **Backlog**:
@@ -231,8 +231,12 @@ The talk with a run in time order: each ask of the run, each answer that Lev sen
 _Avoid_: Run chat, run log
 
 **Stage transcript**:
-The record of the agent of one run stage: each message of the agent and each tool call, in time order. The run thread is not part of it. Project Flow reads it from `GET /runs/{id}/stages/{node_path}/transcript` of the hub that reports the run, or else of its box. Each read gives the entries after the `after` cursor, so a view of a live stage reads only the new entries.
+The record of the agent of one run stage: each message of the agent, each tool call and each steer that reached the agent, in time order. The run thread holds the asks and answers of the run, and it is not part of the stage transcript. Project Flow reads it from `GET /runs/{id}/stages/{node_path}/transcript` of the hub that reports the run, or else of its box. Each read gives the entries after the `after` cursor, so a view of a live stage reads only the new entries. A read also tells when the stage has ended, and then the view stops its reads.
 _Avoid_: Stage thread, stage chat, stage log
+
+**Terminal tab**:
+The tab of the run page that follows the stage transcript of the live stage of a run. It has a steer box for that stage until the stage ends. A run with no live stage shows the stage transcript of its last agent stage, with no steer box. It shows no pane screen and sends no raw keys.
+_Avoid_: Console, shell
 
 **Run context**:
 The context values of a run now, such as its goal and the values that its stages reported. All stages of a run share one run context. The stage view shows it, because the factory serves no context for one stage. Project Flow reads it from the `context_values` of the run checkpoint.

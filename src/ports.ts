@@ -104,6 +104,9 @@ export type PullLinks = {
 	repos: string[];
 };
 
+/** The repo and number of one PR on a forge. */
+export type PullTarget = Pick<PullLink, "repo" | "number">;
+
 /** A URL on one ticket that can name a PR on a forge. */
 export type PullRef = { url: string; ticketKey: string };
 
@@ -308,7 +311,7 @@ export type Forge = {
 	listBranches: (repo: string) => Promise<string[]>;
 	repoAutoMerge: (repo: string) => Promise<boolean>;
 	/** The repo and number of the PR that this URL names, or null for any other URL. */
-	pullOfUrl: (url: URL) => Pick<PullLink, "repo" | "number"> | null;
+	pullOfUrl: (url: URL) => PullTarget | null;
 	/** Merge the PR at its known head. A refusal throws a `TrackerError` with the reason of the forge. */
 	merge?: (
 		pull: Pick<PullRequest, "repo" | "number" | "headSha">,

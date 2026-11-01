@@ -1,0 +1,114 @@
+[
+	{
+		"id": 17599465513,
+		"name": "tests:coverage",
+		"stage": "test",
+		"status": "success",
+		"allow_failure": false
+	},
+	{
+		"id": 17599465512,
+		"name": "tests:integration",
+		"stage": "test",
+		"status": "success",
+		"allow_failure": false
+	},
+	{
+		"id": 17599465511,
+		"name": "tests:unit",
+		"stage": "test",
+		"status": "success",
+		"allow_failure": false
+	},
+	{
+		"id": 17599465510,
+		"name": "lint",
+		"stage": "test",
+		"status": "success",
+		"allow_failure": false
+	},
+	{
+		"id": 17599465509,
+		"name": "lint:comments",
+		"stage": "test",
+		"status": "success",
+		"allow_failure": false
+	},
+	{
+		"id": 17599465508,
+		"name": "docs hugo_build",
+		"stage": "documentation",
+		"status": "success",
+		"allow_failure": false
+	},
+	{
+		"id": 17599465507,
+		"name": "check_docs_markdown",
+		"stage": "documentation",
+		"status": "success",
+		"allow_failure": false
+	},
+	{
+		"id": 17599465506,
+		"name": "check_docs_update",
+		"stage": "documentation",
+		"status": "success",
+		"allow_failure": false
+	},
+	{
+		"id": 17599465505,
+		"name": "check_args",
+		"stage": "checks",
+		"status": "success",
+		"allow_failure": false
+	},
+	{
+		"id": 17599465504,
+		"name": "check_embed",
+		"stage": "checks",
+		"status": "success",
+		"allow_failure": false
+	},
+	{
+		"id": 17599465503,
+		"name": "lint_commit",
+		"stage": "checks",
+		"status": "success",
+		"allow_failure": false
+	},
+	{
+		"id": 17599465502,
+		"name": "check_go_generated_code",
+		"stage": "checks",
+		"status": "success",
+		"allow_failure": false
+	},
+	{
+		"id": 17599465501,
+		"name": "dependency-scanning-profile-0",
+		"stage": "application-security-testing",
+		"status": "success",
+		"allow_failure": true
+	},
+	{
+		"id": 17599465500,
+		"name": "govulncheck",
+		"stage": "application-security-testing",
+		"status": "manual",
+		"allow_failure": true
+	},
+	{
+		"id": 17599465499,
+		"name": "secret_detection",
+		"stage": "application-security-testing",
+		"status": "success",
+		"allow_failure": true
+	},
+	{
+		"id": 17599465498,
+		"name": "gitlab-advanced-sast",
+		"stage": "application-security-testing",
+		"status": "success",
+		"allow_failure": true
+	}
+]

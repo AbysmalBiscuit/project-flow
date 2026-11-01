@@ -158,7 +158,7 @@ export type RunSource = {
 	graphs: { path: string; text: string }[];
 };
 
-/** One record of the agent of a run stage: a message, or a tool call with its cut input. */
+/** One record of the agent of a run stage: a message, a tool call with its cut input, or a steer that reached the agent. */
 export type TranscriptEntry = {
 	/** The cursor of the entry. A read with `after` set to it gives the entries after it. */
 	id: number;
@@ -170,10 +170,18 @@ export type TranscriptEntry = {
 } & (
 	| { kind: "message"; text: string }
 	| { kind: "tool_call"; name: string; input: string; truncated: boolean }
+	| { kind: "steer"; text: string; sender: string; interrupt: boolean }
 );
 
-/** One page of a stage transcript. `next` is the cursor of the next read. */
-export type StageTranscript = { entries: TranscriptEntry[]; next: number };
+/**
+ * One page of a stage transcript. `next` is the cursor of the next read.
+ * `ended` is true when the page holds the last entry of a stage that has ended.
+ */
+export type StageTranscript = {
+	entries: TranscriptEntry[];
+	next: number;
+	ended: boolean;
+};
 
 /** A value that a run's package parameter takes, as JSON. */
 export type ParameterValue =
@@ -292,11 +300,20 @@ export type Queued = {
 export type RunCheckpoint = {
 	/** The path of the current stage. Null when the run is at no stage. */
 	stage: string | null;
+	/**
+	 * The stage whose transcript a view of the run shows when it follows no live
+	 * stage: the stage where the run is or stopped when it records a transcript,
+	 * else the last finished stage that records one. Null when the run has none.
+	 */
+	lastAgentStage: string | null;
 	/** The stages that the run finished, in order. */
 	completedStages: string[];
 	/** The retries of each stage, by stage name. */
 	retries: Record<string, number>;
-	/** The visits of each stage, by stage name. A review stage visit is one review round. */
+	/**
+	 * The visits of each stage, by stage path. A stage of a child graph is under
+	 * its full path. A review stage visit is one review round.
+	 */
 	visits: Record<string, number>;
 	/** The run context: the values that the run's stages wrote, by key. */
 	context: Record<string, unknown>;

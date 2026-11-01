@@ -38,7 +38,7 @@ describe("merge an unlinked awaiting PR", () => {
 		});
 	});
 
-	test("a failed check refuses the merge with its reason, and GitHub gets no request", async () => {
+	test("a failed check keeps the PR out of Awaiting merge, and GitHub gets no request", async () => {
 		const fake = mergeFake({
 			...unlinked,
 			checks: [
@@ -48,13 +48,13 @@ describe("merge an unlinked awaiting PR", () => {
 		});
 		await withApp(widgetConfig, fake.fetch, githubEnv, async (base) => {
 			const card = await readTicket(base, repo, key);
-			expect(card?.awaitingPulls?.[0]?.mergeGate).toEqual({
-				open: false,
-				reason: "A check failed",
-			});
+			expect(card?.state).not.toBe("awaitingMerge");
+			expect(card?.awaitingPulls).toBeUndefined();
 			const sent = await sendMerge(base);
 			expect(sent.status).toBe(409);
-			expect(await sent.json()).toEqual({ error: "A check failed" });
+			expect(await sent.json()).toEqual({
+				error: "The PR is not in Awaiting merge",
+			});
 			expect(fake.merges).toEqual([]);
 		});
 	});

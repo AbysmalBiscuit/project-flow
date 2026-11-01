@@ -5,7 +5,7 @@ import { githubHeaders } from "./github-pages.ts";
 import { loadLinkedPulls, type ReviewEvidence } from "./github-pulls.ts";
 import type { GithubReads } from "./github-reads.ts";
 import { readAutoMerge } from "./github-repo-query.ts";
-import { type Forge, TrackerError } from "./ports.ts";
+import { type Forge, type PullTarget, TrackerError } from "./ports.ts";
 import { numberedKey } from "./ticket-key.ts";
 
 const mergeRefusal = z.object({ message: z.string() });
@@ -67,21 +67,7 @@ export function githubForge(
 			autoMergeByRepo.set(repo, read);
 			return read;
 		},
-		pullOfUrl({ protocol, pathname, search, hash }) {
-			const match = pathname.match(/^\/([^/]+\/[^/]+)\/pull\/(\d+)$/);
-			const repo = match?.[1];
-			const number = match?.[2];
-			if (
-				protocol !== "https:" ||
-				search !== "" ||
-				hash !== "" ||
-				repo === undefined ||
-				number === undefined
-			) {
-				return null;
-			}
-			return { repo, number: Number(number) };
-		},
+		pullOfUrl: githubPullOfUrl,
 		async merge({ repo, number, headSha }) {
 			const response = await fetchImpl(
 				`https://api.github.com/repos/${repo}/pulls/${number}/merge`,
@@ -107,4 +93,25 @@ export function githubForge(
 			}
 		},
 	};
+}
+
+export function githubPullOfUrl({
+	protocol,
+	pathname,
+	search,
+	hash,
+}: URL): PullTarget | null {
+	const match = pathname.match(/^\/([^/]+\/[^/]+)\/pull\/(\d+)$/);
+	const repo = match?.[1];
+	const number = match?.[2];
+	if (
+		protocol !== "https:" ||
+		search !== "" ||
+		hash !== "" ||
+		repo === undefined ||
+		number === undefined
+	) {
+		return null;
+	}
+	return { repo, number: Number(number) };
 }
