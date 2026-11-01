@@ -17,17 +17,16 @@ import {
 import { phoneLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 
-/** A link to each PR of a Decide row, where Lev answers its Important Questions. */
-function PullLinks({ pulls }: { pulls: readonly AwaitingPull[] }) {
-	return pulls.map((pull) => (
+/** A link to a PR of a Decide row, where Lev answers its Important Questions. */
+function PullLink({ pull }: { pull: AwaitingPull }) {
+	return (
 		<Button
-			key={pull.url}
 			label={pullMergeCopy.open(pull.number)}
 			icon="external-link"
 			href={pull.url}
 			newTab
 		/>
-	));
+	);
 }
 
 /** One button for each PR choice, or a held Merge when the forge offers none. */
@@ -76,7 +75,9 @@ function PullActions({
 	);
 	return (
 		<>
-			{item.reason === "decide" ? <PullLinks pulls={pulls} /> : null}
+			{item.reason === "decide"
+				? pulls.map((pull) => <PullLink key={pull.url} pull={pull} />)
+				: null}
 			<ChoiceButtons choices={choices} reason={item.reason} />
 			{feedback}
 		</>
