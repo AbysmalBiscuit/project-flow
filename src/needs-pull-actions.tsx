@@ -17,7 +17,11 @@ function PullLink({ pull }: { pull: AwaitingPull }) {
 	);
 }
 
-/** One button for each PR choice, or a held Merge when the forge offers none. */
+/**
+ * One button for each PR choice. An Awaiting merge row whose forge offers no
+ * choice shows a held Merge. A Decide row never shows Merge, because the merge
+ * gate blocks it.
+ */
 function ChoiceButtons({
 	choices,
 	reason,
@@ -25,7 +29,7 @@ function ChoiceButtons({
 	choices: readonly SplitChoice[];
 	reason: NeedsYouItem["reason"];
 }) {
-	if (choices.length === 0) {
+	if (choices.length === 0 && reason !== "decide") {
 		return (
 			<Button
 				label={heldActionLabel.merge}
