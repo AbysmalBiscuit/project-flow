@@ -9,9 +9,22 @@ import {
 	linearStatusOnlyFake,
 	mergeFake,
 	passedCheck,
+	pullUrl,
 	repo,
+	sendMerge,
 	widgetConfig,
 } from "./_support.ts";
+
+const openQuestionBody = `Closes #8
+
+### Important Questions
+
+<details><summary><b>1. redefines the scope:</b> Should the widget ship?</summary>
+
+The widget changes its scope.
+
+</details>
+`;
 
 const needsYou = async (base: string) =>
 	(await (
@@ -30,14 +43,53 @@ describe("the Merge row of Needs you", () => {
 		);
 	});
 
-	test("the row of an awaiting PR carries an open gate", async () => {
+	test("the row of an awaiting PR lists its actions and an open gate", async () => {
 		const fake = mergeFake();
 		await withApp(widgetConfig, fake.fetch, githubEnv, async (base) => {
 			const row = (await needsYou(base)).find(
 				(item) => item.key === `${repo}#8`,
 			);
 			expect(row?.reason).toBe("awaitingMerge");
-			expect(row?.awaitingPulls?.[0]?.mergeGate).toEqual({ open: true });
+			expect(row?.awaitingPulls).toEqual([
+				expect.objectContaining({
+					url: pullUrl,
+					actions: ["merge", "requestChanges"],
+					mergeGate: { open: true },
+				}),
+			]);
+		});
+	});
+
+	test("a Decide row lists Request changes and the closed gate, but no merge action", async () => {
+		const fake = mergeFake({ body: openQuestionBody });
+		await withApp(widgetConfig, fake.fetch, githubEnv, async (base) => {
+			const row = (await needsYou(base)).find(
+				(item) => item.key === `${repo}#8`,
+			);
+			expect(row?.reason).toBe("decide");
+			expect(row?.awaitingPulls).toEqual([
+				expect.objectContaining({
+					url: pullUrl,
+					actions: ["requestChanges"],
+					mergeGate: { open: false, reason: "An Important Question is open" },
+				}),
+			]);
+		});
+	});
+
+	test("a merge from the row takes the row out of the next Needs you response", async () => {
+		const fake = mergeFake();
+		await withApp(widgetConfig, fake.fetch, githubEnv, async (base) => {
+			const row = (await needsYou(base)).find(
+				(item) => item.key === `${repo}#8`,
+			);
+			const url = row?.awaitingPulls?.[0]?.url;
+			expect(url).toBe(pullUrl);
+			expect((await sendMerge(base, url)).status).toBe(204);
+			expect(fake.merges).toHaveLength(1);
+			expect(
+				(await needsYou(base)).find((item) => item.key === `${repo}#8`),
+			).toBeUndefined();
 		});
 	});
 

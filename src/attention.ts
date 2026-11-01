@@ -390,6 +390,26 @@ function runAsk(
 	};
 }
 
+/**
+ * The item with its awaiting PRs. A Decide row offers no merge, because the
+ * merge gate blocks a PR with an open Important Question.
+ */
+function withAwaitingPulls(
+	item: NeedsYouItem,
+	awaitingPulls: AwaitingPull[],
+): NeedsYouItem {
+	return {
+		...item,
+		awaitingPulls:
+			item.reason === "decide"
+				? awaitingPulls.map((pull) => ({
+						...pull,
+						actions: pull.actions.filter((action) => action !== "merge"),
+					}))
+				: awaitingPulls,
+	};
+}
+
 function pullComments(pull: PullRequest): Comment[] {
 	return pull.comments.map((comment) => ({
 		body: comment.body,
@@ -464,7 +484,7 @@ export function needsYouItems(
 			linkedPulls,
 			fromRun?.factoryAsk,
 		);
-		items.push(awaiting ? { ...item, awaitingPulls } : item);
+		items.push(awaiting ? withAwaitingPulls(item, awaitingPulls) : item);
 	}
 	const folded = new Set(
 		[...linkedByTicket.values()].flat().map((pull) => pullId(pull)),
@@ -494,10 +514,11 @@ export function needsYouItems(
 		if (mergesOnItsOwn([pull], project, projectKey, autoMerge, workcellPulls)) {
 			continue;
 		}
-		items.push({
-			...pullItem(project, pull, null, "awaitingMerge"),
-			awaitingPulls: [awaitingPull(pull, pullActionsOf)],
-		});
+		items.push(
+			withAwaitingPulls(pullItem(project, pull, null, "awaitingMerge"), [
+				awaitingPull(pull, pullActionsOf),
+			]),
+		);
 	}
 	items.sort((left, right) => Number(left.answered) - Number(right.answered));
 	return items;
