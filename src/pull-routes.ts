@@ -6,8 +6,8 @@ import type { PollOptions } from "./poll.ts";
 import type { Forge } from "./ports.ts";
 import { refreshProject } from "./project-routes.ts";
 import { projectViews } from "./project-views.ts";
+import { mergeGateReason, requestChangesCopy } from "./pull-terms.ts";
 import { routeTable } from "./route-table.ts";
-import { mergeGateReason, requestChangesCopy } from "./terms.ts";
 import { trackerError } from "./tracker-route.ts";
 
 const mergeBody = z.object({ url: z.string().min(1) });

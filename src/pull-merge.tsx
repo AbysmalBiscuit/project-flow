@@ -4,10 +4,10 @@ import { Button } from "./button.tsx";
 import { ConfirmDialog } from "./confirm-dialog.tsx";
 import type { AwaitingPull } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
+import { pullMergeCopy, requestChangesCopy } from "./pull-terms.ts";
 import { useMergePull, useRequestChanges } from "./queries.ts";
 import { SendText } from "./send-box.tsx";
 import { SplitButton, type SplitChoice } from "./split-button.tsx";
-import { pullMergeCopy, requestChangesCopy } from "./terms.ts";
 import { actionToastHideMs, Toast } from "./toast.tsx";
 import { clsx } from "./ui.ts";
 

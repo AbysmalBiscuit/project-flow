@@ -38,11 +38,11 @@ import type { RunSettingsRead } from "./factory-run-settings.ts";
 import type { SourceRead } from "./factory-run-source.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import { liveRunStatusKinds } from "./kinds.ts";
+import { pullMergeCopy, requestChangesCopy } from "./pull-terms.ts";
 import type { RunListRow } from "./run-list.ts";
 import type { StateSource } from "./settings-write.ts";
 import { pendingStatus } from "./stale-reads.ts";
 import { storedObject } from "./stored-page.ts";
-import { pullMergeCopy, requestChangesCopy } from "./terms.ts";
 
 type SettingsPage = {
 	settings: Configuration;

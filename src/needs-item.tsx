@@ -4,11 +4,11 @@ import { Button } from "./button.tsx";
 import { control, textControl } from "./control-styles.ts";
 import type { NeedsYouItem } from "./domain.ts";
 import { needs } from "./needs-you-styles.ts";
+import { mergeGateReason } from "./pull-terms.ts";
 import {
 	actionLabel,
 	answeredReason,
 	heldActionLabel,
-	mergeGateReason,
 	openQuestionsLabel,
 	reasonLabel,
 } from "./terms.ts";
