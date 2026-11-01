@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 import { Button } from "./button.tsx";
 import type { AwaitingPull, NeedsYouItem } from "./domain.ts";
 import { type PullChoice, usePullMerge } from "./pull-merge.tsx";
@@ -60,11 +62,7 @@ export function PullActions({
 	item: NeedsYouItem;
 	pulls: readonly AwaitingPull[];
 }) {
-	const { choices, feedback } = usePullMerge(
-		pulls,
-		undefined,
-		`needs-${item.key.replace(/[^\w-]/g, "-")}`,
-	);
+	const { choices, feedback } = usePullMerge(pulls, undefined, useId());
 	return (
 		<>
 			{item.reason === "decide"
