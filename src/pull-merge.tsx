@@ -12,15 +12,23 @@ import { actionToastHideMs, Toast } from "./toast.tsx";
 import { clsx } from "./ui.ts";
 
 /**
+ * A PR choice. `short` is the label without the gate reason, and `reason` is
+ * the reason of a closed gate, for a surface that shows it as a tooltip.
+ */
+export type PullChoice = SplitChoice & { short: string; reason?: string };
+
+/**
  * The PR choices of the run control: Merge for each PR that its forge can
  * merge, then Request changes for each PR that its forge can review. A closed
  * gate gives a disabled Merge that names its reason. `feedback` holds the
  * confirm step, the review text field and the refusal message of the forge.
+ * `scope` keeps the dialog ids apart when one page holds many controls.
  */
 export function usePullMerge(
 	pulls: readonly AwaitingPull[],
 	onMerged: (() => void) | undefined,
-): { choices: SplitChoice[]; feedback: ReactNode } {
+	scope = "pull",
+): { choices: PullChoice[]; feedback: ReactNode } {
 	const [asking, setAsking] = useState<AwaitingPull | null>(null);
 	const [reviewing, setReviewing] = useState<AwaitingPull | null>(null);
 	const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({});
@@ -31,27 +39,37 @@ export function usePullMerge(
 	const review = useRequestChanges();
 	const mergeChoices = pulls
 		.filter((pull) => pull.actions.includes("merge"))
-		.map((pull): SplitChoice => ({
-			label: pull.mergeGate.open
-				? merge.isPending && merge.variables === pull.url
-					? pullMergeCopy.merging
-					: pullMergeCopy.merge(pull.number)
-				: pullMergeCopy.blocked(pull.number, pull.mergeGate.reason),
-			disabled: !pull.mergeGate.open || merge.isPending,
-			independent: true,
-			onPick: () => setAsking(pull),
-		}));
+		.map((pull): PullChoice => {
+			const merging = merge.isPending && merge.variables === pull.url;
+			const short = merging
+				? pullMergeCopy.merging
+				: pullMergeCopy.merge(pull.number);
+			return {
+				label: pull.mergeGate.open
+					? short
+					: pullMergeCopy.blocked(pull.number, pull.mergeGate.reason),
+				short,
+				...(pull.mergeGate.open ? {} : { reason: pull.mergeGate.reason }),
+				disabled: !pull.mergeGate.open || merge.isPending,
+				independent: true,
+				onPick: () => setAsking(pull),
+			};
+		});
 	const reviewChoices = pulls
 		.filter((pull) => pull.actions.includes("requestChanges"))
-		.map((pull): SplitChoice => ({
-			label:
+		.map((pull): PullChoice => {
+			const label =
 				review.isPending && review.variables?.url === pull.url
 					? requestChangesCopy.sending
-					: requestChangesCopy.action(pull.number),
-			disabled: review.isPending,
-			independent: true,
-			onPick: () => setReviewing(pull),
-		}));
+					: requestChangesCopy.action(pull.number);
+			return {
+				label,
+				short: label,
+				disabled: review.isPending,
+				independent: true,
+				onPick: () => setReviewing(pull),
+			};
+		});
 	const feedback = (
 		<>
 			{merge.error === null ? null : (
@@ -71,7 +89,7 @@ export function usePullMerge(
 				/>
 			)}
 			<ConfirmDialog
-				id="pull-merge-dialog"
+				id={`${scope}-merge-dialog`}
 				open={asking !== null}
 				title={pullMergeCopy.title}
 				body={
@@ -93,7 +111,7 @@ export function usePullMerge(
 				}}
 			/>
 			<ConfirmDialog
-				id="pull-review-dialog"
+				id={`${scope}-review-dialog`}
 				open={reviewing !== null}
 				title={requestChangesCopy.title}
 				body={
@@ -116,11 +134,11 @@ export function usePullMerge(
 					setReviewing(null);
 				}}
 			>
-				<label className={clsx(panel.label)} htmlFor="pull-review-text">
+				<label className={clsx(panel.label)} htmlFor={`${scope}-review-text`}>
 					{requestChangesCopy.label}
 				</label>
 				<SendText
-					id="pull-review-text"
+					id={`${scope}-review-text`}
 					placeholder={requestChangesCopy.placeholder}
 					value={draft}
 					onChange={(event) => {

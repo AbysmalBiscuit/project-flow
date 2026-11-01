@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import { Button } from "./button.tsx";
 import { control, textControl } from "./control-styles.ts";
 import type { NeedsYouItem } from "./domain.ts";
+import { PullActions } from "./needs-pull-actions.tsx";
 import { needs } from "./needs-you-styles.ts";
-import { mergeGateReason } from "./pull-terms.ts";
 import {
 	actionLabel,
 	answeredReason,
@@ -14,22 +14,6 @@ import {
 } from "./terms.ts";
 import { phoneLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-
-/**
- * The reason that the Merge of an awaiting row waits, or null when a PR can
- * merge. The action opens the side panel, whose run control holds the merge.
- */
-function mergeBlocked(item: NeedsYouItem): string | null {
-	const pulls = (item.awaitingPulls ?? []).filter((pull) =>
-		pull.actions.includes("merge"),
-	);
-	const blocked = pulls.flatMap(({ mergeGate }) =>
-		mergeGate.open ? [] : [mergeGate.reason],
-	);
-	return blocked.length < pulls.length
-		? null
-		: (blocked[0] ?? mergeGateReason.noCapability);
-}
 
 function heldAction(item: NeedsYouItem): string | null {
 	if (item.reason === "label") {
@@ -121,15 +105,12 @@ export function NeedsItem({
 	onAction?: (key: string) => void;
 }) {
 	const Icon = reasonIcon[item.reason];
-	const merging = item.reason === "awaitingMerge";
-	const blocked = merging ? mergeBlocked(item) : null;
-	const held = merging
-		? blocked === null
-			? null
-			: heldActionLabel.merge
-		: heldAction(item);
-	const action = merging ? heldActionLabel.merge : (held ?? actionLabel(item));
-	const disabled = held !== null;
+	const pulls =
+		item.reason === "awaitingMerge" || item.reason === "decide"
+			? (item.awaitingPulls ?? [])
+			: [];
+	const held = heldAction(item);
+	const action = held ?? actionLabel(item);
 	const lead = (
 		<>
 			<span className={clsx(needs.icon)} aria-hidden="true">
@@ -191,16 +172,19 @@ export function NeedsItem({
 						{item.project}
 					</a>
 				) : null}
-				<Button
-					label={action}
-					{...(item.reason === "ask" && !item.answered
-						? { tone: "primary" as const }
-						: {})}
-					data-held-action={held === null ? undefined : item.reason}
-					{...(blocked === null ? {} : { tooltip: blocked })}
-					disabled={disabled}
-					onClick={() => (onAction ?? onOpen)?.(item.key)}
-				/>
+				{pulls.length > 0 ? (
+					<PullActions item={item} pulls={pulls} />
+				) : (
+					<Button
+						label={action}
+						{...(item.reason === "ask" && !item.answered
+							? { tone: "primary" as const }
+							: {})}
+						data-held-action={held === null ? undefined : item.reason}
+						disabled={held !== null}
+						onClick={() => (onAction ?? onOpen)?.(item.key)}
+					/>
+				)}
 				<Button icon="check" name={`Clear ${item.key}`} disabled />
 			</span>
 		</li>

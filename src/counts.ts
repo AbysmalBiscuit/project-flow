@@ -1,4 +1,3 @@
-import { needsYouItems } from "./attention.ts";
 import type { TicketGraph } from "./blockers.ts";
 import type { Configuration } from "./configuration.ts";
 import type {
@@ -26,6 +25,7 @@ import {
 	stateOfTicket,
 } from "./lanes.ts";
 import { awaitingPull, type PullActionsOf } from "./merge-gate.ts";
+import { needsYouItems } from "./needs-you-items.ts";
 import { staleView } from "./poll-merge.ts";
 import { settingsKey } from "./project-ref.ts";
 import { type ForgeLabelOf, projectReport } from "./report.ts";

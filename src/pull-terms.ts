@@ -36,4 +36,5 @@ export const pullMergeCopy = {
 	confirm: "Merge",
 	dismiss: "Keep open",
 	failed: "Merge failed",
+	open: (number: number) => `PR #${number}`,
 } as const;
