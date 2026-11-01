@@ -6,6 +6,7 @@ import type { AwaitingPull, NeedsYouItem } from "./domain.ts";
 import { needs } from "./needs-you-styles.ts";
 import { usePullMerge } from "./pull-merge.tsx";
 import { mergeGateReason, pullMergeCopy } from "./pull-terms.ts";
+import type { SplitChoice } from "./split-button.tsx";
 import {
 	actionLabel,
 	answeredReason,
@@ -16,10 +17,50 @@ import {
 import { phoneLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 
+/** A link to each PR of a Decide row, where Lev answers its Important Questions. */
+function PullLinks({ pulls }: { pulls: readonly AwaitingPull[] }) {
+	return pulls.map((pull) => (
+		<Button
+			key={pull.url}
+			label={pullMergeCopy.open(pull.number)}
+			icon="external-link"
+			href={pull.url}
+			newTab
+		/>
+	));
+}
+
+/** One button for each PR choice, or a held Merge when the forge offers none. */
+function ChoiceButtons({
+	choices,
+	reason,
+}: {
+	choices: readonly SplitChoice[];
+	reason: NeedsYouItem["reason"];
+}) {
+	if (choices.length === 0) {
+		return (
+			<Button
+				label={heldActionLabel.merge}
+				tooltip={mergeGateReason.noCapability}
+				data-held-action={reason}
+				disabled
+			/>
+		);
+	}
+	return choices.map((choice) => (
+		<Button
+			key={choice.label}
+			label={choice.label}
+			disabled={choice.disabled === true}
+			onClick={choice.onPick}
+		/>
+	));
+}
+
 /**
  * The PR actions of an Awaiting merge or Decide row, through the same confirm
- * steps as the side panel. A Decide row also links each PR, where Lev answers
- * its Important Questions. A row whose forge offers no action shows a held Merge.
+ * steps as the side panel.
  */
 function PullActions({
 	item,
@@ -35,34 +76,8 @@ function PullActions({
 	);
 	return (
 		<>
-			{item.reason === "decide"
-				? pulls.map((pull) => (
-						<Button
-							key={pull.url}
-							label={pullMergeCopy.open(pull.number)}
-							icon="external-link"
-							href={pull.url}
-							newTab
-						/>
-					))
-				: null}
-			{choices.length === 0 ? (
-				<Button
-					label={heldActionLabel.merge}
-					tooltip={mergeGateReason.noCapability}
-					data-held-action={item.reason}
-					disabled
-				/>
-			) : (
-				choices.map((choice) => (
-					<Button
-						key={choice.label}
-						label={choice.label}
-						disabled={choice.disabled === true}
-						onClick={choice.onPick}
-					/>
-				))
-			)}
+			{item.reason === "decide" ? <PullLinks pulls={pulls} /> : null}
+			<ChoiceButtons choices={choices} reason={item.reason} />
 			{feedback}
 		</>
 	);
