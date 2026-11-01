@@ -88,9 +88,9 @@ describe("request changes on an awaiting PR", () => {
 			expect(after.comments).toMatchObject([
 				{
 					body: text,
-					author: "lev",
-					createdAt: "2026-10-18T12:00:00Z",
-					url: "https://github.com/acme/widget/pull/40#pullrequestreview-3348127710",
+					author: "octocat",
+					createdAt: "2019-11-17T17:43:43Z",
+					url: "https://github.com/acme/widget/pull/40#pullrequestreview-80",
 				},
 			]);
 		});
