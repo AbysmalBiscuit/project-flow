@@ -160,6 +160,7 @@ describe("run starts", () => {
 			).json()) as Settings;
 			const saved = await fetch(new URL("/api/settings", app.base), {
 				method: "PUT",
+				headers: { "content-type": "application/json" },
 				body: JSON.stringify(change(settings)),
 			});
 			expect(saved.status).toBe(200);

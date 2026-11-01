@@ -8,16 +8,30 @@ import {
 	actionLabel,
 	answeredReason,
 	heldActionLabel,
+	mergeGateReason,
 	openQuestionsLabel,
 	reasonLabel,
 } from "./terms.ts";
 import { phoneLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 
+/**
+ * The reason that the Merge of an awaiting row waits, or null when a PR can
+ * merge. The action opens the side panel, whose run control holds the merge.
+ */
+function mergeBlocked(item: NeedsYouItem): string | null {
+	const pulls = (item.awaitingPulls ?? []).filter((pull) =>
+		pull.actions.includes("merge"),
+	);
+	const blocked = pulls.flatMap(({ mergeGate }) =>
+		mergeGate.open ? [] : [mergeGate.reason],
+	);
+	return blocked.length < pulls.length
+		? null
+		: (blocked[0] ?? mergeGateReason.noCapability);
+}
+
 function heldAction(item: NeedsYouItem): string | null {
-	if (item.reason === "awaitingMerge") {
-		return heldActionLabel.merge;
-	}
 	if (item.reason === "label") {
 		return heldActionLabel.removeLabel;
 	}
@@ -107,8 +121,14 @@ export function NeedsItem({
 	onAction?: (key: string) => void;
 }) {
 	const Icon = reasonIcon[item.reason];
-	const held = heldAction(item);
-	const action = held ?? actionLabel(item);
+	const merging = item.reason === "awaitingMerge";
+	const blocked = merging ? mergeBlocked(item) : null;
+	const held = merging
+		? blocked === null
+			? null
+			: heldActionLabel.merge
+		: heldAction(item);
+	const action = merging ? heldActionLabel.merge : (held ?? actionLabel(item));
 	const disabled = held !== null;
 	const lead = (
 		<>
@@ -177,6 +197,7 @@ export function NeedsItem({
 						? { tone: "primary" as const }
 						: {})}
 					data-held-action={held === null ? undefined : item.reason}
+					{...(blocked === null ? {} : { tooltip: blocked })}
 					disabled={disabled}
 					onClick={() => (onAction ?? onOpen)?.(item.key)}
 				/>

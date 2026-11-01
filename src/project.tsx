@@ -20,6 +20,7 @@ import { focusChain } from "./focus-chain.ts";
 import { ClearFocusButton } from "./focus-controls.tsx";
 import { shownSeeds, useFocusView } from "./focus.ts";
 import { graphEdges, projectNodeId } from "./graph-flow.ts";
+import { openUnlinkedPr } from "./open-unlinked-pr.ts";
 import { TicketPanel } from "./panel.tsx";
 import { RefreshButton } from "./poll-freshness.tsx";
 import {
@@ -96,25 +97,6 @@ function isGroupBy(value: string): value is GroupBy {
 
 function graphGroupBy(settings: ProjectViewSettings): GroupBy {
 	return settings.groupBy ?? defaultGraphGroupBy;
-}
-
-/** Opens the PR of an unlinked PR card in a new tab, since it has no ticket for the side panel. Two hosts can give one key, so the URL of the card picks the PR. */
-function openUnlinkedPr(
-	report: ProjectReport,
-	key: string,
-	pullUrl: string | undefined,
-): boolean {
-	const unlinked = report.tickets.find(
-		(item) =>
-			item.unlinkedPr &&
-			item.key === key &&
-			(pullUrl === undefined || item.pullUrl === pullUrl),
-	);
-	if (unlinked?.pullUrl === undefined) {
-		return false;
-	}
-	window.open(unlinked.pullUrl, "_blank", "noopener");
-	return true;
 }
 
 export function Page() {

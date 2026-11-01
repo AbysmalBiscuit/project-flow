@@ -20,6 +20,7 @@ export const githubPull = z.object({
 	draft: z.boolean().optional(),
 	body: z.string().nullable(),
 	head: z.object({ ref: z.string(), sha: z.string().optional() }),
+	base: z.object({ ref: z.string() }).optional(),
 	state: z.string(),
 	merged_at: z.string().nullable().optional(),
 	auto_merge: z.unknown().nullable().optional(),
@@ -129,6 +130,7 @@ async function loadOpenPull(
 		title: pull.title,
 		draft: pull.draft === true,
 		branch: pull.head.ref,
+		...(pull.base === undefined ? {} : { baseBranch: pull.base.ref }),
 		body,
 		closingKeys,
 		headSha: head,
@@ -137,22 +139,6 @@ async function loadOpenPull(
 		autoMerge: pull.auto_merge != null,
 		...review,
 	};
-}
-
-async function fetchJson(
-	url: string,
-	token: string,
-	fetchImpl: Fetch,
-	label: string,
-): Promise<unknown> {
-	const response = await fetchImpl(url, { headers: githubHeaders(token) });
-	if (!response.ok) {
-		throw new TrackerError(
-			`GitHub ${label} failed (HTTP ${response.status}): ${url}`,
-			response.status,
-		);
-	}
-	return response.json();
 }
 
 async function fetchRows<Row, Mapped>(
@@ -181,29 +167,79 @@ const loginRow = z.object({
 	user: z.object({ login: z.string() }).nullable(),
 });
 
+/** Gives a commit status the shape of a check run, so one rollup reads both. */
+export function commitStatusCheck(name: string, state: string): BotCheck {
+	return state === "pending" || state === "expected"
+		? { name, status: "pending", conclusion: null }
+		: { name, status: "completed", conclusion: state };
+}
+
+/** GitHub lists the latest status of each context in this answer. */
+async function fetchCommitStatuses(
+	repo: string,
+	sha: string,
+	token: string,
+	fetchImpl: Fetch,
+): Promise<BotCheck[]> {
+	const bodies = await pages(
+		`https://api.github.com/repos/${repo}/commits/${sha}/status?per_page=100`,
+		token,
+		fetchImpl,
+		repo,
+		"list commit statuses",
+	);
+	return bodies.flatMap((body) =>
+		z
+			.object({
+				statuses: z.array(z.object({ context: z.string(), state: z.string() })),
+			})
+			.parse(body)
+			.statuses.map((status) =>
+				commitStatusCheck(status.context, status.state),
+			),
+	);
+}
+
+async function fetchCheckRuns(
+	repo: string,
+	sha: string,
+	token: string,
+	fetchImpl: Fetch,
+): Promise<BotCheck[]> {
+	const bodies = await pages(
+		`https://api.github.com/repos/${repo}/commits/${sha}/check-runs?per_page=100`,
+		token,
+		fetchImpl,
+		repo,
+		"list checks",
+	);
+	return bodies.flatMap(
+		(body) =>
+			z
+				.object({
+					check_runs: z.array(
+						z.object({
+							name: z.string(),
+							status: z.string(),
+							conclusion: z.string().nullable(),
+						}),
+					),
+				})
+				.parse(body).check_runs,
+	);
+}
+
 async function fetchChecks(
 	repo: string,
 	sha: string,
 	token: string,
 	fetchImpl: Fetch,
 ): Promise<BotCheck[]> {
-	const body = await fetchJson(
-		`https://api.github.com/repos/${repo}/commits/${sha}/check-runs?per_page=100`,
-		token,
-		fetchImpl,
-		"list checks",
-	);
-	return z
-		.object({
-			check_runs: z.array(
-				z.object({
-					name: z.string(),
-					status: z.string(),
-					conclusion: z.string().nullable(),
-				}),
-			),
-		})
-		.parse(body).check_runs;
+	const [checkRuns, statuses] = await Promise.all([
+		fetchCheckRuns(repo, sha, token, fetchImpl),
+		fetchCommitStatuses(repo, sha, token, fetchImpl),
+	]);
+	return [...checkRuns, ...statuses];
 }
 
 function fetchComments(

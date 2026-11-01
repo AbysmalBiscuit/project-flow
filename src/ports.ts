@@ -312,6 +312,10 @@ export type Forge = {
 	repoAutoMerge: (repo: string) => Promise<boolean>;
 	/** The repo and number of the PR that this URL names, or null for any other URL. */
 	pullOfUrl: (url: URL) => PullTarget | null;
+	/** Merge the PR at its known head. A refusal throws a `TrackerError` with the reason of the forge. */
+	merge?: (
+		pull: Pick<PullRequest, "repo" | "number" | "headSha">,
+	) => Promise<void>;
 };
 
 export type Store = {

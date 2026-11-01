@@ -46,6 +46,7 @@ async function saveBots(
 	const loaded = (await (await fetch(url)).json()) as Record<string, unknown>;
 	return fetch(url, {
 		method: "PUT",
+		headers: { "content-type": "application/json" },
 		body: JSON.stringify({ ...loaded, expectedBots }),
 	});
 }

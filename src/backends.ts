@@ -161,6 +161,8 @@ export type Backends = {
 	forgeLabelOf: (url: string, hosts: Hosts) => string | undefined;
 	/** The forge that holds the repo of the project of `ref`. */
 	forgeOf: (ref: ProjectRef) => Forge | null;
+	/** The forge on the host of `url`, or null when no forge serves that host. */
+	forgeOfUrl: (url: string) => Forge | null;
 	/** The host that the repo keys of a forge carry, or undefined for bare keys. */
 	keyHostOf: (forge: Forge) => string | undefined;
 	/** True for an error that `readerOf` or `linkOf` gave: the project waits for a setting and no read failed. */
@@ -370,6 +372,10 @@ export function buildBackends(options: {
 		},
 		forgeOf(ref) {
 			const host = refHost(ref) ?? registry[ref.tracker].home?.host;
+			return host === undefined ? null : (forges.get(host) ?? null);
+		},
+		forgeOfUrl(url) {
+			const host = URL.parse(url)?.host;
 			return host === undefined ? null : (forges.get(host) ?? null);
 		},
 		keyHostOf(forge) {

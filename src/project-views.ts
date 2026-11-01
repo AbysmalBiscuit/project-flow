@@ -134,6 +134,8 @@ function computeProjectView(
 			requests: options.runStartRequests,
 		},
 		(url) => options.backends.forgeLabelOf(url, configuration.hosts),
+		(url) =>
+			options.backends.forgeOfUrl(url)?.merge === undefined ? [] : ["merge"],
 		new Date(status.fetchedAt ?? 0),
 		row.board,
 	);

@@ -87,7 +87,6 @@ test("a refresh during a poll longer than 10 seconds answers before that poll en
 		}
 		const joined = await fetch(new URL("/api/refresh", base), {
 			method: "POST",
-			body: "   ",
 		});
 		expect(joined.status).toBe(204);
 		expect(Date.now() - started).toBeLessThan(10_000);
@@ -257,7 +256,6 @@ test("a refresh whose tracker fails still answers and ends the running poll", as
 	await withServer(fetchImpl, 3600, async (base) => {
 		const refresh = await fetch(new URL("/api/refresh", base), {
 			method: "POST",
-			body: "",
 		});
 		expect(refresh.status).toBe(204);
 		const body = await settledOverview(base, readOverview);
@@ -295,7 +293,6 @@ test("a refresh whose tracker rejects still answers and ends the running poll", 
 		await withServer(fetchImpl, 3600, async (base) => {
 			const refresh = await fetch(new URL("/api/refresh", base), {
 				method: "POST",
-				body: "   ",
 			});
 			expect(refresh.status).toBe(204);
 			const body = await settledOverview(base, readOverview);
@@ -303,7 +300,6 @@ test("a refresh whose tracker rejects still answers and ends the running poll", 
 			expect(body.projects[0]?.error).toContain("recorded rejection");
 			const again = await fetch(new URL("/api/refresh", base), {
 				method: "POST",
-				body: "",
 			});
 			expect(again.status).toBe(204);
 			const after = await settledOverview(base, readOverview);
@@ -394,7 +390,6 @@ test("a refresh joining a poll held on the list gate publishes polling", async (
 				const events = stream.events[Symbol.asyncIterator]();
 				const refresh = await fetch(new URL("/api/refresh", base), {
 					method: "POST",
-					body: "   ",
 				});
 				expect(refresh.status).toBe(204);
 				let published: OverviewBody | null = null;

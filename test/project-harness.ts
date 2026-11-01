@@ -194,6 +194,7 @@ export async function withApp(
 	env: Record<string, string | undefined>,
 	check: (base: string) => Promise<void>,
 	now?: () => Date,
+	host = "127.0.0.1",
 ): Promise<void> {
 	const { path, cleanup } = await tempConfig(config);
 	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
@@ -205,7 +206,7 @@ export async function withApp(
 	});
 	try {
 		const result = await run(
-			["--config", path, "--host", "127.0.0.1", "--port", "0"],
+			["--config", path, "--host", host, "--port", "0"],
 			testIo({
 				env,
 				fetch: fetchImpl,

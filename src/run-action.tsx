@@ -5,9 +5,10 @@ import { ConfirmDialog } from "./confirm-dialog.tsx";
 import type { ShownFactoryRun } from "./domain.ts";
 import { endedRunStatusKinds } from "./kinds.ts";
 import { panel } from "./panel-styles.ts";
+import { MergeButton } from "./pull-merge.tsx";
 import { useCancelRun, useStartAgain } from "./run-mutations.ts";
 import { SplitButton, type SplitChoice } from "./split-button.tsx";
-import { runCancelCopy, runResumeCopy } from "./terms.ts";
+import { pullMergeCopy, runCancelCopy, runResumeCopy } from "./terms.ts";
 import { actionToastHideMs, Toast } from "./toast.tsx";
 import { clsx } from "./ui.ts";
 
@@ -17,8 +18,10 @@ import { clsx } from "./ui.ts";
  */
 export function RunAction({
 	run,
+	mergeChoices = [],
 }: {
 	run: Pick<ShownFactoryRun, "id" | "statusKind" | "resumable">;
+	mergeChoices?: readonly SplitChoice[];
 }) {
 	const [asking, setAsking] = useState<"restart" | "cancel" | null>(null);
 	const start = useStartAgain(run.id);
@@ -27,7 +30,7 @@ export function RunAction({
 		(kind) => kind === run.statusKind,
 	);
 	if (run.resumable !== true && !cancellable) {
-		return null;
+		return <MergeButton choices={mergeChoices} />;
 	}
 	const pending = start.isPending || cancel.isPending;
 	const cancelLabel = cancel.isPending
@@ -36,10 +39,12 @@ export function RunAction({
 	const choices: SplitChoice[] = [
 		{
 			label: runResumeCopy.fromCheckpoint,
+			disabled: pending,
 			onPick: () => start.mutate("resume"),
 		},
 		{
 			label: runResumeCopy.fromBeginning,
+			disabled: pending,
 			onPick: () => setAsking("restart"),
 		},
 	];
@@ -47,9 +52,11 @@ export function RunAction({
 		choices.push({
 			label: cancelLabel,
 			tone: "danger",
+			disabled: pending,
 			onPick: () => setAsking("cancel"),
 		});
 	}
+	choices.push(...mergeChoices);
 	return (
 		<div className={clsx(panel.runAction)} data-run-action={run.id}>
 			{run.resumable === true ? (
@@ -60,6 +67,15 @@ export function RunAction({
 					disabled={pending}
 					onClick={() => start.mutate("resume")}
 					choices={choices}
+				/>
+			) : mergeChoices.length > 0 ? (
+				<SplitButton
+					label={cancelLabel}
+					choicesLabel={pullMergeCopy.choices}
+					tone="danger"
+					disabled={pending}
+					onClick={() => setAsking("cancel")}
+					choices={mergeChoices}
 				/>
 			) : (
 				<Button

@@ -34,7 +34,7 @@ type RepoIncludes = {
 
 export const closingSelection = `nodes { number } ${connectionPage}`;
 
-const pullNodeFields = `id number title url isDraft body state mergedAt updatedAt headRefName headRefOid
+const pullNodeFields = `id number title url isDraft body state mergedAt updatedAt headRefName baseRefName headRefOid
 				autoMergeRequest { enabledAt }
 				commits(last: 1) { nodes { commit { committedDate } } }
 				closingIssuesReferences(first: 10, userLinkedOnly: true) { ${closingSelection} }`;
@@ -116,7 +116,7 @@ export const reviewSelection = `nodes { author { login } commit { oid } state } 
 
 export const reactionSelection = `nodes { user { login } content createdAt } ${connectionPage}`;
 
-export const checkSelection = `nodes { ... on CheckRun { name status conclusion } } ${connectionPage}`;
+export const checkSelection = `nodes { ... on CheckRun { name status conclusion } ... on StatusContext { context state } } ${connectionPage}`;
 
 export const labelSelection = `nodes { name } ${connectionPage}`;
 
@@ -209,6 +209,7 @@ export const graphqlPullNode = z.object({
 	mergedAt: z.string().nullable().optional(),
 	updatedAt: z.string().optional(),
 	headRefName: z.string(),
+	baseRefName: z.string().optional(),
 	headRefOid: z.string(),
 	autoMergeRequest: z.unknown().nullable().optional(),
 	commits: graphqlConnection(
@@ -246,6 +247,10 @@ export const graphqlCheck = z.object({
 	name: z.string().optional(),
 	status: checkStatus.optional(),
 	conclusion: checkConclusion.nullable().optional(),
+	context: z.string().optional(),
+	state: z
+		.enum(["ERROR", "EXPECTED", "FAILURE", "PENDING", "SUCCESS"])
+		.optional(),
 });
 
 export const fullIssueLists = z.object({

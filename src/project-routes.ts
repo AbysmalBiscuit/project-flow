@@ -1,5 +1,5 @@
 import type { Configuration } from "./configuration.ts";
-import type { ProjectReport } from "./domain.ts";
+import type { ProjectReport, Snapshot } from "./domain.ts";
 import { attachGraphStates } from "./links.ts";
 import { type PollOptions, pollProject } from "./poll.ts";
 import { listedRef, refListed, sameProject } from "./project-ref.ts";
@@ -29,6 +29,26 @@ export function reportFor(
 	return filtered
 		? filterProjectReport(match, view, options.clock.now())
 		: match;
+}
+
+/** Read one stored project again and publish the new overview. */
+export async function refreshProject(
+	options: PollOptions,
+	configuration: Configuration,
+	row: Snapshot,
+): Promise<void> {
+	const ref = listedRef(row);
+	const found = options.catalogue.find((item) =>
+		sameProject(listedRef(item), ref),
+	);
+	await pollProject(options, configuration, {
+		...(found ?? {
+			...refListed(ref),
+			name: row.name,
+			updatedAt: null,
+		}),
+		ref,
+	});
 }
 
 /** The routes that read the tickets of the tracked projects, and refresh one project. */
@@ -74,18 +94,7 @@ export function projectRoutes(
 				if (row === undefined) {
 					return Response.json({ error: "project not found" }, { status: 404 });
 				}
-				const ref = listedRef(row);
-				const found = pollOptions.catalogue.find((item) =>
-					sameProject(listedRef(item), ref),
-				);
-				await pollProject(pollOptions, configuration(), {
-					...(found ?? {
-						...refListed(ref),
-						name: row.name,
-						updatedAt: null,
-					}),
-					ref,
-				});
+				await refreshProject(pollOptions, configuration(), row);
 				return new Response(null, { status: 204 });
 			},
 		},

@@ -314,38 +314,22 @@ export function mergesOnItsOwn(
 	});
 }
 
-function ciOf(pull: PullRequest): PullStatus["ci"] {
+const passingConclusions = new Set(["success", "skipped", "neutral"]);
+
+/** The rollup of the checks of a PR. A finished check fails unless it succeeded, skipped or was neutral. */
+export function ciOf(pull: Pick<PullRequest, "checks">): PullStatus["ci"] {
 	if (pull.checks.length === 0) {
 		return "none";
 	}
-	if (
-		pull.checks.some(
-			(check) =>
-				check.conclusion === "failure" ||
-				check.conclusion === "cancelled" ||
-				check.conclusion === "timed_out",
-		)
-	) {
+	const finished = pull.checks.flatMap((check) =>
+		check.status === "completed" && check.conclusion !== null
+			? [check.conclusion]
+			: [],
+	);
+	if (finished.some((conclusion) => !passingConclusions.has(conclusion))) {
 		return "failing";
 	}
-	if (
-		pull.checks.some(
-			(check) => check.status !== "completed" || check.conclusion === null,
-		)
-	) {
-		return "pending";
-	}
-	if (
-		pull.checks.every(
-			(check) =>
-				check.conclusion === "success" ||
-				check.conclusion === "skipped" ||
-				check.conclusion === "neutral",
-		)
-	) {
-		return "passing";
-	}
-	return "pending";
+	return finished.length < pull.checks.length ? "pending" : "passing";
 }
 
 function reviewOf(pull: PullRequest): PullStatus["review"] {
