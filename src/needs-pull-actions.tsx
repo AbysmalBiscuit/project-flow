@@ -20,35 +20,39 @@ function PullLink({ pull }: { pull: AwaitingPull }) {
 
 /**
  * One button for each PR choice, with the gate reason as its tooltip. An
- * Awaiting merge row whose forge offers no choice shows a held Merge. A Decide
- * row never shows Merge, because the merge gate blocks it.
+ * Awaiting merge row whose forge cannot merge shows a held Merge first. A
+ * Decide row never shows Merge, because the merge gate blocks it.
  */
 function ChoiceButtons({
 	choices,
+	canMerge,
 	reason,
 }: {
 	choices: readonly PullChoice[];
+	canMerge: boolean;
 	reason: NeedsYouItem["reason"];
 }) {
-	if (choices.length === 0 && reason !== "decide") {
-		return (
-			<Button
-				label={heldActionLabel.merge}
-				tooltip={mergeGateReason.noCapability}
-				data-held-action={reason}
-				disabled
-			/>
-		);
-	}
-	return choices.map((choice) => (
-		<Button
-			key={choice.label}
-			label={choice.short}
-			{...(choice.reason === undefined ? {} : { tooltip: choice.reason })}
-			disabled={choice.disabled === true}
-			onClick={choice.onPick}
-		/>
-	));
+	return (
+		<>
+			{canMerge || reason === "decide" ? null : (
+				<Button
+					label={heldActionLabel.merge}
+					tooltip={mergeGateReason.noCapability}
+					data-held-action={reason}
+					disabled
+				/>
+			)}
+			{choices.map((choice) => (
+				<Button
+					key={choice.label}
+					label={choice.short}
+					{...(choice.reason === undefined ? {} : { tooltip: choice.reason })}
+					disabled={choice.disabled === true}
+					onClick={choice.onPick}
+				/>
+			))}
+		</>
+	);
 }
 
 /**
@@ -68,7 +72,11 @@ export function PullActions({
 			{item.reason === "decide"
 				? pulls.map((pull) => <PullLink key={pull.url} pull={pull} />)
 				: null}
-			<ChoiceButtons choices={choices} reason={item.reason} />
+			<ChoiceButtons
+				choices={choices}
+				canMerge={pulls.some((pull) => pull.actions.includes("merge"))}
+				reason={item.reason}
+			/>
 			{feedback}
 		</>
 	);
