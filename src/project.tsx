@@ -312,6 +312,14 @@ export function Page() {
 								<p className={clsx(board.counts)}>{countLine(report)}</p>
 							</div>
 							<div className={clsx(board.toolbar, projectHeaderLayout.toolbar)}>
+								<ClearFiltersButton
+									report={report}
+									view={settings}
+									onClear={() => saveView(clearedView(settings, report.lanes))}
+								/>
+								{ticketFocus.focus.size === 0 ? null : (
+									<ClearFocusButton onClear={ticketFocus.clear} />
+								)}
 								<RefreshButton
 									id="project-refresh"
 									queryKey={pageQuery.project(name, "all").queryKey}
@@ -319,6 +327,22 @@ export function Page() {
 										polling || reportQuery.isFetching || refresh.isPending
 									}
 									onRefresh={() => refresh.mutate()}
+								/>
+								<TextInput
+									id="project-search"
+									width={projectHeaderLayout.find}
+									type="search"
+									icon="search"
+									aria-label="Search"
+									placeholder="Search"
+									value={settings.search}
+									onChange={(event) =>
+										saveView(
+											{ ...settings, search: event.target.value },
+											undefined,
+											searchSaveDelayMs,
+										)
+									}
 								/>
 								<TicketFilterMenu
 									report={report}
@@ -334,30 +358,6 @@ export function Page() {
 									onOpen={setRunFilterOpen}
 									onChange={saveView}
 								/>
-								<TextInput
-									id="project-search"
-									width={board.find}
-									type="search"
-									icon="search"
-									aria-label="Search"
-									placeholder="Search"
-									value={settings.search}
-									onChange={(event) =>
-										saveView(
-											{ ...settings, search: event.target.value },
-											undefined,
-											searchSaveDelayMs,
-										)
-									}
-								/>
-								<ClearFiltersButton
-									report={report}
-									view={settings}
-									onClear={() => saveView(clearedView(settings, report.lanes))}
-								/>
-								{ticketFocus.focus.size === 0 ? null : (
-									<ClearFocusButton onClear={ticketFocus.clear} />
-								)}
 								<Dropdown
 									id="project-group"
 									label="Group by"

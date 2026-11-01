@@ -84,7 +84,7 @@ export const board = stylex.create({
 		marginBottom: space.lg,
 	},
 	identity: {
-		flex: "1 1 auto",
+		flex: "0 1 auto",
 		minWidth: 0,
 		maxWidth: "100%",
 	},
@@ -100,14 +100,16 @@ export const board = stylex.create({
 		color: colours.inkSoft,
 		fontSize: type.count,
 	},
+	// The rows grow upward, so the bottom row stays on the line of the counts
+	// and the view below does not move.
 	toolbar: {
 		display: "flex",
-		flex: "0 1 auto",
-		flexWrap: "wrap",
+		flex: "1 1 0",
+		flexWrap: "wrap-reverse",
 		gap: space.sm,
 		alignItems: "center",
+		alignContent: "flex-start",
 		justifyContent: "flex-end",
-		minWidth: 0,
 		maxWidth: "100%",
 		position: "relative",
 		zIndex: stack.jump,
@@ -178,11 +180,6 @@ export const board = stylex.create({
 	},
 	age: {
 		width: measure.fieldMin,
-	},
-	find: {
-		flex: "1 1 auto",
-		width: measure.headerSearch,
-		maxWidth: "100%",
 	},
 	stage: {
 		display: "flex",
