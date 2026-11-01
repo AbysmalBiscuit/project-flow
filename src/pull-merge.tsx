@@ -12,6 +12,12 @@ import { actionToastHideMs, Toast } from "./toast.tsx";
 import { clsx } from "./ui.ts";
 
 /**
+ * A PR choice. `short` is the label without the gate reason, and `reason` is
+ * the reason of a closed gate, for a surface that shows it as a tooltip.
+ */
+export type PullChoice = SplitChoice & { short: string; reason?: string };
+
+/**
  * The PR choices of the run control: Merge for each PR that its forge can
  * merge, then Request changes for each PR that its forge can review. A closed
  * gate gives a disabled Merge that names its reason. `feedback` holds the
@@ -22,7 +28,7 @@ export function usePullMerge(
 	pulls: readonly AwaitingPull[],
 	onMerged: (() => void) | undefined,
 	scope = "pull",
-): { choices: SplitChoice[]; feedback: ReactNode } {
+): { choices: PullChoice[]; feedback: ReactNode } {
 	const [asking, setAsking] = useState<AwaitingPull | null>(null);
 	const [reviewing, setReviewing] = useState<AwaitingPull | null>(null);
 	const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({});
@@ -33,27 +39,37 @@ export function usePullMerge(
 	const review = useRequestChanges();
 	const mergeChoices = pulls
 		.filter((pull) => pull.actions.includes("merge"))
-		.map((pull): SplitChoice => ({
-			label: pull.mergeGate.open
-				? merge.isPending && merge.variables === pull.url
-					? pullMergeCopy.merging
-					: pullMergeCopy.merge(pull.number)
-				: pullMergeCopy.blocked(pull.number, pull.mergeGate.reason),
-			disabled: !pull.mergeGate.open || merge.isPending,
-			independent: true,
-			onPick: () => setAsking(pull),
-		}));
+		.map((pull): PullChoice => {
+			const merging = merge.isPending && merge.variables === pull.url;
+			const short = merging
+				? pullMergeCopy.merging
+				: pullMergeCopy.merge(pull.number);
+			return {
+				label: pull.mergeGate.open
+					? short
+					: pullMergeCopy.blocked(pull.number, pull.mergeGate.reason),
+				short,
+				...(pull.mergeGate.open ? {} : { reason: pull.mergeGate.reason }),
+				disabled: !pull.mergeGate.open || merge.isPending,
+				independent: true,
+				onPick: () => setAsking(pull),
+			};
+		});
 	const reviewChoices = pulls
 		.filter((pull) => pull.actions.includes("requestChanges"))
-		.map((pull): SplitChoice => ({
-			label:
+		.map((pull): PullChoice => {
+			const label =
 				review.isPending && review.variables?.url === pull.url
 					? requestChangesCopy.sending
-					: requestChangesCopy.action(pull.number),
-			disabled: review.isPending,
-			independent: true,
-			onPick: () => setReviewing(pull),
-		}));
+					: requestChangesCopy.action(pull.number);
+			return {
+				label,
+				short: label,
+				disabled: review.isPending,
+				independent: true,
+				onPick: () => setReviewing(pull),
+			};
+		});
 	const feedback = (
 		<>
 			{merge.error === null ? null : (
