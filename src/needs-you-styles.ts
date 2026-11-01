@@ -81,6 +81,7 @@ export const needs = stylex.create({
 	},
 	item: {
 		display: "flex",
+		gap: space.sm,
 		alignItems: "center",
 		boxSizing: "border-box",
 		height: measure.needsRow,
