@@ -23,7 +23,10 @@ export function usePullMerge(
 ): { choices: SplitChoice[]; feedback: ReactNode } {
 	const [asking, setAsking] = useState<AwaitingPull | null>(null);
 	const [reviewing, setReviewing] = useState<AwaitingPull | null>(null);
-	const [draft, setDraft] = useState("");
+	const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({});
+	const draft = reviewing === null ? "" : (drafts[reviewing.url] ?? "");
+	const setDraft = (url: string, text: string) =>
+		setDrafts((all) => ({ ...all, [url]: text }));
 	const merge = useMergePull();
 	const review = useRequestChanges();
 	const mergeChoices = pulls
@@ -104,9 +107,10 @@ export function usePullMerge(
 				onCancel={() => setReviewing(null)}
 				onConfirm={() => {
 					if (reviewing !== null) {
+						const { url } = reviewing;
 						review.mutate(
-							{ url: reviewing.url, body: draft },
-							{ onSuccess: () => setDraft("") },
+							{ url, body: draft },
+							{ onSuccess: () => setDraft(url, "") },
 						);
 					}
 					setReviewing(null);
@@ -119,7 +123,11 @@ export function usePullMerge(
 					id="pull-review-text"
 					placeholder={requestChangesCopy.placeholder}
 					value={draft}
-					onChange={(event) => setDraft(event.target.value)}
+					onChange={(event) => {
+						if (reviewing !== null) {
+							setDraft(reviewing.url, event.target.value);
+						}
+					}}
 				/>
 			</ConfirmDialog>
 		</>
