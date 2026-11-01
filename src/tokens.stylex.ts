@@ -405,8 +405,15 @@ export const projectHeaderLayout = stylex.create({
 	toolbar: {
 		[media.headerStack]: {
 			flexBasis: "100%",
-			justifyContent: "flex-start",
 		},
+	},
+	find: {
+		flex: {
+			default: "0 1 auto",
+			[media.headerStack]: "1 1 auto",
+		},
+		width: measure.headerSearch,
+		maxWidth: "100%",
 	},
 });
 
