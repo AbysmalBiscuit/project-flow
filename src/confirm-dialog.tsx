@@ -48,10 +48,11 @@ const styles = stylex.create({
 
 /**
  * A modal dialog that asks before a change. Escape and the dismiss button,
- * Cancel unless `dismissLabel` names it, both call `onCancel`. The confirm
- * button holds the focus when the dialog opens, so Enter confirms. `children`
- * sit between the body and the buttons, such as a text field that
- * `confirmDisabled` waits for.
+ * Cancel unless `dismissLabel` names it, both call `onCancel`. The dialog is
+ * a form, and its confirm button submits it. `children` sit between the body
+ * and the buttons, such as a text field that `confirmDisabled` waits for. The
+ * first field of `children` holds the focus when the dialog opens, else the
+ * confirm button does, so Enter confirms.
  */
 export function ConfirmDialog({
 	id,
@@ -85,7 +86,8 @@ export function ConfirmDialog({
 		}
 		if (open && !node.open) {
 			node.showModal();
-			document.getElementById(`${id}-confirm`)?.focus();
+			const field = node.querySelector<HTMLElement>("input, textarea, select");
+			(field ?? document.getElementById(`${id}-confirm`))?.focus();
 		}
 		if (!open && node.open) {
 			node.close();
@@ -103,23 +105,30 @@ export function ConfirmDialog({
 				onCancel();
 			}}
 		>
-			<h2 id={`${id}-title`} className={clsx(styles.title)}>
-				{title}
-			</h2>
-			<p className={clsx(styles.body)}>{body}</p>
-			{children === undefined ? null : (
-				<div className={clsx(styles.fields)}>{children}</div>
-			)}
-			<div className={clsx(styles.actions)}>
-				<Button id={`${id}-cancel`} label={dismissLabel} onClick={onCancel} />
-				<Button
-					id={`${id}-confirm`}
-					label={confirmLabel}
-					tone="danger"
-					disabled={confirmDisabled}
-					onClick={onConfirm}
-				/>
-			</div>
+			<form
+				onSubmit={(event) => {
+					event.preventDefault();
+					onConfirm();
+				}}
+			>
+				<h2 id={`${id}-title`} className={clsx(styles.title)}>
+					{title}
+				</h2>
+				<p className={clsx(styles.body)}>{body}</p>
+				{children === undefined ? null : (
+					<div className={clsx(styles.fields)}>{children}</div>
+				)}
+				<div className={clsx(styles.actions)}>
+					<Button id={`${id}-cancel`} label={dismissLabel} onClick={onCancel} />
+					<Button
+						id={`${id}-confirm`}
+						label={confirmLabel}
+						tone="danger"
+						disabled={confirmDisabled}
+						submit
+					/>
+				</div>
+			</form>
 		</dialog>
 	);
 }
