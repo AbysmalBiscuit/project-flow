@@ -8,7 +8,30 @@ import { readAutoMerge } from "./github-repo-query.ts";
 import { type Forge, type PullTarget, TrackerError } from "./ports.ts";
 import { numberedKey } from "./ticket-key.ts";
 
-const mergeRefusal = z.object({ message: z.string() });
+const refusal = z.object({
+	message: z.string(),
+	errors: z.array(z.unknown()).optional(),
+});
+
+/** The reason that GitHub gives for a refused write: its listed errors, else its message. */
+async function refusalReason(
+	response: Response,
+	action: string,
+): Promise<TrackerError> {
+	const refused = refusal.safeParse(await response.json().catch(() => null));
+	const listed = refused.success
+		? (refused.data.errors ?? []).filter(
+				(item): item is string => typeof item === "string",
+			)
+		: [];
+	const reason =
+		listed.length > 0
+			? listed.join("; ")
+			: refused.success
+				? refused.data.message
+				: `GitHub ${action} failed (HTTP ${response.status})`;
+	return new TrackerError(reason, response.status);
+}
 
 export function githubForge(
 	token: string,
@@ -81,15 +104,27 @@ export function githubForge(
 				},
 			);
 			if (!response.ok) {
-				const refused = mergeRefusal.safeParse(
-					await response.json().catch(() => null),
-				);
-				throw new TrackerError(
-					refused.success
-						? refused.data.message
-						: `GitHub merge failed (HTTP ${response.status})`,
-					response.status,
-				);
+				throw await refusalReason(response, "merge");
+			}
+		},
+		async requestChanges({ repo, number, headSha }, body) {
+			const response = await fetchImpl(
+				`https://api.github.com/repos/${repo}/pulls/${number}/reviews`,
+				{
+					method: "POST",
+					headers: {
+						...githubHeaders(token),
+						"content-type": "application/json",
+					},
+					body: JSON.stringify({
+						body,
+						event: "REQUEST_CHANGES",
+						commit_id: headSha,
+					}),
+				},
+			);
+			if (!response.ok) {
+				throw await refusalReason(response, "review");
 			}
 		},
 	};

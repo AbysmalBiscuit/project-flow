@@ -5,11 +5,20 @@ import type {
 	PullRequest,
 } from "./domain.ts";
 import { openImportantQuestions } from "./important-questions.ts";
+import type { Forge } from "./ports.ts";
+import { mergeGateReason } from "./pull-terms.ts";
 import { ciOf } from "./review.ts";
-import { mergeGateReason } from "./terms.ts";
 
 /** The actions that the forge of the PR at `url` can take. */
 export type PullActionsOf = (url: string) => PullAction[];
+
+/** The actions that the capabilities of a forge allow on its PRs. */
+export function pullActions(forge: Forge | null): PullAction[] {
+	return [
+		...(forge?.merge === undefined ? [] : ["merge" as const]),
+		...(forge?.requestChanges === undefined ? [] : ["requestChanges" as const]),
+	];
+}
 
 /** Whether Project Flow lets Lev merge an awaiting PR, and the reason when it does not. */
 function mergeGate(pull: PullRequest): MergeGate {

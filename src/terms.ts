@@ -628,30 +628,6 @@ export const mergeFactLabel = {
 	review: "Review",
 } as const;
 
-export const mergeGateReason = {
-	failedCheck: "A check failed",
-	pendingCheck: "A check is pending",
-	openQuestion: "An Important Question is open",
-	notAwaiting: "The PR is not in Awaiting merge",
-	noCapability: "The forge of the PR cannot merge",
-} as const;
-
-export const pullMergeCopy = {
-	merge: (number: number) => `Merge #${number}`,
-	blocked: (number: number, reason: string) => `Merge #${number}: ${reason}`,
-	menu: "Merge",
-	choices: "Merge choices",
-	merging: "Merging",
-	title: "Merge the PR?",
-	body: (number: number, title: string, base: string | undefined) =>
-		base === undefined
-			? `PR #${number}, ${title}, merges into its target branch.`
-			: `PR #${number}, ${title}, merges into ${base}.`,
-	confirm: "Merge",
-	dismiss: "Keep open",
-	failed: "Merge failed",
-} as const;
-
 export const heldActionLabel = {
 	merge: "Merge",
 	removeLabel: "Remove label",

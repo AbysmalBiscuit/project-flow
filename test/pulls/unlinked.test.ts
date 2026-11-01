@@ -22,7 +22,11 @@ describe("merge an unlinked awaiting PR", () => {
 			const card = await readTicket(base, repo, key);
 			expect(card?.unlinkedPr).toBe(true);
 			expect(card?.awaitingPulls).toMatchObject([
-				{ url: pullUrl, actions: ["merge"], mergeGate: { open: true } },
+				{
+					url: pullUrl,
+					actions: ["merge", "requestChanges"],
+					mergeGate: { open: true },
+				},
 			]);
 			const sent = await sendMerge(base);
 			expect(sent.status).toBe(204);

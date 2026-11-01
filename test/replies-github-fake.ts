@@ -36,6 +36,7 @@ export function githubFetch(
 		issues: Record<string, unknown>[];
 		comments?: Record<number, Record<string, unknown>[]>;
 		reviewComments?: Record<number, Record<string, unknown>[]>;
+		reviews?: Record<number, Record<string, unknown>[]>;
 		failReply?: boolean;
 		failThread?: boolean;
 		hangThread?: boolean;
@@ -135,6 +136,12 @@ export function githubFetch(
 				});
 			}
 			return json(page === 1 ? rows : rows.slice(100));
+		}
+		const reviews = url.match(
+			/\/repos\/acme\/widget\/pulls\/(\d+)\/reviews\?per_page=100&page=1$/,
+		);
+		if (reviews !== null && method === "GET") {
+			return json(options.reviews?.[Number(reviews[1])] ?? []);
 		}
 		if (review !== null && method === "POST") {
 			const number = Number(review[1]);
