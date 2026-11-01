@@ -16,10 +16,12 @@ import { clsx } from "./ui.ts";
  * merge, then Request changes for each PR that its forge can review. A closed
  * gate gives a disabled Merge that names its reason. `feedback` holds the
  * confirm step, the review text field and the refusal message of the forge.
+ * `scope` keeps the dialog ids apart when one page holds many controls.
  */
 export function usePullMerge(
 	pulls: readonly AwaitingPull[],
 	onMerged: (() => void) | undefined,
+	scope = "pull",
 ): { choices: SplitChoice[]; feedback: ReactNode } {
 	const [asking, setAsking] = useState<AwaitingPull | null>(null);
 	const [reviewing, setReviewing] = useState<AwaitingPull | null>(null);
@@ -71,7 +73,7 @@ export function usePullMerge(
 				/>
 			)}
 			<ConfirmDialog
-				id="pull-merge-dialog"
+				id={`${scope}-merge-dialog`}
 				open={asking !== null}
 				title={pullMergeCopy.title}
 				body={
@@ -93,7 +95,7 @@ export function usePullMerge(
 				}}
 			/>
 			<ConfirmDialog
-				id="pull-review-dialog"
+				id={`${scope}-review-dialog`}
 				open={reviewing !== null}
 				title={requestChangesCopy.title}
 				body={
@@ -116,11 +118,11 @@ export function usePullMerge(
 					setReviewing(null);
 				}}
 			>
-				<label className={clsx(panel.label)} htmlFor="pull-review-text">
+				<label className={clsx(panel.label)} htmlFor={`${scope}-review-text`}>
 					{requestChangesCopy.label}
 				</label>
 				<SendText
-					id="pull-review-text"
+					id={`${scope}-review-text`}
 					placeholder={requestChangesCopy.placeholder}
 					value={draft}
 					onChange={(event) => {
