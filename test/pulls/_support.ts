@@ -3,6 +3,8 @@ import type { Fetch } from "../../src/fetch.ts";
 import recordedPulls from "../fixtures/github-open-pulls.json";
 import recordedRefusal from "../fixtures/github-pull-merge-refused.json";
 import recordedMerge from "../fixtures/github-pull-merge.json";
+import recordedReviewRefusal from "../fixtures/github-pull-review-refused.json";
+import recordedReview from "../fixtures/github-pull-review.json";
 import recordedTeam from "../fixtures/linear-team-states.json";
 import outsideRelations from "../fixtures/outside-relations.json";
 import { urlOf } from "../support/fetch.ts";
@@ -48,9 +50,13 @@ type SentMerge = {
 	body: unknown;
 };
 
+type SentReview = { url: string; body: unknown };
+
 /**
  * Recorded GitHub answers for `acme/widget`. A merge request merges PR 40,
- * or else gets the recorded refusal when `refuses` is true.
+ * or else gets the recorded refusal when `refuses` is true. A review request
+ * adds a review to PR 40, or else gets the recorded refusal when
+ * `refusesReview` is true. The fake serves the thread of PR 40 with its reviews.
  */
 export function mergeFake({
 	body = "Closes #8",
@@ -58,14 +64,24 @@ export function mergeFake({
 	checks = [passedCheck],
 	statuses = [],
 	refuses = false,
+	refusesReview = false,
 }: {
 	body?: string;
 	branch?: string;
 	checks?: unknown[];
 	statuses?: CommitStatus[];
 	refuses?: boolean;
-} = {}): { fetch: Fetch; merges: SentMerge[]; repoReads: () => number } {
+	refusesReview?: boolean;
+} = {}): {
+	fetch: Fetch;
+	merges: SentMerge[];
+	reviews: SentReview[];
+	repoReads: () => number;
+} {
 	const merges: SentMerge[] = [];
+	const reviews: SentReview[] = [];
+	const served: (typeof recordedReview)[] = [];
+	const pullApi = `https://api.github.com/repos/${repo}/pulls/40`;
 	const pull = openPull(body, branch, checks, statuses);
 	let repoReads = 0;
 	const fetchImpl: Fetch = async (input, init) => {
@@ -90,6 +106,26 @@ export function mergeFake({
 			pull.merged_at = "2026-10-18T12:00:00.000Z";
 			pull.state = "closed";
 			return Response.json(recordedMerge);
+		}
+		const method = (init?.method ?? "GET").toUpperCase();
+		if (url === `${pullApi}/reviews` && method === "POST") {
+			const sent = JSON.parse(String(init?.body)) as { body: string };
+			reviews.push({ url, body: sent });
+			if (refusesReview) {
+				return Response.json(recordedReviewRefusal, { status: 422 });
+			}
+			served.push({ ...recordedReview, body: sent.body });
+			return Response.json(served.at(-1));
+		}
+		if (url.startsWith(`${pullApi}/reviews?`)) {
+			return page(served);
+		}
+		if (url === `https://api.github.com/repos/${repo}/issues/40`) {
+			return Response.json({
+				title: pull.title,
+				html_url: pullUrl,
+				pull_request: { url: pullApi },
+			});
 		}
 		const read = repoReadFromLists(
 			input,
@@ -120,7 +156,7 @@ export function mergeFake({
 		}
 		return unrecorded(input, init);
 	};
-	return { fetch: fetchImpl, merges, repoReads: () => repoReads };
+	return { fetch: fetchImpl, merges, reviews, repoReads: () => repoReads };
 }
 
 export const widgetConfig = JSON.stringify({
@@ -135,6 +171,18 @@ export function sendMerge(base: string, url = pullUrl): Promise<Response> {
 		method: "POST",
 		headers: { "content-type": "application/json" },
 		body: JSON.stringify({ url }),
+	});
+}
+
+export function sendRequestChanges(
+	base: string,
+	body: string,
+	url = pullUrl,
+): Promise<Response> {
+	return fetch(new URL("/api/pulls/request-changes", base), {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ url, body }),
 	});
 }
 

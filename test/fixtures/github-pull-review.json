@@ -1,0 +1,16 @@
+{
+	"id": 3348127710,
+	"node_id": "PRR_kwDOPfWidgetzMjL5nQ",
+	"user": {
+		"login": "lev",
+		"id": 1,
+		"type": "User"
+	},
+	"body": "Rename the flag before the merge.",
+	"state": "CHANGES_REQUESTED",
+	"html_url": "https://github.com/acme/widget/pull/40#pullrequestreview-3348127710",
+	"pull_request_url": "https://api.github.com/repos/acme/widget/pulls/40",
+	"author_association": "OWNER",
+	"submitted_at": "2026-10-18T12:00:00Z",
+	"commit_id": "sha-40"
+}

@@ -42,7 +42,7 @@ import type { RunListRow } from "./run-list.ts";
 import type { StateSource } from "./settings-write.ts";
 import { pendingStatus } from "./stale-reads.ts";
 import { storedObject } from "./stored-page.ts";
-import { pullMergeCopy } from "./terms.ts";
+import { pullMergeCopy, requestChangesCopy } from "./terms.ts";
 
 type SettingsPage = {
 	settings: Configuration;
@@ -688,6 +688,34 @@ export function useMergePull() {
 		onSuccess: () => {
 			void queries.invalidateQueries(pageQuery.needsYou);
 			void queries.invalidateQueries({ queryKey: ["project"] });
+		},
+	});
+}
+
+/** Send a review that asks for changes on one awaiting PR. The server reads its project again before it answers. */
+export function useRequestChanges() {
+	const queries = useQueryClient();
+	return useMutation({
+		mutationFn: async (review: {
+			url: string;
+			body: string;
+		}): Promise<void> => {
+			const response = await fetch("/api/pulls/request-changes", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify(review),
+			});
+			if (!response.ok) {
+				const failed = (await response.json().catch(() => null)) as {
+					error?: string;
+				} | null;
+				throw new Error(failed?.error ?? requestChangesCopy.failed);
+			}
+		},
+		onSuccess: () => {
+			void queries.invalidateQueries(pageQuery.needsYou);
+			void queries.invalidateQueries({ queryKey: ["project"] });
+			void queries.invalidateQueries({ queryKey: ["thread"] });
 		},
 	});
 }

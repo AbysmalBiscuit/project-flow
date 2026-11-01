@@ -3,6 +3,7 @@ import { type TicketGraph, ticketGraph } from "./blockers.ts";
 import type { Configuration } from "./configuration.ts";
 import { projectCounts } from "./counts.ts";
 import type { Attention, FetchStatus, Overview, Snapshot } from "./domain.ts";
+import { pullActions } from "./merge-gate.ts";
 import { projectHasPmBot } from "./open-ask.ts";
 import { staleView } from "./poll-merge.ts";
 import type { PollOptions } from "./poll.ts";
@@ -134,8 +135,7 @@ function computeProjectView(
 			requests: options.runStartRequests,
 		},
 		(url) => options.backends.forgeLabelOf(url, configuration.hosts),
-		(url) =>
-			options.backends.forgeOfUrl(url)?.merge === undefined ? [] : ["merge"],
+		(url) => pullActions(options.backends.forgeOfUrl(url)),
 		new Date(status.fetchedAt ?? 0),
 		row.board,
 	);

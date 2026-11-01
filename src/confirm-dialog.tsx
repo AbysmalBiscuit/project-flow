@@ -1,5 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
-import { useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 
 import { Button } from "./button.tsx";
 import { settingsCopy } from "./terms.ts";
@@ -33,6 +33,12 @@ const styles = stylex.create({
 		color: colours.inkMuted,
 		fontSize: type.menu,
 	},
+	fields: {
+		display: "flex",
+		flexDirection: "column",
+		gap: space.xs,
+		margin: `0 0 ${space.lg}`,
+	},
 	actions: {
 		display: "flex",
 		gap: space.sm,
@@ -43,7 +49,9 @@ const styles = stylex.create({
 /**
  * A modal dialog that asks before a change. Escape and the dismiss button,
  * Cancel unless `dismissLabel` names it, both call `onCancel`. The confirm
- * button holds the focus when the dialog opens, so Enter confirms.
+ * button holds the focus when the dialog opens, so Enter confirms. `children`
+ * sit between the body and the buttons, such as a text field that
+ * `confirmDisabled` waits for.
  */
 export function ConfirmDialog({
 	id,
@@ -52,6 +60,8 @@ export function ConfirmDialog({
 	body,
 	confirmLabel,
 	dismissLabel = settingsCopy.cancel,
+	confirmDisabled = false,
+	children,
 	onConfirm,
 	onCancel,
 }: {
@@ -61,6 +71,8 @@ export function ConfirmDialog({
 	body: string;
 	confirmLabel: string;
 	dismissLabel?: string;
+	confirmDisabled?: boolean;
+	children?: ReactNode;
 	onConfirm: () => void;
 	onCancel: () => void;
 }) {
@@ -95,12 +107,16 @@ export function ConfirmDialog({
 				{title}
 			</h2>
 			<p className={clsx(styles.body)}>{body}</p>
+			{children === undefined ? null : (
+				<div className={clsx(styles.fields)}>{children}</div>
+			)}
 			<div className={clsx(styles.actions)}>
 				<Button id={`${id}-cancel`} label={dismissLabel} onClick={onCancel} />
 				<Button
 					id={`${id}-confirm`}
 					label={confirmLabel}
 					tone="danger"
+					disabled={confirmDisabled}
 					onClick={onConfirm}
 				/>
 			</div>

@@ -212,7 +212,7 @@ describe("merge an awaiting PR", () => {
 			expect(before?.awaitingPulls?.[0]).toMatchObject({
 				url: pull.html_url,
 				baseBranch: pull.base.ref,
-				actions: ["merge"],
+				actions: ["merge", "requestChanges"],
 			});
 			const sent = await sendMerge(base, pull.html_url);
 			expect(sent.status).toBe(204);
@@ -258,7 +258,7 @@ describe("merge an awaiting PR", () => {
 					url: pullUrl,
 					baseBranch: "main",
 					headSha: "sha-40",
-					actions: ["merge"],
+					actions: ["merge", "requestChanges"],
 					mergeGate: { open: true },
 				},
 			]);

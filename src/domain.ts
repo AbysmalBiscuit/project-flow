@@ -253,7 +253,7 @@ export type PullRequest = {
 };
 
 /** What Lev can do to a PR through its forge. */
-export type PullAction = "merge";
+export type PullAction = "merge" | "requestChanges";
 
 export type MergeGate = { open: true } | { open: false; reason: string };
 

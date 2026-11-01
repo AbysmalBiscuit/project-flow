@@ -316,6 +316,11 @@ export type Forge = {
 	merge?: (
 		pull: Pick<PullRequest, "repo" | "number" | "headSha">,
 	) => Promise<void>;
+	/** Send a review that asks for changes, with `body` as its text. A refusal throws a `TrackerError` with the reason of the forge. */
+	requestChanges?: (
+		pull: Pick<PullRequest, "repo" | "number" | "headSha">,
+		body: string,
+	) => Promise<void>;
 };
 
 export type Store = {
