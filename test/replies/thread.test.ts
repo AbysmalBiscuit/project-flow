@@ -241,6 +241,28 @@ describe("replies", () => {
 					},
 				],
 			},
+			reviews: {
+				12: [
+					{
+						id: 130,
+						body: "Split the parser out.",
+						state: "CHANGES_REQUESTED",
+						user: { login: "lev" },
+						submitted_at: "2026-08-18T12:05:00Z",
+						html_url:
+							"https://github.com/acme/widget/pull/12#pullrequestreview-130",
+					},
+					{
+						id: 131,
+						body: "",
+						state: "COMMENTED",
+						user: { login: "ada" },
+						submitted_at: "2026-08-18T12:10:00Z",
+						html_url:
+							"https://github.com/acme/widget/pull/12#pullrequestreview-131",
+					},
+				],
+			},
 			graphql: (query) => {
 				if (!query.includes("closedByPullRequestsReferences")) {
 					return null;
@@ -284,6 +306,17 @@ describe("replies", () => {
 					author: "ada",
 					createdAt: "2026-08-18T12:00:00.000Z",
 					url: "https://github.com/acme/widget/issues/9#issuecomment-90",
+					parentId: null,
+					kind: "comment",
+					children: [],
+				},
+				{
+					id: "review-130",
+					body: "Split the parser out.",
+					html: "<p>Split the parser out.</p>\n",
+					author: "lev",
+					createdAt: "2026-08-18T12:05:00Z",
+					url: "https://github.com/acme/widget/pull/12#pullrequestreview-130",
 					parentId: null,
 					kind: "comment",
 					children: [],

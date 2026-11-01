@@ -23,6 +23,30 @@ const githubThreadComment = z.object({
 	in_reply_to_id: z.number().nullable().optional(),
 });
 
+const githubReview = z.object({
+	id: z.number(),
+	body: z.string().nullable().optional(),
+	html_url: z.string().optional(),
+	submitted_at: z.string().nullable().optional(),
+	user: z.object({ login: z.string() }).nullable().optional(),
+});
+
+/** A review with a body, as a top-level comment: a reply to it goes to the ticket. */
+function reviewComment(
+	review: z.infer<typeof githubReview>,
+): Omit<ThreadComment, "html"> {
+	return {
+		id: `review-${review.id}`,
+		body: review.body ?? "",
+		author: review.user?.login ?? "",
+		createdAt: review.submitted_at ?? "",
+		url: review.html_url ?? "",
+		parentId: null,
+		kind: "comment",
+		children: [],
+	};
+}
+
 const postedComment = z.object({
 	id: z.number(),
 	body: z.string().nullable().optional(),
@@ -136,25 +160,38 @@ export async function fetchGithubThread(
 			.parse(item)
 			.map((comment) => toThreadComment(comment, "comment")),
 	);
-	const review = (
-		await Promise.all(
+	const targetPages = (path: string, label: string) =>
+		Promise.all(
 			reviewTargets.map((target) =>
 				pages(
-					`https://api.github.com/repos/${target.repo}/pulls/${target.number}/comments?per_page=100&page=1`,
+					`https://api.github.com/repos/${target.repo}/pulls/${target.number}/${path}?per_page=100&page=1`,
 					token,
 					fetchImpl,
 					target.repo,
-					"fetch review thread",
+					label,
 					signal,
 				),
 			),
-		)
-	).flatMap((listed) =>
+		);
+	const [reviewCommentPages, reviewPages] = await Promise.all([
+		targetPages("comments", "fetch review thread"),
+		targetPages("reviews", "fetch reviews"),
+	]);
+	const review = reviewCommentPages.flatMap((listed) =>
 		listed.flatMap((item) =>
 			z
 				.array(githubThreadComment)
 				.parse(item)
 				.map((comment) => toThreadComment(comment, "review")),
+		),
+	);
+	const reviews = reviewPages.flatMap((listed) =>
+		listed.flatMap((item) =>
+			z
+				.array(githubReview)
+				.parse(item)
+				.filter((entry) => (entry.body ?? "").trim() !== "")
+				.map(reviewComment),
 		),
 	);
 	return {
@@ -164,7 +201,7 @@ export async function fetchGithubThread(
 		key,
 		title: issue.title,
 		url: issue.html_url,
-		comments: [...comments, ...review],
+		comments: [...comments, ...reviews, ...review],
 	};
 }
 
