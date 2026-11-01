@@ -105,7 +105,10 @@ export function NeedsItem({
 	onAction?: (key: string) => void;
 }) {
 	const Icon = reasonIcon[item.reason];
-	const pulls = item.awaitingPulls ?? [];
+	const pulls =
+		item.reason === "awaitingMerge" || item.reason === "decide"
+			? (item.awaitingPulls ?? [])
+			: [];
 	const held = heldAction(item);
 	const action = held ?? actionLabel(item);
 	const lead = (
