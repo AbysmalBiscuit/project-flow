@@ -2,7 +2,11 @@ import { z } from "zod";
 
 import type { PullRequest } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
-import { mergedPullHistory, type ReviewEvidence } from "./github-pulls.ts";
+import {
+	mergedEvidence,
+	mergedPullHistory,
+	type ReviewEvidence,
+} from "./github-pulls.ts";
 import {
 	checkSelection,
 	chunked,
@@ -45,20 +49,28 @@ type Target = {
 	closingKeys: string[];
 };
 
-function pullsByNumberQuery(count: number, size: number): string {
-	const variables = Array.from(
-		{ length: count },
-		(_, at) => `$owner${at}: String!, $name${at}: String!, $number${at}: Int!`,
-	);
-	const fields = Array.from(
-		{ length: count },
-		(_, at) => `p${at}: repository(owner: $owner${at}, name: $name${at}) {
-		pullRequest(number: $number${at}) {
-			${pullNodeFields}
+/** The fields of one linked PR. A merged PR with kept evidence reads no lists. */
+function pullFields(lists: boolean, size: number): string {
+	return lists
+		? `${pullNodeFields}
 			reviews(first: ${size}) { ${reviewSelection} }
 			comments(first: ${size}) { ${pullCommentSelection} }
 			reactions(first: ${size}) { ${reactionSelection} }
-			statusCheckRollup { contexts(first: ${size}) { ${checkSelection} } }
+			statusCheckRollup { contexts(first: ${size}) { ${checkSelection} } }`
+		: pullNodeFields;
+}
+
+function pullsByNumberQuery(lists: boolean[], size: number): string {
+	const variables = lists.map(
+		(_, at) => `$owner${at}: String!, $name${at}: String!, $number${at}: Int!`,
+	);
+	const fields = lists.map(
+		(
+			withLists,
+			at,
+		) => `p${at}: repository(owner: $owner${at}, name: $name${at}) {
+		pullRequest(number: $number${at}) {
+			${pullFields(withLists, size)}
 		}
 	}`,
 	);
@@ -68,9 +80,9 @@ function pullsByNumberQuery(count: number, size: number): string {
 }
 
 const linkedPullNode = graphqlPullNode.extend({
-	reviews: fullPullLists.shape.reviews,
-	comments: fullPullLists.shape.comments,
-	reactions: livePullLists.shape.reactions,
+	reviews: fullPullLists.shape.reviews.optional(),
+	comments: fullPullLists.shape.comments.optional(),
+	reactions: livePullLists.shape.reactions.optional(),
 	statusCheckRollup: livePullLists.shape.statusCheckRollup.default(null),
 });
 
@@ -80,9 +92,9 @@ const linkedPullAlias = z
 	.object({ pullRequest: linkedPullNode.nullable() })
 	.nullable();
 
-/** The later pages of the lists that an open PR shows. A merged PR shows none. */
+/** The later pages of the lists that the node read. An open draft shows none. */
 function laterPages(node: LinkedPullNode) {
-	if (node.mergedAt != null || node.isDraft) {
+	if (node.isDraft && node.mergedAt == null) {
 		return [];
 	}
 	return [
@@ -136,17 +148,21 @@ function linkedPull(node: LinkedPullNode, target: Target): PullRequest | null {
 
 /**
  * Reads one chunk of linked PRs in one request, then the later pages of their
- * lists. A PR that GitHub cannot find or read, or whose page fails, is left
- * out; the other PRs of the chunk stay.
+ * lists. A PR that GitHub cannot find or read is left out. An open PR whose
+ * page fails is left out too. The complete lists of a merged PR go in `seen`.
  */
 async function readChunk(
 	token: string,
 	fetchImpl: Fetch,
 	chunk: Target[],
+	seen: Map<string, ReviewEvidence>,
 ): Promise<PullRequest[]> {
 	const subject = [...new Set(chunk.map((target) => target.repo))].join(", ");
+	const lists = chunk.map(
+		(target) => !seen.has(numberedKey(target.repo, target.number)),
+	);
 	const body = await postPollQuery(token, fetchImpl, subject, (size) => ({
-		query: pullsByNumberQuery(chunk.length, size),
+		query: pullsByNumberQuery(lists, size),
 		variables: Object.fromEntries(
 			chunk.flatMap((target, at) => [
 				[`owner${at}`, target.owner],
@@ -165,7 +181,9 @@ async function readChunk(
 		const node = broken.has(`p${at}`)
 			? null
 			: linkedPullAlias.safeParse(data[`p${at}`]).data?.pullRequest;
-		return node === null || node === undefined ? [] : [{ node, target }];
+		return node === null || node === undefined
+			? []
+			: [{ node, target, lists: lists[at] === true }];
 	});
 	const brokenPages = new Set<string>();
 	await readPages(
@@ -175,10 +193,23 @@ async function readChunk(
 		read.flatMap(({ node }) => laterPages(node)),
 		brokenPages,
 	);
-	return read.flatMap(({ node, target }) => {
-		const pull = brokenPages.has(node.id) ? null : linkedPull(node, target);
-		return pull === null ? [] : [pull];
-	});
+	const pulls: PullRequest[] = [];
+	for (const { node, target, lists: withLists } of read) {
+		const complete = !brokenPages.has(node.id);
+		if (node.mergedAt == null) {
+			const pull = complete ? linkedPull(node, target) : null;
+			pulls.push(...(pull === null ? [] : [pull]));
+			continue;
+		}
+		if (withLists && complete) {
+			await mergedEvidence(seen, target.repo, node.number, async () =>
+				reviewFromGraphql(node),
+			);
+		}
+		const pull = linkedPull(node, target);
+		pulls.push(...(pull === null ? [] : [pull]));
+	}
+	return pulls;
 }
 
 function linkTargets(links: PullLink[]): Target[] {
@@ -217,7 +248,7 @@ export async function loadLinkedPulls(
 ): Promise<PullRequest[]> {
 	const pulls: PullRequest[] = [];
 	for (const chunk of chunked(linkTargets(links), pullsPerBatch)) {
-		pulls.push(...(await readChunk(token, fetchImpl, chunk)));
+		pulls.push(...(await readChunk(token, fetchImpl, chunk, seen)));
 	}
 	const repos = new Set([...pulls.map((pull) => pull.repo), ...historyRepos]);
 	const histories = await Promise.all(

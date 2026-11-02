@@ -393,6 +393,66 @@ describe("linked PRs read through GitHub GraphQL", () => {
 		);
 	});
 
+	test("a merged linked PR gives the merged history its evidence from all pages", async () => {
+		const merged = "2026-10-02T00:00:00Z";
+		const linked: Linked = {
+			answers: new Map<number, Answer>([
+				[83, pullNode(83)],
+				[
+					84,
+					pullNode(84, {
+						state: "MERGED",
+						mergedAt: merged,
+						reviews: list([], "reviews-2"),
+					}),
+				],
+			]),
+			laterPages: new Map([
+				[
+					"PR_84@reviews-2",
+					{
+						reviews: list([
+							{
+								author: { login: "grok-code-review[bot]" },
+								commit: { oid: head },
+								state: "COMMENTED",
+							},
+						]),
+					},
+				],
+			]),
+			closed: [
+				{
+					number: 84,
+					title: "PR 84",
+					html_url: `https://github.com/${repo}/pull/84`,
+					body: "",
+					head: { ref: "84-feat", sha: head },
+					state: "closed",
+					merged_at: merged,
+				},
+			],
+			inferBots: true,
+			again: () => {},
+		};
+		const read = await readLinked([83, 84], linked);
+		const evidenceReads = read.sent.filter((request) =>
+			/\/(pulls|issues)\/84\/|\/commits\//.test(request.url),
+		);
+		expect(evidenceReads).toEqual([]);
+		expect(read.before?.needsYou).toEqual([]);
+		expect(read.needsYou).toEqual([]);
+		const lastBatch = pullsByNumberRequests(read.sent).at(-1);
+		const at = Object.entries(lastBatch?.variables ?? {}).find(
+			([name, value]) => name.startsWith("number") && value === 84,
+		)?.[0];
+		const field = lastBatch?.query
+			.split(`p${at?.slice("number".length)}: repository`)[1]
+			?.split(/\n\tp\d+: repository/)[0];
+		expect(field).toContain("headRefOid");
+		expect(field).not.toContain("reviews(");
+	});
+
 	test("a failed linked PR read fails the poll and keeps the PRs of the last good poll", async () => {
 		const linked: Linked = {
 			answers: new Map<number, Answer>([

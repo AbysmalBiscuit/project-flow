@@ -311,7 +311,7 @@ export function githubPullNode(
 			{
 				author: { login },
 				body: row.body ?? "",
-				createdAt: row.created_at ?? null,
+				...(row.created_at == null ? {} : { createdAt: row.created_at }),
 				reactions: {
 					totalCount:
 						typeof reactions?.total_count === "number"
@@ -332,7 +332,7 @@ export function githubPullNode(
 			{
 				user: { login },
 				content,
-				createdAt: row.created_at ?? null,
+				...(row.created_at == null ? {} : { createdAt: row.created_at }),
 			},
 		];
 	});

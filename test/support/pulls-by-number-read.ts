@@ -61,10 +61,11 @@ export async function answerPullsByNumber(
 				throw new Error(`recorded pull failed (HTTP ${answered.status})`);
 			}
 			const pull = (await answered.json()) as Record<string, unknown>;
-			const open =
-				pull.state === "open" && pull.merged_at == null && pull.draft !== true;
+			const listed =
+				pull.merged_at != null ||
+				(pull.state === "open" && pull.draft !== true);
 			const sha = (pull.head as { sha?: string } | undefined)?.sha ?? "";
-			const rows = open
+			const rows = listed
 				? {
 						...(await pullWithRows(jsonRows, repo, pull)),
 						statusRows: await statusRows(fetchImpl, repo, sha),

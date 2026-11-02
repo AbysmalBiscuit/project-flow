@@ -229,6 +229,26 @@ export type ReviewEvidence = Pick<
 	"checks" | "comments" | "reviews" | "reactions"
 >;
 
+/**
+ * The complete evidence of a merged PR. A merged PR does not change, so the
+ * first complete read stays in `seen` for every later read.
+ */
+export async function mergedEvidence(
+	seen: Map<string, ReviewEvidence>,
+	repo: string,
+	number: number,
+	read: () => Promise<ReviewEvidence>,
+): Promise<ReviewEvidence> {
+	const key = numberedKey(repo, number);
+	const kept = seen.get(key);
+	if (kept !== undefined) {
+		return kept;
+	}
+	const evidence = await read();
+	seen.set(key, evidence);
+	return evidence;
+}
+
 export async function mergedPullHistory(
 	repo: string,
 	token: string,
@@ -246,11 +266,9 @@ export async function mergedPullHistory(
 	const merged = page.filter((pull) => (pull.merged_at ?? null) !== null);
 	return loadEachPull(merged, async (pull) => {
 		const head = pull.head.sha ?? "";
-		const key = numberedKey(repo, pull.number);
-		const review =
-			seen.get(key) ??
-			(await pullReview(repo, pull.number, head, false, token, fetchImpl));
-		seen.set(key, review);
+		const review = await mergedEvidence(seen, repo, pull.number, () =>
+			pullReview(repo, pull.number, head, false, token, fetchImpl),
+		);
 		return {
 			repo,
 			number: pull.number,
