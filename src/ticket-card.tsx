@@ -67,7 +67,7 @@ export function TicketCardBody({
 	const parentKey = hierarchy ? ticket.parent : undefined;
 	const subTickets = hierarchy ? ticket.subTickets : undefined;
 	const outsideParent = parent?.outside;
-	const trackerLabels = [...new Set(ticket.labels)];
+	const trackerLabels = ticket.labels ?? [];
 	return (
 		<>
 			<span
