@@ -56,6 +56,7 @@ import {
 } from "./github-repo-query.ts";
 import { TrackerError } from "./ports.ts";
 import { repoParts } from "./project-ref.ts";
+import { reactionName } from "./reactions.ts";
 import { numberedKey, sameTicketKey } from "./ticket-key.ts";
 import { statusColours } from "./token-palette.ts";
 
@@ -155,7 +156,7 @@ export function reviewFromGraphql(pull: PullLists): ReviewEvidence {
 		}
 		reactions.push({
 			login,
-			content: reaction.content.toLowerCase(),
+			content: reactionName(reaction.content),
 			createdAt: reaction.createdAt ?? null,
 		});
 	}

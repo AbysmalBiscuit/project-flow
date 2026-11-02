@@ -19,6 +19,7 @@ import {
 import { graphqlData, type GraphqlQuery } from "./graphql.ts";
 import { TrackerError } from "./ports.ts";
 import { repoParts } from "./project-ref.ts";
+import { githubReactionContent } from "./reactions.ts";
 import { sameRepo } from "./repo-key.ts";
 
 const mergedPageBound = 10;
@@ -187,17 +188,6 @@ const reviewStateGraphql = z.enum([
 	"PENDING",
 ]);
 
-const reactionContent = z.enum([
-	"CONFUSED",
-	"EYES",
-	"HEART",
-	"HOORAY",
-	"LAUGH",
-	"ROCKET",
-	"THUMBS_DOWN",
-	"THUMBS_UP",
-]);
-
 export const graphqlPullNode = z.object({
 	id: z.string(),
 	number: z.number(),
@@ -239,7 +229,7 @@ export const graphqlPullComment = z.object({
 
 export const graphqlReaction = z.object({
 	user: graphqlActor.optional(),
-	content: reactionContent,
+	content: githubReactionContent,
 	createdAt: z.string().optional(),
 });
 

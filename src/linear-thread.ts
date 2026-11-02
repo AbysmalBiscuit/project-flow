@@ -16,7 +16,7 @@ import {
 	linearPageInfo,
 } from "./linear-api.ts";
 import { TrackerError } from "./ports.ts";
-import { countedReactions } from "./reactions.ts";
+import { emojiReactions } from "./reactions.ts";
 
 const pageInfo = linearPageInfo;
 
@@ -126,12 +126,7 @@ export async function fetchLinearThread(
 			url: comment.url ?? "",
 			parentId: comment.parent?.id ?? null,
 			kind: "comment" as const,
-			reactions: countedReactions(
-				(comment.reactions ?? []).map(({ emoji }) => ({
-					name: emoji,
-					count: 1,
-				})),
-			),
+			reactions: emojiReactions(comment.reactions),
 			children: [],
 		}))
 		.sort((left, right) => {

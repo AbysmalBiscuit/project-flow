@@ -13,22 +13,14 @@ import { fetchWithSignal, githubHeaders, pages } from "./github-pages.ts";
 import { TrackerBodyError } from "./graphql.ts";
 import { TrackerError } from "./ports.ts";
 import { repoParts } from "./project-ref.ts";
-import { countedReactions } from "./reactions.ts";
+import {
+	githubReactionGroups,
+	githubRestReactions,
+	groupReactions,
+	reactionGroupSelection,
+	restReactions,
+} from "./reactions.ts";
 import { numberedKeyParts } from "./ticket-key.ts";
-
-const reactionCount = z.number().optional();
-
-/** The reaction counts that GitHub puts on each issue comment and review comment. */
-const githubReactions = z.object({
-	"+1": reactionCount,
-	"-1": reactionCount,
-	laugh: reactionCount,
-	hooray: reactionCount,
-	confused: reactionCount,
-	heart: reactionCount,
-	rocket: reactionCount,
-	eyes: reactionCount,
-});
 
 const githubThreadComment = z.object({
 	id: z.number(),
@@ -37,7 +29,7 @@ const githubThreadComment = z.object({
 	created_at: z.string().optional(),
 	user: z.object({ login: z.string() }).nullable().optional(),
 	in_reply_to_id: z.number().nullable().optional(),
-	reactions: githubReactions.optional(),
+	reactions: githubRestReactions.optional(),
 });
 
 const githubReview = z.object({
@@ -89,46 +81,21 @@ function toThreadComment(
 				? null
 				: String(comment.in_reply_to_id),
 		kind,
-		reactions: countedReactions(
-			Object.entries(comment.reactions ?? {}).map(([name, count]) => ({
-				name,
-				count: count ?? 0,
-			})),
-		),
+		reactions: restReactions(comment.reactions),
 		children: [],
 	};
 }
 
 const reviewReactionsQuery = `query ReviewReactions($ids: [ID!]!) {
 	nodes(ids: $ids) {
-		... on PullRequestReview { id reactionGroups { content reactors { totalCount } } }
+		... on PullRequestReview { id ${reactionGroupSelection} }
 	}
 }`;
-
-/** GitHub GraphQL names each reaction by the content enum, REST by the shortcode. */
-const reactionContentName: Record<string, string> = {
-	THUMBS_UP: "+1",
-	THUMBS_DOWN: "-1",
-	LAUGH: "laugh",
-	HOORAY: "hooray",
-	CONFUSED: "confused",
-	HEART: "heart",
-	ROCKET: "rocket",
-	EYES: "eyes",
-};
 
 const reviewReactionNodes = z.object({
 	nodes: z.array(
 		z
-			.object({
-				id: z.string(),
-				reactionGroups: z.array(
-					z.object({
-						content: z.string(),
-						reactors: z.object({ totalCount: z.number() }),
-					}),
-				),
-			})
+			.object({ id: z.string(), reactionGroups: githubReactionGroups })
 			.nullable()
 			.catch(null),
 	),
@@ -151,15 +118,7 @@ async function reviewReactions(
 		});
 		for (const node of read.nodes) {
 			if (node !== null) {
-				byId.set(
-					node.id,
-					countedReactions(
-						node.reactionGroups.map((group) => ({
-							name: reactionContentName[group.content] ?? group.content,
-							count: group.reactors.totalCount,
-						})),
-					),
-				);
+				byId.set(node.id, groupReactions(node.reactionGroups));
 			}
 		}
 	}
