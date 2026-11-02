@@ -12,21 +12,32 @@ import {
 } from "./_support.ts";
 
 describe("linked PR read failures", () => {
-	test("a malformed later page drops only the PR that owns it", async () => {
-		const read = await readLinked([83, 84], {
+	test("a malformed later page fails the poll, which keeps the PRs of the last good poll", async () => {
+		const linked: Linked = {
 			answers: new Map<number, Answer>([
 				[83, pullNode(83, { reviews: list([], "reviews-2") })],
 				[84, pullNode(84)],
 			]),
-			laterPages: new Map([["PR_83@reviews-2", { reviews: "malformed" }]]),
-		});
-		expect(read.error).toBeNull();
-		expect(read.tickets.map(({ key, pull }) => ({ key, pull }))).toEqual(
-			expect.arrayContaining([
-				{ key: "WID-83", pull: undefined },
-				{ key: "WID-84", pull: `${repo}#84` },
-			]),
+			laterPages: new Map([["PR_83@reviews-2", { reviews: list([]) }]]),
+			again: () => {
+				linked.laterPages = new Map([
+					["PR_83@reviews-2", { reviews: "malformed" }],
+				]);
+			},
+		};
+		const read = await readLinked([83, 84], linked);
+		const shown = [
+			{ key: "WID-83", pull: `${repo}#83` },
+			{ key: "WID-84", pull: `${repo}#84` },
+		];
+		const pulls = (tickets: Read["tickets"]) =>
+			tickets.map(({ key, pull }) => ({ key, pull }));
+		expect(read.before?.error).toBeNull();
+		expect(pulls(read.before?.tickets ?? [])).toEqual(
+			expect.arrayContaining(shown),
 		);
+		expect(read.error).toContain("GitHub read linked PRs failed");
+		expect(pulls(read.tickets)).toEqual(expect.arrayContaining(shown));
 	});
 
 	test("a failed linked PR read fails the poll and keeps the PRs of the last good poll", async () => {

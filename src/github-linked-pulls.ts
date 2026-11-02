@@ -41,6 +41,8 @@ import { numberedKey } from "./ticket-key.ts";
  */
 const pullsPerBatch = 40;
 
+const linkedLabel = "read linked PRs";
+
 type Target = {
 	repo: string;
 	owner: string;
@@ -148,8 +150,9 @@ function linkedPull(node: LinkedPullNode, target: Target): PullRequest | null {
 
 /**
  * Reads one chunk of linked PRs in one request, then the later pages of their
- * lists. A PR that GitHub cannot find or read is left out. An open PR whose
- * page fails is left out too. The complete lists of a merged PR go in `seen`.
+ * lists. A PR that GitHub cannot find or read is left out, and so is an open
+ * PR whose own page has a GraphQL error. A malformed answer fails the read. The
+ * complete lists of a merged PR go in `seen`.
  */
 async function readChunk(
 	token: string,
@@ -161,21 +164,31 @@ async function readChunk(
 	const lists = chunk.map(
 		(target) => !seen.has(numberedKey(target.repo, target.number)),
 	);
-	const body = await postPollQuery(token, fetchImpl, subject, (size) => ({
-		query: pullsByNumberQuery(lists, size),
-		variables: Object.fromEntries(
-			chunk.flatMap((target, at) => [
-				[`owner${at}`, target.owner],
-				[`name${at}`, target.name],
-				[`number${at}`, target.number],
-			]),
-		),
-	}));
+	const body = await postPollQuery(
+		token,
+		fetchImpl,
+		subject,
+		(size) => ({
+			query: pullsByNumberQuery(lists, size),
+			variables: Object.fromEntries(
+				chunk.flatMap((target, at) => [
+					[`owner${at}`, target.owner],
+					[`name${at}`, target.name],
+					[`number${at}`, target.number],
+				]),
+			),
+		}),
+		linkedLabel,
+	);
 	if (body === null) {
-		throw new TrackerError(`GitHub read linked PRs failed: ${subject}`, 404);
+		throw new TrackerError(`GitHub ${linkedLabel} failed: ${subject}`, 404);
 	}
-	const { data, broken } = pollData(body, subject, ([alias]) =>
-		typeof alias === "string" && /^p\d+$/.test(alias) ? alias : null,
+	const { data, broken } = pollData(
+		body,
+		subject,
+		([alias]) =>
+			typeof alias === "string" && /^p\d+$/.test(alias) ? alias : null,
+		linkedLabel,
 	);
 	const read = chunk.flatMap((target, at) => {
 		const node = broken.has(`p${at}`)
@@ -192,7 +205,7 @@ async function readChunk(
 		subject,
 		read.flatMap(({ node }) => laterPages(node)),
 		brokenPages,
-		"dropPull",
+		linkedLabel,
 	);
 	const pulls: PullRequest[] = [];
 	for (const { node, target, lists: withLists } of read) {

@@ -126,6 +126,24 @@ describe("linked PRs read through GitHub GraphQL", () => {
 		expect(stateOf("WID-84")).not.toBe(stateOf("WID-83"));
 	});
 
+	test("an ask on a later comments page of a linked PR reaches Needs you", async () => {
+		const ask = {
+			author: { login: "agent" },
+			body: "This waits on Lev for the signing key.\n\n<!-- workcell:ask pr-83 -->",
+			createdAt: "2026-10-01T00:00:00Z",
+			reactions: { totalCount: 0 },
+		};
+		const read = await readLinked([83], {
+			answers: new Map<number, Answer>([
+				[83, pullNode(83, { comments: list([], "comments-2") })],
+			]),
+			laterPages: new Map([["PR_83@comments-2", { comments: list([ask]) }]]),
+		});
+		expect(read.needsYou.map(({ key, reason }) => ({ key, reason }))).toEqual([
+			{ key: "WID-83", reason: "ask" },
+		]);
+	});
+
 	test("a merged linked PR gives the merged history its evidence from all pages", async () => {
 		const merged = "2026-10-02T00:00:00Z";
 		const linked: Linked = {
