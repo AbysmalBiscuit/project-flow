@@ -1,3 +1,4 @@
+import { inAskThread } from "./ask.ts";
 import type {
 	Comment,
 	PostedReply,
@@ -66,18 +67,31 @@ function optionReplyBody(
 	return `${picked.number}. ${picked.label}`;
 }
 
+/**
+ * The thread parent that the tracker keeps on the posted comment. Only a
+ * Linear comment keeps its parent; a GitHub issue comment has no thread.
+ */
+function threadParent(
+	reply: Pick<ReplyDraft, "tracker" | "parentId">,
+): string | undefined {
+	return reply.tracker === "linear" ? reply.parentId : undefined;
+}
+
 function panelReplyBody(
 	ticket: Ticket | undefined,
+	draft: ReplyDraft,
 	body: string,
 	pmBot: boolean,
-	parentId?: string,
 ): string {
 	const text = body.trim();
 	const ask = openAsk(ticket?.comments ?? [], pmBot);
 	if (ask === null || ask.answer !== null) {
 		return text;
 	}
-	if (parentId !== undefined && parentId !== ask.comment.id) {
+	if (draft.parentId !== undefined && draft.parentId !== ask.comment.id) {
+		return text;
+	}
+	if (inAskThread(threadParent(draft), ask.comment)) {
 		return text;
 	}
 	if (ask.headline === "") {
@@ -117,7 +131,7 @@ export function replyRequest(
 			tracker: draft.tracker,
 			project: draft.project,
 			key: draft.key,
-			body: panelReplyBody(ticket, text, pmBot, draft.parentId),
+			body: panelReplyBody(ticket, draft, text, pmBot),
 			...(draft.parentId === undefined ? {} : { parentId: draft.parentId }),
 			...(draft.kind === undefined ? {} : { kind: draft.kind }),
 		},
@@ -134,9 +148,12 @@ export function recordedReply(
 	if (row === undefined) {
 		return undefined;
 	}
+	const parentId = threadParent(reply);
 	const comment: Comment = {
+		id: created.id,
 		body: created.body,
 		createdAt: created.createdAt,
+		...(parentId === undefined ? {} : { parentId }),
 	};
 	return {
 		...row,

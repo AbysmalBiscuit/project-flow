@@ -6,9 +6,15 @@ const askMarker = /<!--\s*workcell:ask\s+([A-Za-z0-9_.-]+)\s*-->/i;
 const workcellMarker = /<!--\s*workcell:/i;
 const answerPrefix = /^(?:senior|reply|answer)\b/i;
 const numberedOption = /^(\d+)[.)]\s+(\S.*)$/;
+const answeredByLine = /^[*_\s]*answered by\b/i;
 
-/** A `reply` is Lev's answer; a `record` is an id quote or progress line. */
-export type AskAnswer = { by: "reply" | "record"; comment: Comment };
+/**
+ * A `reply` is Lev's answer. A `thread` is Lev's answer in the tracker
+ * thread of the ask. A `record` is an id quote, a progress line or an
+ * `Answered by` line that the factory adds to the ask. A thread answer and
+ * a record settle the ask.
+ */
+export type AskAnswer = { by: "reply" | "thread" | "record"; comment: Comment };
 
 export type Ask = {
 	id: string;
@@ -77,14 +83,26 @@ export function readAsks(comments: Comment[]): Ask[] {
 		});
 }
 
+/** Tells if a comment with the thread parent `parentId` replies in the thread of the ask. */
+export function inAskThread(
+	parentId: string | undefined,
+	ask: Comment,
+): boolean {
+	return parentId !== undefined && parentId === ask.id;
+}
+
 /**
- * Decides if a comment after the ask, or a progress comment anywhere,
- * answers the ask. A record wins over a reply, and the latest reply wins.
+ * Decides if a comment after the ask, a progress comment anywhere, or the
+ * ask itself answers the ask. A record wins over a thread answer, a thread
+ * answer wins over a reply, and the latest reply wins.
  */
 export function askAnswer(comments: Comment[], ask: Comment): AskAnswer | null {
 	const id = askId(ask.body);
 	if (id === null) {
 		return null;
+	}
+	if (ask.body.split("\n").some((line) => answeredByLine.test(line))) {
+		return { by: "record", comment: ask };
 	}
 	const askAt = comments.indexOf(ask);
 	const later = comments.slice(askAt + 1);
@@ -101,10 +119,17 @@ export function askAnswer(comments: Comment[], ask: Comment): AskAnswer | null {
 	if (record !== undefined) {
 		return { by: "record", comment: record };
 	}
-	const reply = later.findLast((comment) => {
-		if (workcellMarker.test(comment.body) || isProgress(comment.body)) {
-			return false;
-		}
+	const replies = later.filter(
+		(comment) =>
+			!workcellMarker.test(comment.body) && !isProgress(comment.body),
+	);
+	const thread = replies.findLast((comment) =>
+		inAskThread(comment.parentId, ask),
+	);
+	if (thread !== undefined) {
+		return { by: "thread", comment: thread };
+	}
+	const reply = replies.findLast((comment) => {
 		const opening = comment.body.trim();
 		return answerPrefix.test(opening) || quotesAskText(opening, ask.body);
 	});
@@ -146,7 +171,7 @@ function quotesAsk(body: string, id: string): boolean {
 
 function quotesAskText(body: string, askBody: string): boolean {
 	const headline = askHeadline(askBody);
-	const text = askBody.replace(askMarker, "").trim();
+	const text = askText(askBody).trim();
 	if (headline === "" && text === "") {
 		return false;
 	}
@@ -163,8 +188,17 @@ function quotesAskText(body: string, askBody: string): boolean {
 	});
 }
 
+/** The ask body without its marker and without the `Answered by` line. */
+function askText(body: string): string {
+	return body
+		.replace(askMarker, "")
+		.split("\n")
+		.filter((line) => !answeredByLine.test(line))
+		.join("\n");
+}
+
 export function askHeadline(body: string): string {
-	const text = body.replace(askMarker, "").trim();
+	const text = askText(body).trim();
 	const named = text
 		.split(/(?<=[.!?])\s+|\n+/)
 		.map((part) => part.trim())
@@ -180,7 +214,7 @@ export function askHeadline(body: string): string {
 }
 
 function askOptions(body: string): AskOption[] {
-	const text = body.replace(askMarker, "");
+	const text = askText(body);
 	const options: AskOption[] = [];
 	for (const line of text.split("\n")) {
 		const match = line.trim().match(numberedOption);
@@ -195,8 +229,7 @@ function askOptions(body: string): AskOption[] {
 }
 
 function askQuestion(body: string, headline: string): string {
-	const lines = body
-		.replace(askMarker, "")
+	const lines = askText(body)
 		.split("\n")
 		.map((line) => line.trim())
 		.filter(

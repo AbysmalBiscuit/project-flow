@@ -15,6 +15,23 @@ export const linearPageInfo = z.object({
 	endCursor: z.string().nullable(),
 });
 
+/** The fields of a Linear comment that the issue read and the thread read share. */
+export const linearCommentNode = z.object({
+	id: z.string().optional(),
+	body: z.string().nullable().optional(),
+	createdAt: z.string().optional(),
+	updatedAt: z.string().optional(),
+	parent: z.object({ id: z.string() }).nullable().optional(),
+	user: z
+		.object({
+			name: z.string().nullable().optional(),
+			displayName: z.string().nullable().optional(),
+		})
+		.nullable()
+		.optional(),
+	reactions: z.array(z.object({ id: z.string() })).optional(),
+});
+
 export function commentAuthor(
 	user:
 		| {

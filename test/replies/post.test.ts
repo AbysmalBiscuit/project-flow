@@ -117,7 +117,7 @@ describe("replies", () => {
 		}
 	});
 
-	test("a Linear reply posts into that comment thread", async () => {
+	test("a Linear reply in the ask thread posts unquoted and settles the ask", async () => {
 		const sent: string[] = [];
 		const recorded = linearFake({
 			project: linearProject,
@@ -164,7 +164,7 @@ describe("replies", () => {
 			});
 			expect(response.status).toBe(201);
 			const created = (await response.json()) as { body: string };
-			expect(created.body).toBe("> Which name?\n\nUse the short name.");
+			expect(created.body).toBe("Use the short name.");
 			const posted = sent.find((body) => body.includes("commentCreate"));
 			expect(posted).toBeDefined();
 			const parsed = JSON.parse(posted ?? "{}") as {
@@ -175,8 +175,11 @@ describe("replies", () => {
 			expect(parsed.variables?.input).toEqual({
 				issueId: "PF-1",
 				parentId: "comment-parent",
-				body: "> Which name?\n\nUse the short name.",
+				body: "Use the short name.",
 			});
+			const needs = await fetch(new URL("/api/needs-you", app.base));
+			const items = (await needs.json()) as NeedsYouItem[];
+			expect(items.filter((item) => item.key === "PF-1")).toEqual([]);
 		} finally {
 			await app.stop();
 		}

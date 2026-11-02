@@ -9,7 +9,12 @@ import type {
 } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { linearStatusType } from "./lanes.ts";
-import { commentAuthor, linearGraphql, linearPageInfo } from "./linear-api.ts";
+import {
+	commentAuthor,
+	linearCommentNode,
+	linearGraphql,
+	linearPageInfo,
+} from "./linear-api.ts";
 import { TrackerError } from "./ports.ts";
 
 const pageInfo = linearPageInfo;
@@ -41,19 +46,9 @@ const threadPage = z.object({
 			url: z.string(),
 			comments: z.object({
 				nodes: z.array(
-					z.object({
+					linearCommentNode.extend({
 						id: z.string(),
-						body: z.string().nullable().optional(),
-						createdAt: z.string().optional(),
 						url: z.string().optional(),
-						parent: z.object({ id: z.string() }).nullable().optional(),
-						user: z
-							.object({
-								name: z.string().nullable().optional(),
-								displayName: z.string().nullable().optional(),
-							})
-							.nullable()
-							.optional(),
 					}),
 				),
 				pageInfo,
