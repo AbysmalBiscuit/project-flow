@@ -118,12 +118,16 @@ export type Ticket = {
 	labels: string[];
 	assignee?: string | null;
 	assignees?: string[];
+	/** What the tracker read says about each assignee, by assignee id. */
+	assigneeNames?: Record<string, PersonName>;
 	status?: TicketStatus;
 	emptyStatus?: boolean;
 	history?: { statusId: string; at: string; statusType?: StatusType }[];
 	closedAt?: string;
 	createdAt?: string;
 };
+
+export type PersonName = { name: string; email?: string };
 
 export type ParentDetails = {
 	title: string;
@@ -200,6 +204,8 @@ export type TicketView = {
 	queued?: Queued;
 	updatedAt?: string;
 	assignees?: string[];
+	/** The shown name of each entry of `assignees` that is not a readable login. */
+	assigneeNames?: Record<string, string>;
 	/** The label names of the ticket, as its tracker read gives them. */
 	labels?: string[];
 	workstream?: string;

@@ -91,7 +91,7 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 			parent { identifier title url state { type name } project { name } }
 			projectMilestone { name }
 			labels { nodes { name } }
-			assignee { id name displayName }
+			assignee { id name displayName email }
 			attachments {
 				nodes { url title }
 			}
@@ -211,6 +211,7 @@ const issueNode = z.object({
 			id: z.string().optional(),
 			name: z.string().nullable().optional(),
 			displayName: z.string().nullable().optional(),
+			email: z.string().nullable().optional(),
 		})
 		.nullable()
 		.optional(),
@@ -357,6 +358,21 @@ function parentDetailsOf(
 	};
 }
 
+function assigneeNamesOf(
+	person: z.infer<typeof issueNode>["assignee"],
+): Pick<Ticket, "assigneeNames"> {
+	const name = commentAuthor(person)?.trim() ?? "";
+	if (person?.id === undefined || name === "") {
+		return {};
+	}
+	const email = person.email?.trim() ?? "";
+	return {
+		assigneeNames: {
+			[person.id]: email === "" ? { name } : { name, email },
+		},
+	};
+}
+
 function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 	if (node.state === null || node.identifier === undefined) {
 		return null;
@@ -403,6 +419,7 @@ function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 		...parentDetailsOf(node.parent),
 		labels: (node.labels?.nodes ?? []).map((label) => label.name),
 		...(node.assignee === undefined ? {} : { assignee }),
+		...assigneeNamesOf(node.assignee),
 		...(status === undefined ? {} : { status }),
 		...(history.length === 0 ? {} : { history }),
 	};
