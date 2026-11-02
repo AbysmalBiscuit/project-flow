@@ -53,6 +53,7 @@ import {
 	usePollProgress,
 } from "./poll-freshness.tsx";
 import { SegmentedBar, ticketTotal } from "./progress-bar.tsx";
+import { markPinned } from "./project-pins.ts";
 import { samePin } from "./project-ref.ts";
 import {
 	configurationOf,
@@ -676,11 +677,7 @@ function OverviewPage({
 			shownProjects(
 				{
 					...overview,
-					projects: overview.projects.map(({ pinned: _pinned, ...project }) =>
-						pins.some((pin) => samePin(pin, project.ref))
-							? { ...project, pinned: true as const }
-							: project,
-					),
+					projects: markPinned(overview.projects, pins),
 				},
 				view,
 				query,
