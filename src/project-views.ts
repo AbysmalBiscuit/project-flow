@@ -15,13 +15,13 @@ import { sortProjects } from "./overview-sort.ts";
 import { staleView } from "./poll-merge.ts";
 import type { PollOptions } from "./poll.ts";
 import type { Viewer } from "./ports.ts";
+import { markPinned } from "./project-pins.ts";
 import {
 	listedRef,
 	pinRef,
 	projectId,
 	refPin,
 	refRepo,
-	samePin,
 	sameProject,
 	settingsKey,
 } from "./project-ref.ts";
@@ -322,11 +322,7 @@ export function overview(
 			)
 		: [];
 	const projects = sortProjects(
-		[...counted, ...pending].map((project) =>
-			configuration.pinnedProjects.some((pin) => samePin(pin, project.ref))
-				? { ...project, pinned: true as const }
-				: project,
-		),
+		markPinned([...counted, ...pending], configuration.pinnedProjects),
 		configuration.overview.sort,
 		configuration.overview.direction,
 		(kind) => trackerLabels[kind],

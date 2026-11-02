@@ -549,7 +549,16 @@ type SettingsWrite = Configuration & {
 	baselinePinnedProjects?: Configuration["pinnedProjects"];
 };
 
-type SettingsPatch = (current: Configuration) => SettingsWrite;
+export type SettingsPatch = (current: Configuration) => SettingsWrite;
+
+/** The configuration of a save, without the baselines that only the server reads. */
+function savedFields({
+	baselineTracked: _tracked,
+	baselinePinnedProjects: _pins,
+	...settings
+}: SettingsWrite): Configuration {
+	return settings;
+}
 
 function writeSettingsCache(patch: SettingsPatch): void {
 	const key = pageQuery.settings.queryKey;
@@ -562,7 +571,7 @@ function writeSettingsCache(patch: SettingsPatch): void {
 	const updatedAt = pageQueryClient.getQueryState(key)?.dataUpdatedAt ?? 0;
 	pageQueryClient.setQueryData(
 		key,
-		{ ...cached, ...patch(current) },
+		{ ...cached, ...savedFields(patch(current)) },
 		{ updatedAt },
 	);
 }
@@ -617,7 +626,7 @@ export function useSaveSettings({
 			let settings = saved.settings;
 			for (const queued of optimisticPatches) {
 				if (queued !== patch) {
-					settings = { ...settings, ...queued(settings) };
+					settings = { ...settings, ...savedFields(queued(settings)) };
 				}
 			}
 			const written: SettingsRead = {

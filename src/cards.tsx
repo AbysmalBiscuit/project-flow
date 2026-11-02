@@ -12,6 +12,7 @@ import {
 } from "react";
 
 import { useTrackerLabel } from "./backend-labels.ts";
+import { board } from "./board-styles.ts";
 import { Button, type IconName } from "./button.tsx";
 import { Choice } from "./choice.tsx";
 import type { Configuration } from "./configuration.ts";
@@ -52,10 +53,12 @@ import {
 	usePollProgress,
 } from "./poll-freshness.tsx";
 import { SegmentedBar, ticketTotal } from "./progress-bar.tsx";
+import { cardPinWrite, markPinned } from "./project-pins.ts";
 import {
 	configurationOf,
 	pageQuery,
 	pageQueryClient,
+	type SettingsPatch,
 	useSaveSettings,
 } from "./queries.ts";
 import { PageFrame, type PageView } from "./shell.tsx";
@@ -64,6 +67,7 @@ import { storeHoldsRead } from "./stored-page.ts";
 import {
 	actionLabel,
 	navLabel,
+	needsYouCount,
 	overviewControlLabel,
 	overviewFilterLabel,
 	overviewSortLabel,
@@ -267,7 +271,38 @@ function Legend({ project }: { project: ProjectCounts }) {
 	);
 }
 
-function ProjectCard({ project }: { project: ProjectCounts }) {
+function PinControl({
+	project,
+	onTogglePin,
+}: {
+	project: ProjectCounts;
+	onTogglePin: (project: ProjectCounts) => void;
+}) {
+	const pinned = project.pinned === true;
+	return (
+		<span className={clsx(cards.pinSlot, pinned && cards.pinShown)}>
+			<Button
+				icon="pin"
+				name={overviewControlLabel.pinProject(project.name)}
+				tooltip={
+					pinned
+						? overviewControlLabel.unpinProject(project.name)
+						: overviewControlLabel.pinToTop(project.name)
+				}
+				pressed={pinned}
+				onClick={() => onTogglePin(project)}
+			/>
+		</span>
+	);
+}
+
+function ProjectCard({
+	project,
+	onTogglePin,
+}: {
+	project: ProjectCounts;
+	onTogglePin: (project: ProjectCounts) => void;
+}) {
 	const id = `project-card-${slug(project.name)}`;
 	const total = ticketTotal(project);
 	const loading = project.pending === true;
@@ -287,9 +322,7 @@ function ProjectCard({ project }: { project: ProjectCounts }) {
 					<h2 className={clsx(cards.nameRow)}>{project.name}</h2>
 					<p className={clsx(cards.meta)}>{subtitle(project, trackerLabel)}</p>
 				</a>
-				{project.needsYou === 0 ? null : (
-					<span className={clsx(cards.badge)}>{project.needsYou} need you</span>
-				)}
+				<PinControl project={project} onTogglePin={onTogglePin} />
 			</div>
 			{loading ? (
 				<Loading />
@@ -312,19 +345,33 @@ function ProjectCard({ project }: { project: ProjectCounts }) {
 					<SegmentedBar project={project} />
 					<Legend project={project} />
 					<BlockerRow project={project} />
+					{project.needsYou === 0 ? null : (
+						<p className={clsx(cards.cardFoot)}>
+							<span className={clsx(board.chip, board.chipNeedsPill)}>
+								{needsYouCount(project.needsYou)}
+							</span>
+						</p>
+					)}
 				</>
 			)}
 		</li>
 	);
 }
 
-function CardsList({ projects }: { projects: ProjectCounts[] }) {
+function CardsList({
+	projects,
+	onTogglePin,
+}: {
+	projects: ProjectCounts[];
+	onTogglePin: (project: ProjectCounts) => void;
+}) {
 	return (
 		<ul className={clsx(cards.list, phoneGutter.cards)}>
 			{projects.map((project) => (
 				<ProjectCard
 					key={`${project.tracker}:${project.name}`}
 					project={project}
+					onTogglePin={onTogglePin}
 				/>
 			))}
 		</ul>
@@ -625,15 +672,25 @@ function OverviewPage({
 	);
 	const view = settings.overview;
 	const trackerLabel = useTrackerLabel();
+	const pins = settings.pinnedProjects;
 	const projects = useMemo(
-		() => shownProjects(overview, view, query, trackerLabel),
-		[overview, view, query, trackerLabel],
+		() =>
+			shownProjects(
+				{
+					...overview,
+					projects: markPinned(overview.projects, pins),
+				},
+				view,
+				query,
+				trackerLabel,
+			),
+		[overview, pins, view, query, trackerLabel],
 	);
 	const refreshing = fetching || overview.polling === true;
 	const needsQuery = useQuery(pageQuery.needsYou);
 	const needs = needsQuery.data ?? [];
 	const save = useSaveSettings({ refetchProjects: false, optimistic: true });
-	const savePatch = (patch: (current: Configuration) => Configuration) => {
+	const savePatch = (patch: SettingsPatch) => {
 		void save
 			.mutateAsync(patch)
 			.catch(() => pageQueryClient.invalidateQueries(pageQuery.settings));
@@ -643,7 +700,18 @@ function OverviewPage({
 		setMenu(null);
 	};
 	const panes = {
-		cards: <CardsList projects={projects} />,
+		cards: (
+			<CardsList
+				projects={projects}
+				onTogglePin={(project) => {
+					const on = project.pinned !== true;
+					savePatch((current) => ({
+						...current,
+						...cardPinWrite(current.pinnedProjects, project.ref, on),
+					}));
+				}}
+			/>
+		),
 		graph: <OverviewGraph projects={projects} focus={focus} />,
 		table: (
 			<TableView

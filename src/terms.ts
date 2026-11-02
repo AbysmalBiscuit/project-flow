@@ -713,13 +713,19 @@ export const overviewControlLabel = {
 	zoomIn: "Zoom in",
 	zoomOut: "Zoom out",
 	fit: "Fit",
-	needsYouOne: "1 needs you",
-	needsYouMany: "need you",
+	pinProject: (project: string) => `Pin ${project}`,
+	pinToTop: (project: string) => `Pin ${project} to the top`,
+	unpinProject: (project: string) => `Unpin ${project}`,
 	edgeCaption:
 		"An arrow runs from a blocking project to the project it blocks. Its label is the blocking ticket; click it to open that ticket. Projects with a dark border need you.",
 	noneTracked: "No tracked project",
 	noneTrackedHint: "Turn a project on in",
 } as const;
+
+/** The count of tickets of a project that need you, such as "2 need you". */
+export function needsYouCount(count: number): string {
+	return count === 1 ? "1 needs you" : `${count} need you`;
+}
 
 export const graphDirectionLabel: Record<GraphDirection, string> = {
 	"left-to-right": "Left to right",
