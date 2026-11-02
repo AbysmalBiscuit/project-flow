@@ -267,12 +267,5 @@ export async function readLinked(
 export const pullsByNumberRequests = (sent: TrackerRequest[]) =>
 	sent.filter((request) => request.query.includes("query PullsByNumber"));
 
-export const restPullReads = (sent: TrackerRequest[]) =>
-	sent.filter((request) =>
-		/^https:\/\/api\.github\.com\/repos\/[^/]+\/[^/]+\/pulls\/\d+/.test(
-			request.url,
-		),
-	);
-
 export const pullOf = (read: Read, number: number) =>
 	read.needsYou.find((item) => item.key === `WID-${number}`)?.pull;

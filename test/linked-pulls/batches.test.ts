@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
+import type { TrackerRequest } from "../support/fetch.ts";
 import { head, repo } from "../support/github.ts";
 import {
 	type Answer,
@@ -10,8 +11,14 @@ import {
 	pullOf,
 	pullsByNumberRequests,
 	readLinked,
-	restPullReads,
 } from "./_support.ts";
+
+const restPullReads = (sent: TrackerRequest[]) =>
+	sent.filter((request) =>
+		/^https:\/\/api\.github\.com\/repos\/[^/]+\/[^/]+\/pulls\/\d+/.test(
+			request.url,
+		),
+	);
 
 describe("linked PRs read through GitHub GraphQL", () => {
 	test("a Linear project reads its linked PRs in one GraphQL request per chunk", async () => {
