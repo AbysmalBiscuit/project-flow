@@ -192,6 +192,7 @@ async function readChunk(
 		subject,
 		read.flatMap(({ node }) => laterPages(node)),
 		brokenPages,
+		"dropPull",
 	);
 	const pulls: PullRequest[] = [];
 	for (const { node, target, lists: withLists } of read) {
