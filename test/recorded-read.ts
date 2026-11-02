@@ -387,7 +387,8 @@ export function answerRecordedRepoRead(fetchImpl: Fetch): Fetch {
 						.json()
 						.catch(() => null)
 				: null;
-			return answeredItself(payload, /^p\d+$/)
+			const failed = !answered.ok && answered.status !== 404;
+			return failed || answeredItself(payload, /^p\d+$/)
 				? answered
 				: answerPullsByNumber(fetchImpl, body);
 		}

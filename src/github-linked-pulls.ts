@@ -27,7 +27,7 @@ import {
 	pullFromGraphql,
 	reviewFromGraphql,
 } from "./github-repo.ts";
-import type { PullLink } from "./ports.ts";
+import { type PullLink, TrackerError } from "./ports.ts";
 import { repoParts } from "./project-ref.ts";
 import { numberedKey } from "./ticket-key.ts";
 
@@ -156,7 +156,7 @@ async function readChunk(
 		),
 	}));
 	if (body === null) {
-		return [];
+		throw new TrackerError(`GitHub read linked PRs failed: ${subject}`, 404);
 	}
 	const { data, broken } = pollData(body, subject, ([alias]) =>
 		typeof alias === "string" && /^p\d+$/.test(alias) ? alias : null,
@@ -205,8 +205,8 @@ function linkTargets(links: PullLink[]): Target[] {
 
 /**
  * Loads each linked PR once, with the keys of every ticket that links it,
- * then the merged history of each repo. A chunk that fails is left out, so one
- * broken read never fails the project; the next poll reads it again.
+ * then the merged history of each repo. A failed chunk fails the read, so the
+ * poll keeps the PRs of the last good poll.
  */
 export async function loadLinkedPulls(
 	token: string,
@@ -217,11 +217,7 @@ export async function loadLinkedPulls(
 ): Promise<PullRequest[]> {
 	const pulls: PullRequest[] = [];
 	for (const chunk of chunked(linkTargets(links), pullsPerBatch)) {
-		pulls.push(
-			...(await readChunk(token, fetchImpl, chunk).catch(
-				(): PullRequest[] => [],
-			)),
-		);
+		pulls.push(...(await readChunk(token, fetchImpl, chunk)));
 	}
 	const repos = new Set([...pulls.map((pull) => pull.repo), ...historyRepos]);
 	const histories = await Promise.all(

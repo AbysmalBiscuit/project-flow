@@ -15,6 +15,7 @@ import {
 	unrecorded,
 } from "./support/github.ts";
 import { linearFake } from "./support/linear.ts";
+import { settledOverview } from "./support/reads.ts";
 
 const lastPage = { hasNextPage: false, endCursor: null };
 
@@ -68,6 +69,14 @@ type Linked = {
 	answers: Map<number, Answer>;
 	/** The later page of a list, keyed by the node id and the cursor. */
 	laterPages?: Map<string, Record<string, unknown>>;
+	/** The REST list of closed PRs that the merged history reads. */
+	closed?: Record<string, unknown>[];
+	/** Infer the expected bots from the merged history, instead of expecting none. */
+	inferBots?: true;
+	/** The HTTP status of each `PullsByNumber` answer, when it is not 200. */
+	status?: number;
+	/** Runs after the first read; the app then polls again and reads the project again. */
+	again?: () => void;
 };
 
 function pullsByNumberAnswer(sent: TrackerRequest, linked: Linked): Response {
@@ -115,7 +124,38 @@ type Read = {
 	tickets: { key: string; state: string; pull?: string }[];
 	needsYou: NeedsYouItem[];
 	error: string | null;
+	/** The read after the first poll, when `again` asked for a second poll. */
+	before?: Read;
 };
+
+async function readProject(
+	base: string,
+	sent: TrackerRequest[],
+): Promise<Read> {
+	const overview = await settledOverview(
+		base,
+		async (url) =>
+			(await (await fetch(new URL("/api/overview", url))).json()) as {
+				projects: { name: string; error: string | null }[];
+				polling?: true;
+			},
+	);
+	const project = overview.projects[0];
+	const report = (await (
+		await fetch(
+			new URL(`/api/projects/${encodeURIComponent(project?.name ?? "")}`, base),
+		)
+	).json()) as Pick<Read, "tickets">;
+	const needsYou = (await (
+		await fetch(new URL("/api/needs-you", base))
+	).json()) as NeedsYouItem[];
+	return {
+		sent: [...sent],
+		tickets: report.tickets,
+		needsYou,
+		error: project?.error ?? null,
+	};
+}
 
 /** Starts the app on a Linear project whose ticket WID-n links PR n, and reads the project after the first poll. */
 async function readLinked(numbers: number[], linked: Linked): Promise<Read> {
@@ -146,7 +186,9 @@ async function readLinked(numbers: number[], linked: Linked): Promise<Read> {
 				return discovered;
 			}
 			if (request.query.includes("query PullsByNumber")) {
-				return pullsByNumberAnswer(request, linked);
+				return linked.status === undefined
+					? pullsByNumberAnswer(request, linked)
+					: new Response("recorded failure", { status: linked.status });
 			}
 			if (request.query.includes("query RepoPages")) {
 				return laterPagesAnswer(request, linked);
@@ -155,7 +197,7 @@ async function readLinked(numbers: number[], linked: Linked): Promise<Read> {
 				return json({ login: "lev" });
 			}
 			if (request.url.includes("/pulls?state=closed")) {
-				return json([]);
+				return json(linked.closed ?? []);
 			}
 			return emptyProjectFields(input, init) ?? unrecorded(input, init);
 		},
@@ -163,7 +205,7 @@ async function readLinked(numbers: number[], linked: Linked): Promise<Read> {
 	const { path, cleanup } = await tempConfig(
 		JSON.stringify({
 			pinned: [{ tracker: "linear", project: slug }],
-			expectedBots: { [repo]: [] },
+			...(linked.inferBots === true ? {} : { expectedBots: { [repo]: [] } }),
 			pollIntervalSeconds: 3600,
 		}),
 	);
@@ -188,27 +230,17 @@ async function readLinked(numbers: number[], linked: Linked): Promise<Read> {
 				stdout: (line) => ready(line),
 				waitForStop: (async () => {
 					const base = await started;
-					const overview = (await (
-						await fetch(new URL("/api/overview", base))
-					).json()) as { projects: { name: string; error: string | null }[] };
-					const project = overview.projects[0];
-					const report = (await (
-						await fetch(
-							new URL(
-								`/api/projects/${encodeURIComponent(project?.name ?? "")}`,
-								base,
-							),
-						)
-					).json()) as Pick<Read, "tickets">;
-					const needsYou = (await (
-						await fetch(new URL("/api/needs-you", base))
-					).json()) as NeedsYouItem[];
-					read = {
-						sent: [...sent],
-						tickets: report.tickets,
-						needsYou,
-						error: project?.error ?? null,
-					};
+					const first = await readProject(base, sent);
+					if (linked.again === undefined) {
+						read = first;
+						return;
+					}
+					linked.again();
+					const refresh = await fetch(new URL("/api/refresh", base), {
+						method: "POST",
+					});
+					expect(refresh.status).toBe(204);
+					read = { ...(await readProject(base, sent)), before: first };
 				})(),
 			}),
 		);
@@ -359,6 +391,34 @@ describe("linked PRs read through GitHub GraphQL", () => {
 				{ key: "WID-84", pull: `${repo}#84` },
 			]),
 		);
+	});
+
+	test("a failed linked PR read fails the poll and keeps the PRs of the last good poll", async () => {
+		const linked: Linked = {
+			answers: new Map<number, Answer>([
+				[83, pullNode(83)],
+				[84, pullNode(84)],
+			]),
+			again: () => {
+				linked.status = 502;
+			},
+		};
+		const read = await readLinked([83, 84], linked);
+		const shown = [
+			{ key: "WID-83", pull: `${repo}#83` },
+			{ key: "WID-84", pull: `${repo}#84` },
+		];
+		const pulls = (tickets: Read["tickets"]) =>
+			tickets.map(({ key, pull }) => ({ key, pull }));
+		expect(read.before?.error).toBeNull();
+		expect(pulls(read.before?.tickets ?? [])).toEqual(
+			expect.arrayContaining(shown),
+		);
+		expect(pullsByNumberRequests(read.sent).length).toBeGreaterThan(
+			pullsByNumberRequests(read.before?.sent ?? []).length,
+		);
+		expect(read.error).not.toBeNull();
+		expect(pulls(read.tickets)).toEqual(expect.arrayContaining(shown));
 	});
 
 	test("a linked PR that GitHub cannot find or read does not fail the other PRs of its chunk", async () => {
