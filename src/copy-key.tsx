@@ -1,0 +1,54 @@
+import { useState } from "react";
+
+import { textControl } from "./control-styles.ts";
+import { panel } from "./panel-styles.ts";
+import { copyKeyCopy } from "./terms.ts";
+import { Toast } from "./toast.tsx";
+import { clsx } from "./ui.ts";
+
+const copiedHideMs = 2_000;
+
+type Outcome = { tone: "saved" | "error"; message: string };
+
+/** A ticket key that copies itself to the clipboard on a click or on Enter. */
+export function CopyKey({ ticketKey }: { ticketKey: string }) {
+	const [outcome, setOutcome] = useState<Outcome | null>(null);
+	async function copy(): Promise<void> {
+		try {
+			await navigator.clipboard.writeText(ticketKey);
+			setOutcome({ tone: "saved", message: copyKeyCopy.copied });
+		} catch (cause) {
+			const reason = cause instanceof Error ? `: ${cause.message}` : "";
+			setOutcome({ tone: "error", message: `${copyKeyCopy.failed}${reason}` });
+		}
+	}
+	return (
+		<>
+			<button
+				type="button"
+				className={clsx(
+					panel.key,
+					panel.headKey,
+					...textControl,
+					panel.copyKey,
+				)}
+				title={copyKeyCopy.action(ticketKey)}
+				aria-label={copyKeyCopy.action(ticketKey)}
+				data-copy-key={ticketKey}
+				onClick={() => {
+					void copy();
+				}}
+			>
+				{ticketKey}
+			</button>
+			{outcome === null ? null : (
+				<Toast
+					tone={outcome.tone}
+					message={outcome.message}
+					hideMs={copiedHideMs}
+					onClose={() => setOutcome(null)}
+				/>
+			)}
+		</>
+	);
+}
