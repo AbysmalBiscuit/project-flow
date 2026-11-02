@@ -9,7 +9,12 @@ import type {
 } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { linearStatusType } from "./lanes.ts";
-import { commentAuthor, linearGraphql, linearPageInfo } from "./linear-api.ts";
+import {
+	commentAuthor,
+	linearCommentNode,
+	linearGraphql,
+	linearPageInfo,
+} from "./linear-api.ts";
 import {
 	fetchLinearThread,
 	postLinearReply,
@@ -116,22 +121,6 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 	}
 }`;
 
-const commentNode = z.object({
-	id: z.string().optional(),
-	body: z.string().nullable().optional(),
-	createdAt: z.string().optional(),
-	updatedAt: z.string().optional(),
-	parent: z.object({ id: z.string() }).nullable().optional(),
-	user: z
-		.object({
-			name: z.string().nullable().optional(),
-			displayName: z.string().nullable().optional(),
-		})
-		.nullable()
-		.optional(),
-	reactions: z.array(z.object({ id: z.string() })).optional(),
-});
-
 const attachmentNode = z.object({
 	url: z.string(),
 	title: z.string(),
@@ -228,7 +217,7 @@ const issueNode = z.object({
 	attachments: z.object({ nodes: z.array(attachmentNode) }).optional(),
 	comments: z
 		.object({
-			nodes: z.array(commentNode),
+			nodes: z.array(linearCommentNode),
 			pageInfo: pageInfo.optional(),
 		})
 		.optional(),
@@ -557,7 +546,7 @@ const commentPage = z.object({
 	issue: z
 		.object({
 			comments: z.object({
-				nodes: z.array(commentNode),
+				nodes: z.array(linearCommentNode),
 				pageInfo,
 			}),
 		})
@@ -576,7 +565,7 @@ const commentsQuery = `query IssueComments($id: String!, $after: String) {
 type ListedComment = Comment;
 
 function listedComment(
-	node: z.infer<typeof commentNode>,
+	node: z.infer<typeof linearCommentNode>,
 ): ListedComment | null {
 	const body = node.body ?? "";
 	if (body === "") {
