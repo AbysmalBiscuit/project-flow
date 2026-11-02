@@ -236,6 +236,7 @@ function ticketView(
 		...runStartView(ticket, newestRun, walk.runStarts),
 		...(ticket.updatedAt === "" ? {} : { updatedAt: ticket.updatedAt }),
 		...assigneesOf(ticket),
+		...(ticket.labels.length === 0 ? {} : { labels: ticket.labels }),
 		...(ticket.parent === null ? {} : { parent: ticket.parent }),
 	};
 }

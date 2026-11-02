@@ -452,6 +452,13 @@ export const board = stylex.create({
 		color: colours.needsPillInk,
 		cursor: "default",
 	},
+	/** A tracker label of the ticket, in one neutral colour. */
+	chipLabel: {
+		borderRadius: radius.pill,
+		borderColor: colours.controlLine,
+		backgroundColor: colours.raised,
+		color: colours.inkMuted,
+	},
 	placeholder: {
 		margin: 0,
 		color: colours.inkMuted,
