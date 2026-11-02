@@ -60,6 +60,57 @@ describe("pinned projects", () => {
 		});
 	});
 
+	test("a pin and an unpin of an overview card write pinnedProjects and reorder the overview", async () => {
+		await withApp(JSON.stringify({ tracked }), async (base) => {
+			const settingsNow = async () =>
+				(await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+			const overviewNow = () =>
+				settledOverview(
+					base,
+					async (url) =>
+						(await (
+							await fetch(new URL("/api/overview", url))
+						).json()) as Overview,
+				);
+			const cardSave = async (
+				edit: (pins: ProjectPin[], ref: ProjectPin) => ProjectPin[],
+			) => {
+				const card = (await overviewNow()).projects.find(
+					(project) => project.name === shown,
+				);
+				if (card === undefined) {
+					throw new Error(`no overview card for ${shown}`);
+				}
+				const current = await settingsNow();
+				const response = await save(base, {
+					...current,
+					pinnedProjects: edit(current.pinnedProjects, card.ref),
+				});
+				expect(response.status).toBe(200);
+			};
+			const shownCard = async () =>
+				(await overviewNow()).projects.find(
+					(project) => project.name === shown,
+				);
+
+			expect((await shownCard())?.pinned).toBeUndefined();
+
+			await cardSave((pins, ref) => [...pins, ref]);
+			expect((await settingsNow()).pinnedProjects).toEqual([
+				{ tracker: "github", repo: shown },
+			]);
+			expect(await overviewNames(base)).toEqual([shown, savedRepo, quiet]);
+			expect((await shownCard())?.pinned).toBe(true);
+
+			await cardSave((pins, ref) => pins.filter((pin) => !samePin(pin, ref)));
+			expect((await settingsNow()).pinnedProjects).toEqual([]);
+			expect(await overviewNames(base)).toEqual([savedRepo, quiet, shown]);
+			expect((await shownCard())?.pinned).toBeUndefined();
+		});
+	});
+
 	test("a pin-only save answers while a poll is held open and sends no tracker request", async () => {
 		let releaseReads: () => void = () => {};
 		const readsHeld = new Promise<void>((resolve) => {

@@ -422,6 +422,18 @@ export const cards = stylex.create({
 		justifyContent: "space-between",
 		minWidth: 0,
 	},
+	/** An unpinned card shows its pin control only on hover or focus. */
+	pinSlot: {
+		flexShrink: 0,
+		opacity: { default: 0, ":hover": 1, ":focus-within": 1 },
+	},
+	pinShown: {
+		opacity: 1,
+	},
+	cardFoot: {
+		display: "flex",
+		margin: "auto 0 0",
+	},
 	nameRow: {
 		margin: 0,
 		overflow: "hidden",

@@ -12,6 +12,7 @@ import {
 } from "react";
 
 import { useTrackerLabel } from "./backend-labels.ts";
+import { board } from "./board-styles.ts";
 import { Button, type IconName } from "./button.tsx";
 import { Choice } from "./choice.tsx";
 import type { Configuration } from "./configuration.ts";
@@ -52,6 +53,7 @@ import {
 	usePollProgress,
 } from "./poll-freshness.tsx";
 import { SegmentedBar, ticketTotal } from "./progress-bar.tsx";
+import { samePin } from "./project-ref.ts";
 import {
 	configurationOf,
 	pageQuery,
@@ -64,6 +66,7 @@ import { storeHoldsRead } from "./stored-page.ts";
 import {
 	actionLabel,
 	navLabel,
+	needsYouCount,
 	overviewControlLabel,
 	overviewFilterLabel,
 	overviewSortLabel,
@@ -267,7 +270,37 @@ function Legend({ project }: { project: ProjectCounts }) {
 	);
 }
 
-function ProjectCard({ project }: { project: ProjectCounts }) {
+function PinControl({
+	project,
+	onTogglePin,
+}: {
+	project: ProjectCounts;
+	onTogglePin: (project: ProjectCounts) => void;
+}) {
+	const pinned = project.pinned === true;
+	return (
+		<span className={clsx(cards.pinSlot, pinned && cards.pinShown)}>
+			<Button
+				icon="pin"
+				name={
+					pinned
+						? overviewControlLabel.unpinProject(project.name)
+						: overviewControlLabel.pinProject(project.name)
+				}
+				pressed={pinned}
+				onClick={() => onTogglePin(project)}
+			/>
+		</span>
+	);
+}
+
+function ProjectCard({
+	project,
+	onTogglePin,
+}: {
+	project: ProjectCounts;
+	onTogglePin: (project: ProjectCounts) => void;
+}) {
 	const id = `project-card-${slug(project.name)}`;
 	const total = ticketTotal(project);
 	const loading = project.pending === true;
@@ -287,9 +320,7 @@ function ProjectCard({ project }: { project: ProjectCounts }) {
 					<h2 className={clsx(cards.nameRow)}>{project.name}</h2>
 					<p className={clsx(cards.meta)}>{subtitle(project, trackerLabel)}</p>
 				</a>
-				{project.needsYou === 0 ? null : (
-					<span className={clsx(cards.badge)}>{project.needsYou} need you</span>
-				)}
+				<PinControl project={project} onTogglePin={onTogglePin} />
 			</div>
 			{loading ? (
 				<Loading />
@@ -312,19 +343,33 @@ function ProjectCard({ project }: { project: ProjectCounts }) {
 					<SegmentedBar project={project} />
 					<Legend project={project} />
 					<BlockerRow project={project} />
+					{project.needsYou === 0 ? null : (
+						<p className={clsx(cards.cardFoot)}>
+							<span className={clsx(board.chip, board.chipNeedsPill)}>
+								{needsYouCount(project.needsYou)}
+							</span>
+						</p>
+					)}
 				</>
 			)}
 		</li>
 	);
 }
 
-function CardsList({ projects }: { projects: ProjectCounts[] }) {
+function CardsList({
+	projects,
+	onTogglePin,
+}: {
+	projects: ProjectCounts[];
+	onTogglePin: (project: ProjectCounts) => void;
+}) {
 	return (
 		<ul className={clsx(cards.list, phoneGutter.cards)}>
 			{projects.map((project) => (
 				<ProjectCard
 					key={`${project.tracker}:${project.name}`}
 					project={project}
+					onTogglePin={onTogglePin}
 				/>
 			))}
 		</ul>
@@ -625,9 +670,23 @@ function OverviewPage({
 	);
 	const view = settings.overview;
 	const trackerLabel = useTrackerLabel();
+	const pins = settings.pinnedProjects;
 	const projects = useMemo(
-		() => shownProjects(overview, view, query, trackerLabel),
-		[overview, view, query, trackerLabel],
+		() =>
+			shownProjects(
+				{
+					...overview,
+					projects: overview.projects.map(({ pinned: _pinned, ...project }) =>
+						pins.some((pin) => samePin(pin, project.ref))
+							? { ...project, pinned: true as const }
+							: project,
+					),
+				},
+				view,
+				query,
+				trackerLabel,
+			),
+		[overview, pins, view, query, trackerLabel],
 	);
 	const refreshing = fetching || overview.polling === true;
 	const needsQuery = useQuery(pageQuery.needsYou);
@@ -643,7 +702,23 @@ function OverviewPage({
 		setMenu(null);
 	};
 	const panes = {
-		cards: <CardsList projects={projects} />,
+		cards: (
+			<CardsList
+				projects={projects}
+				onTogglePin={(project) => {
+					const pin = project.pinned !== true;
+					savePatch((current) => {
+						const others = current.pinnedProjects.filter(
+							(item) => !samePin(item, project.ref),
+						);
+						return {
+							...current,
+							pinnedProjects: pin ? [...others, project.ref] : others,
+						};
+					});
+				}}
+			/>
+		),
 		graph: <OverviewGraph projects={projects} focus={focus} />,
 		table: (
 			<TableView
