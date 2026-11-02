@@ -162,7 +162,11 @@ function computeProjectView(
 
 type ProjectView = ReturnType<typeof computeProjectView>;
 
-type ViewInputs = readonly [rows: Snapshot[], sources: string];
+type ViewInputs = readonly [
+	rows: Snapshot[],
+	factoryRuns: ReturnType<PollOptions["factoryRuns"]>,
+	sources: string,
+];
 
 function freshViews(
 	options: PollOptions,
@@ -189,12 +193,12 @@ function viewInputs(
 ): ViewInputs {
 	return [
 		options.store.readTickets(),
+		options.factoryRuns(),
 		// The poll reads the configuration file again, so equal values can
 		// arrive as two objects.
 		JSON.stringify([
 			configuration,
 			options.runs,
-			options.factoryRuns(),
 			options.viewers,
 			options.workcellAuto,
 			options.repoAutoMerge,

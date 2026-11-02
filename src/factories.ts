@@ -53,6 +53,7 @@ import { runTranscriptReader } from "./factory-run-transcript.ts";
 import { linearSourcesOf } from "./factory-sources.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FactoryReader } from "./ports.ts";
+import { WatchedMap, WatchedSet } from "./watched.ts";
 
 /** A factory that this launch reads, and what its last check found. */
 export type FactoryEntry = Factory & {
@@ -118,14 +119,19 @@ export function factoryReader(
 	signal: AbortSignal,
 	now: () => Date,
 ): FactoryReader {
-	const found = new Map<string, Found>();
-	const readRuns = new Map<string, ReadRun[]>();
-	const { readPullsOf, pullOf } = runPullReader(fetchImpl, signal);
+	/** Counts the writes to the state that the run list reads. */
+	let runWrites = 0;
+	const runsChanged = () => {
+		runWrites += 1;
+	};
+	const found = new WatchedMap<string, Found>(runsChanged);
+	const readRuns = new WatchedMap<string, ReadRun[]>(runsChanged);
+	const { readPullsOf, pullOf } = runPullReader(fetchImpl, signal, runsChanged);
 	/**
 	 * The thread of each run, by run id. The factory gives the open and answered asks,
 	 * but the hub replays no older events, so the steers are what this launch saw.
 	 */
-	const threads = new Map<string, RunMessage[]>();
+	const threads = new WatchedMap<string, RunMessage[]>(runsChanged);
 	/** The asks and steers already in a thread, by run id and factory id. */
 	const threaded = new Set<string>();
 	const addMessage = (
@@ -233,14 +239,14 @@ export function factoryReader(
 		});
 	};
 	/** The current node of each run, by run id, from the event streams. */
-	const stages = new Map<string, string>();
+	const stages = new WatchedMap<string, string>(runsChanged);
 	/** The last box event of each run, by run id, from the event streams. */
 	const lastEvents = new Map<string, RunEvent>();
 	const follows = new Map<string, Follow>();
 	/** The clock time of the last `GET /runs` read of each streamed factory. */
 	const streamReadAt = new Map<string, number>();
 	/** The factories whose `GET /events` answered once. */
-	const serving = new Set<string>();
+	const serving = new WatchedSet<string>(runsChanged);
 	let checking: Promise<void> | null = null;
 	/** The Linear sources of each hub, by factory url, from its last good `GET /sources`. */
 	const linearSources = new Map<string, LinearSource[]>();
@@ -548,7 +554,32 @@ export function factoryReader(
 				});
 		}
 	};
-	const runList = (): FactoryRun[] =>
+	let listedRuns:
+		| { writes: number; factories: string; text: string; runs: FactoryRun[] }
+		| undefined;
+	/**
+	 * The run list, built again only after a write to its state or a change of
+	 * factories. An equal list keeps the last array, so readers can cache by identity.
+	 */
+	const runList = (): FactoryRun[] => {
+		const factories = JSON.stringify(listed().map((factory) => factory.url));
+		if (
+			listedRuns?.writes === runWrites &&
+			listedRuns.factories === factories
+		) {
+			return listedRuns.runs;
+		}
+		const runs = buildRunList();
+		const text = JSON.stringify(runs);
+		listedRuns = {
+			writes: runWrites,
+			factories,
+			text,
+			runs: listedRuns?.text === text ? listedRuns.runs : runs,
+		};
+		return listedRuns.runs;
+	};
+	const buildRunList = (): FactoryRun[] =>
 		mergedRuns(
 			listed().flatMap((factory) => {
 				const coveredByFeed = found.get(factory.url)?.reachable === true;

@@ -5,6 +5,7 @@ import { body, type Read, reader, Unreachable } from "./factory-http.ts";
 import { isLive, type ReadRun } from "./factory-run-rows.ts";
 import type { Fetch } from "./fetch.ts";
 import { githubHost } from "./github-pin.ts";
+import { WatchedMap } from "./watched.ts";
 
 /** `GET /runs/{id}`: the PR that the run opened, and its outputs. */
 const runPull = z.object({
@@ -26,9 +27,16 @@ function declaredHost(url: string): { host?: string } {
 }
 
 /** The PR of each run from `GET /runs/{id}` of the factory that reports the run. */
-export function runPullReader(fetchImpl: Fetch, signal: AbortSignal) {
+export function runPullReader(
+	fetchImpl: Fetch,
+	signal: AbortSignal,
+	changed: () => void,
+) {
 	/** The PR of each run that has one, by run id, with the end time of the run at the read. */
-	const pulls = new Map<string, { endedAt: string | null; pull?: RunPull }>();
+	const pulls = new WatchedMap<
+		string,
+		{ endedAt: string | null; pull?: RunPull }
+	>(changed);
 	/** The factories whose PR reads run now. */
 	const readingPulls = new Set<string>();
 	const readPull = async (read: Read, run: ReadRun["run"]): Promise<void> => {

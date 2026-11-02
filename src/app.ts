@@ -278,13 +278,14 @@ export async function start(options: StartOptions): Promise<Running> {
 		return note;
 	};
 	let stopped = false;
-	const factoryState = () =>
-		JSON.stringify([
+	const factoryState = () => ({
+		runs: factories.runs(),
+		rest: JSON.stringify([
 			factories.unreachable(),
 			factories.entries(),
 			factories.linearSources(),
-			factories.runs(),
-		]);
+		]),
+	});
 	const publishOverview = () => {
 		if (!stopped) {
 			notifier.publish({
@@ -302,8 +303,10 @@ export async function start(options: StartOptions): Promise<Running> {
 			factories.runs(),
 			factories.entries(),
 		);
+		const after = factoryState();
 		if (
-			factoryState() !== before ||
+			after.runs !== before.runs ||
+			after.rest !== before.rest ||
 			pollOptions.runStartRequests !== requests
 		) {
 			publishOverview();
