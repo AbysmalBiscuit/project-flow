@@ -306,7 +306,6 @@ describe("live updates", () => {
 				const failed = await fetch(new URL("/api/overview", base));
 				const failedEvent = (await failed.json()) as OverviewBody;
 				expect(failedEvent.projects).toEqual([
-					counts(repo, 1, 0, "github", [githubTicket(1, "backlog")]),
 					counts(
 						otherRepo,
 						0,
@@ -314,11 +313,12 @@ describe("live updates", () => {
 						"github",
 						[],
 						null,
-						failedEvent.projects[1]?.error ?? null,
+						failedEvent.projects[0]?.error ?? null,
 					),
+					counts(repo, 1, 0, "github", [githubTicket(1, "backlog")]),
 				]);
-				expect(failedEvent.projects[1]?.error).toContain("HTTP 500");
-				expect(failedEvent.projects[1]?.error).toContain(otherRepo);
+				expect(failedEvent.projects[0]?.error).toContain("HTTP 500");
+				expect(failedEvent.projects[0]?.error).toContain(otherRepo);
 				expect(failedEvent.error).toBeNull();
 				const again = await fetch(new URL("/api/refresh", base), {
 					method: "POST",
@@ -352,14 +352,6 @@ describe("live updates", () => {
 				).json()) as OverviewBody;
 				expect(body.projects).toEqual([
 					counts(
-						repo,
-						1,
-						0,
-						"github",
-						[githubTicket(1, "backlog")],
-						"2026-04-01T12:00:01.000Z",
-					),
-					counts(
 						otherRepo,
 						1,
 						0,
@@ -376,6 +368,14 @@ describe("live updates", () => {
 								updatedAt: "2026-04-01T00:00:00Z",
 							},
 						],
+						"2026-04-01T12:00:01.000Z",
+					),
+					counts(
+						repo,
+						1,
+						0,
+						"github",
+						[githubTicket(1, "backlog")],
 						"2026-04-01T12:00:01.000Z",
 					),
 				]);
@@ -581,12 +581,12 @@ describe("live updates", () => {
 					await fetch(new URL("/api/overview", base))
 				).json()) as OverviewBody;
 				expect(body.projects.map((project) => project.name)).toEqual([
-					repo,
 					otherRepo,
+					repo,
 				]);
-				expect(body.projects[1]?.tickets).toEqual([]);
-				expect(body.projects[1]?.error).toContain("HTTP 500");
-				expect(body.projects[1]?.error).toContain(otherRepo);
+				expect(body.projects[0]?.tickets).toEqual([]);
+				expect(body.projects[0]?.error).toContain("HTTP 500");
+				expect(body.projects[0]?.error).toContain(otherRepo);
 				expect(body.error).toBeNull();
 			},
 			[

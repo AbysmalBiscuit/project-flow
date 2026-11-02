@@ -87,13 +87,19 @@ export function sortDirectionFor(
 	return "asc";
 }
 
-function sortProjects(
+/** Orders pinned projects before the rest, then each group by the sort key and direction. */
+export function sortProjects(
 	projects: ProjectCounts[],
 	key: SortKey,
 	direction: SortDirection,
 	trackerLabel: TrackerLabel,
 ): ProjectCounts[] {
 	return [...projects].sort((left, right) => {
+		const pinDelta =
+			Number(right.pinned === true) - Number(left.pinned === true);
+		if (pinDelta !== 0) {
+			return pinDelta;
+		}
 		const leftValue = sortValue(left, key, trackerLabel);
 		const rightValue = sortValue(right, key, trackerLabel);
 		const delta =

@@ -546,6 +546,7 @@ async function readArtifact(
 
 type SettingsWrite = Configuration & {
 	baselineTracked?: Configuration["tracked"];
+	baselinePinnedProjects?: Configuration["pinnedProjects"];
 };
 
 type SettingsPatch = (current: Configuration) => SettingsWrite;

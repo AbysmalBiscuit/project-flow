@@ -11,6 +11,7 @@ import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
 import { Loading } from "./loading.tsx";
+import { samePin } from "./project-ref.ts";
 import { pageQuery, useSaveSettings } from "./queries.ts";
 import { repoKey } from "./repo-key.ts";
 import { Select } from "./select.tsx";
@@ -300,13 +301,6 @@ function Menu({
 	}
 }
 
-/** The API gives each project its saved pin, so two pins of a project have one form. */
-function samePin(left: ProjectPin, right: ProjectPin): boolean {
-	const form = (pin: ProjectPin) =>
-		JSON.stringify(Object.entries(pin).sort(([a], [b]) => a.localeCompare(b)));
-	return form(left) === form(right);
-}
-
 function isTracked(pins: ProjectPin[], project: SettingsProject): boolean {
 	const named = [project.ref, ...project.savedPins];
 	return pins.some((pin) => named.some((item) => samePin(item, pin)));
@@ -318,6 +312,15 @@ function withoutProject(
 ): ProjectPin[] {
 	const named = [project.ref, ...project.savedPins];
 	return pins.filter((pin) => !named.some((item) => samePin(item, pin)));
+}
+
+/** The pin of a tracked project in the form that the overview reads, so a pin matches its tracked entry. */
+function pinOf(draft: Configuration, project: SettingsProject): ProjectPin {
+	const named = [project.ref, ...project.savedPins];
+	return (
+		draft.tracked.find((pin) => named.some((item) => samePin(item, pin))) ??
+		project.ref
+	);
 }
 
 function botsOf(
@@ -504,6 +507,7 @@ function ProjectsTable({
 					<tr>
 						<th className={clsx(fields.headCell)}>{settingsCopy.project}</th>
 						<th className={clsx(fields.headSwitch)}>{settingsCopy.tracked}</th>
+						<th className={clsx(fields.headSwitch)}>{settingsCopy.pinned}</th>
 						<th className={clsx(fields.headSwitch)}>{settingsCopy.pmBot}</th>
 						<th className={clsx(fields.headCell)}>
 							{settingsCopy.expectedBots}
@@ -539,6 +543,7 @@ function ProjectRow({
 	const repos = project.repos;
 	const pmBot = pmBotOf(draft, project);
 	const tracked = isTracked(draft.tracked, project);
+	const pinned = tracked && isTracked(draft.pinnedProjects, project);
 	return (
 		<tr id={`project-row-${id}`}>
 			<td className={clsx(fields.cell)}>
@@ -555,13 +560,35 @@ function ProjectRow({
 					checked={tracked}
 					label={`${settingsCopy.tracked} ${project.name}`}
 					onChange={(next) =>
-						onChange({
-							tracked: next
-								? [...draft.tracked, project.ref]
-								: withoutProject(draft.tracked, project),
-						})
+						onChange(
+							next
+								? { tracked: [...draft.tracked, project.ref] }
+								: {
+										tracked: withoutProject(draft.tracked, project),
+										pinnedProjects: withoutProject(
+											draft.pinnedProjects,
+											project,
+										),
+									},
+						)
 					}
 				/>
+			</td>
+			<td className={clsx(fields.switchCell)}>
+				{tracked ? (
+					<Switch
+						id={`pin-${id}`}
+						checked={pinned}
+						label={`${settingsCopy.pinned} ${project.name}`}
+						onChange={(next) =>
+							onChange({
+								pinnedProjects: next
+									? [...draft.pinnedProjects, pinOf(draft, project)]
+									: withoutProject(draft.pinnedProjects, project),
+							})
+						}
+					/>
+				) : null}
 			</td>
 			<td className={clsx(fields.switchCell)}>
 				<Switch
@@ -702,6 +729,8 @@ export function Page() {
 							},
 							tracked: next.tracked,
 							baselineTracked: baseline.tracked,
+							pinnedProjects: next.pinnedProjects,
+							baselinePinnedProjects: baseline.pinnedProjects,
 							pmBot: next.pmBot,
 							expectedBots: next.expectedBots,
 							projectViews: {

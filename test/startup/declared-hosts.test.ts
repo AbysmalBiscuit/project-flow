@@ -388,8 +388,8 @@ describe("the configuration of a host", () => {
 			{ tracker: "linear", project: "widget-launch-0d42ae5d46d0" },
 		]);
 		expect(overview.projects.map((project) => project.ref)).toEqual([
-			widget,
 			{ tracker: "github", owner: "acme", project: 7 },
+			widget,
 			{ tracker: "linear", project: "widget-launch-0d42ae5d46d0" },
 		]);
 	});

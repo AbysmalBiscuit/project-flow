@@ -97,6 +97,7 @@ function withoutTrackers(text: string): string {
 		factoryEntries: _factoryEntries,
 		stateSources: _stateSources,
 		baselineTracked: _baselineTracked,
+		baselinePinnedProjects: _baselinePinnedProjects,
 		baselineShowNeedsYou: _baselineShowNeedsYou,
 		discovering: _discovering,
 		...configuration
@@ -126,6 +127,7 @@ function applyRefEdits(
 
 const refBaseline = z.object({
 	baselineTracked: z.array(z.unknown()).optional(),
+	baselinePinnedProjects: z.array(z.unknown()).optional(),
 	baselineShowNeedsYou: z.boolean().optional(),
 });
 
@@ -175,19 +177,28 @@ export function mergedSettingsWrite(
 	const baseline = refBaseline.safeParse(raw);
 	const sent = baseline.success ? baseline.data : {};
 	const trackedBaseline = refList(sent.baselineTracked);
+	const pinsBaseline = refList(sent.baselinePinnedProjects);
 	// A save from stale settings sends the value it loaded. Only a value that
 	// differs from that baseline is an edit of the toggle.
 	const showNeedsYou =
 		sent.baselineShowNeedsYou === parsed.overview.showNeedsYou
 			? live.overview.showNeedsYou
 			: parsed.overview.showNeedsYou;
+	const tracked =
+		trackedBaseline === undefined
+			? parsed.tracked
+			: applyRefEdits(live.tracked, trackedBaseline, parsed.tracked);
+	const pins =
+		pinsBaseline === undefined
+			? parsed.pinnedProjects
+			: applyRefEdits(live.pinnedProjects, pinsBaseline, parsed.pinnedProjects);
 	return {
 		...parsed,
 		overview: { ...parsed.overview, showNeedsYou },
-		tracked:
-			trackedBaseline === undefined
-				? parsed.tracked
-				: applyRefEdits(live.tracked, trackedBaseline, parsed.tracked),
+		tracked,
+		pinnedProjects: pins.filter((pin) =>
+			tracked.some((item) => samePin(item, pin)),
+		),
 	};
 }
 
@@ -214,6 +225,7 @@ export function viewOnlyChange(
 		theme: previousTheme,
 		states: previousStates,
 		stateMappings: previousMappings,
+		pinnedProjects: previousPins,
 		...rest
 	} = before;
 	const {
@@ -222,6 +234,7 @@ export function viewOnlyChange(
 		theme: nextTheme,
 		states: nextStates,
 		stateMappings: nextMappings,
+		pinnedProjects: nextPins,
 		...kept
 	} = after;
 	const restSame = JSON.stringify(rest) === JSON.stringify(kept);
@@ -230,12 +243,17 @@ export function viewOnlyChange(
 	const overviewChanged =
 		JSON.stringify(previousOverview) !== JSON.stringify(nextOverview);
 	const themeChanged = previousTheme !== nextTheme;
+	const pinsChanged = JSON.stringify(previousPins) !== JSON.stringify(nextPins);
 	const statesChanged =
 		JSON.stringify([previousStates, previousMappings]) !==
 		JSON.stringify([nextStates, nextMappings]);
 	return (
 		restSame &&
-		(viewsChanged || overviewChanged || themeChanged || statesChanged)
+		(viewsChanged ||
+			overviewChanged ||
+			themeChanged ||
+			statesChanged ||
+			pinsChanged)
 	);
 }
 

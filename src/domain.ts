@@ -22,6 +22,14 @@ export const trackerKinds = ["github", "linear", "gitlab", "forgejo"] as const;
 
 export type TrackerKind = (typeof trackerKinds)[number];
 
+/** The name of each tracker kind as the page shows it. */
+export const trackerLabels: Record<TrackerKind, string> = {
+	github: "GitHub",
+	linear: "Linear",
+	gitlab: "GitLab",
+	forgejo: "Forgejo",
+};
+
 export const forgeKinds = ["github", "gitlab", "forgejo"] as const;
 
 export type ForgeKind = (typeof forgeKinds)[number];
@@ -334,6 +342,8 @@ export type ProjectCounts = {
 	statusTypes: Record<StatusType, number>;
 	/** The card waits for its first read. */
 	pending?: true;
+	/** The settings pin the project to the top of the overview. */
+	pinned?: true;
 };
 
 export type ProjectBody = Omit<ProjectCounts, "ref" | "displayKey">;
