@@ -13,6 +13,14 @@ export function markPinned<T extends { ref: ProjectPin; pinned?: true }>(
 	);
 }
 
+/** The refs without any that `names` holds. */
+export function withoutPins(
+	refs: ProjectPin[],
+	names: ProjectPin[],
+): ProjectPin[] {
+	return refs.filter((ref) => !names.some((name) => samePin(name, ref)));
+}
+
 /**
  * The pin list with the project pinned or unpinned. `names` holds each form
  * of the project that a saved pin can take, and `pin` is the form to add.
@@ -21,9 +29,7 @@ export function withPin(
 	pins: ProjectPin[],
 	{ names, pin, on }: { names: ProjectPin[]; pin: ProjectPin; on: boolean },
 ): ProjectPin[] {
-	const others = pins.filter(
-		(item) => !names.some((name) => samePin(name, item)),
-	);
+	const others = withoutPins(pins, names);
 	return on ? [...others, pin] : others;
 }
 

@@ -11,7 +11,7 @@ import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
 import { Loading } from "./loading.tsx";
-import { withPin } from "./project-pins.ts";
+import { withoutPins, withPin } from "./project-pins.ts";
 import { samePin } from "./project-ref.ts";
 import { pageQuery, useSaveSettings } from "./queries.ts";
 import { repoKey } from "./repo-key.ts";
@@ -307,14 +307,6 @@ function isTracked(pins: ProjectPin[], project: SettingsProject): boolean {
 	return pins.some((pin) => named.some((item) => samePin(item, pin)));
 }
 
-function withoutProject(
-	pins: ProjectPin[],
-	project: SettingsProject,
-): ProjectPin[] {
-	const named = [project.ref, ...project.savedPins];
-	return pins.filter((pin) => !named.some((item) => samePin(item, pin)));
-}
-
 /** The pin of a tracked project in the form that the overview reads, so a pin matches its tracked entry. */
 function pinOf(draft: Configuration, project: SettingsProject): ProjectPin {
 	const named = [project.ref, ...project.savedPins];
@@ -545,6 +537,7 @@ function ProjectRow({
 	const pmBot = pmBotOf(draft, project);
 	const tracked = isTracked(draft.tracked, project);
 	const pinned = tracked && isTracked(draft.pinnedProjects, project);
+	const names = [project.ref, ...project.savedPins];
 	return (
 		<tr id={`project-row-${id}`}>
 			<td className={clsx(fields.cell)}>
@@ -565,11 +558,8 @@ function ProjectRow({
 							next
 								? { tracked: [...draft.tracked, project.ref] }
 								: {
-										tracked: withoutProject(draft.tracked, project),
-										pinnedProjects: withoutProject(
-											draft.pinnedProjects,
-											project,
-										),
+										tracked: withoutPins(draft.tracked, names),
+										pinnedProjects: withoutPins(draft.pinnedProjects, names),
 									},
 						)
 					}
@@ -584,7 +574,7 @@ function ProjectRow({
 						onChange={(next) =>
 							onChange({
 								pinnedProjects: withPin(draft.pinnedProjects, {
-									names: [project.ref, ...project.savedPins],
+									names,
 									pin: pinOf(draft, project),
 									on: next,
 								}),
