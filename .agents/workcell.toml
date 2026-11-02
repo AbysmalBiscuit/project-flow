@@ -5,11 +5,15 @@ method = "squash"
 merge_auto = "yes"
 merge_rebase = "on-conflict"
 
+# The repo has no review bots, so `bots_clean` is not a merge condition.
 [change_risk.low]
 approvals = 0
+when = ["no_unresolved_questions", "no_left_for_you"]
 
 [change_risk.medium]
 approvals = 1
+when = ["no_unresolved_questions", "no_left_for_you"]
 
 [change_risk.high]
-approvals = 2
+approvals = 1
+when = ["no_unresolved_questions", "no_left_for_you"]

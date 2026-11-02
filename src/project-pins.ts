@@ -1,0 +1,51 @@
+import type { ProjectPin } from "./configuration.ts";
+import { samePin } from "./project-ref.ts";
+
+/** Marks each project that a pin names, and clears the mark of the rest. */
+export function markPinned<T extends { ref: ProjectPin; pinned?: true }>(
+	projects: T[],
+	pins: ProjectPin[],
+): (Omit<T, "pinned"> & { pinned?: true })[] {
+	return projects.map(({ pinned: _pinned, ...project }) =>
+		pins.some((pin) => samePin(pin, project.ref))
+			? { ...project, pinned: true as const }
+			: project,
+	);
+}
+
+/** The refs without any that `names` holds. */
+export function withoutPins(
+	refs: ProjectPin[],
+	names: ProjectPin[],
+): ProjectPin[] {
+	return refs.filter((ref) => !names.some((name) => samePin(name, ref)));
+}
+
+/**
+ * The pin list with the project pinned or unpinned. `names` holds each form
+ * of the project that a saved pin can take, and `pin` is the form to add.
+ */
+export function withPin(
+	pins: ProjectPin[],
+	{ names, pin, on }: { names: ProjectPin[]; pin: ProjectPin; on: boolean },
+): ProjectPin[] {
+	const others = withoutPins(pins, names);
+	return on ? [...others, pin] : others;
+}
+
+/**
+ * The pin fields of a settings save from an overview card. The baseline is
+ * the list without this one edit, so the server keeps every other live pin,
+ * even when `pins` already holds the optimistic edit.
+ */
+export function cardPinWrite(
+	pins: ProjectPin[],
+	ref: ProjectPin,
+	on: boolean,
+): { pinnedProjects: ProjectPin[]; baselinePinnedProjects: ProjectPin[] } {
+	const edit = { names: [ref], pin: ref };
+	return {
+		pinnedProjects: withPin(pins, { ...edit, on }),
+		baselinePinnedProjects: withPin(pins, { ...edit, on: !on }),
+	};
+}

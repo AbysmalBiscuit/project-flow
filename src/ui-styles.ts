@@ -405,7 +405,7 @@ export const cards = stylex.create({
 		flexDirection: "column",
 		gap: space.sm,
 		boxSizing: "border-box",
-		height: measure.overviewCard,
+		minHeight: measure.overviewCard,
 		minWidth: 0,
 		overflow: "hidden",
 		padding: space.lg,
@@ -421,6 +421,18 @@ export const cards = stylex.create({
 		alignItems: "flex-start",
 		justifyContent: "space-between",
 		minWidth: 0,
+	},
+	/** An unpinned card shows its pin control only on hover or focus. */
+	pinSlot: {
+		flexShrink: 0,
+		opacity: { default: 0, ":hover": 1, ":focus-within": 1 },
+	},
+	pinShown: {
+		opacity: 1,
+	},
+	cardFoot: {
+		display: "flex",
+		margin: "auto 0 0",
 	},
 	nameRow: {
 		margin: 0,
@@ -478,7 +490,7 @@ export const cards = stylex.create({
 		overflow: "hidden",
 	},
 	chip: {
-		display: "inline-block",
+		display: { default: "inline-block", ":is([hidden])": "none" },
 		padding: `${space.twoXs} ${space.sm}`,
 		borderWidth: measure.hairline,
 		borderStyle: "solid",
@@ -492,7 +504,7 @@ export const cards = stylex.create({
 		textDecoration: "none",
 	},
 	tagChip: {
-		display: "inline-block",
+		display: { default: "inline-block", ":is([hidden])": "none" },
 		padding: `${space.twoXs} ${space.sm}`,
 		borderRadius: radius.sm,
 		backgroundColor: colours.segment,

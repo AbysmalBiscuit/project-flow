@@ -21,7 +21,7 @@ import {
 import { Loading } from "./loading.tsx";
 import { openProject, projectPath } from "./paths.ts";
 import { SegmentedBar, ticketTotal } from "./progress-bar.tsx";
-import { overviewControlLabel } from "./terms.ts";
+import { needsYouCount } from "./terms.ts";
 import { linkId, ticketRefId } from "./ticket-key.ts";
 import { cards } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
@@ -101,9 +101,7 @@ function ProjectNode({ id, data }: CardProps<ProjectCard>) {
 			{project.needsYou > 0 ? (
 				<span className={clsx(board.chips, board.chipsRow, cards.graphChips)}>
 					<span className={clsx(board.chip, board.chipNeeds)}>
-						{project.needsYou === 1
-							? overviewControlLabel.needsYouOne
-							: `${project.needsYou} ${overviewControlLabel.needsYouMany}`}
+						{needsYouCount(project.needsYou)}
 					</span>
 				</span>
 			) : null}
