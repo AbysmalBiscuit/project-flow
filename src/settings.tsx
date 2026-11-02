@@ -11,6 +11,7 @@ import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
 import { Loading } from "./loading.tsx";
+import { samePin } from "./project-ref.ts";
 import { pageQuery, useSaveSettings } from "./queries.ts";
 import { repoKey } from "./repo-key.ts";
 import { Select } from "./select.tsx";
@@ -298,13 +299,6 @@ function Menu({
 			setSaved(draft);
 		}
 	}
-}
-
-/** The API gives each project its saved pin, so two pins of a project have one form. */
-function samePin(left: ProjectPin, right: ProjectPin): boolean {
-	const form = (pin: ProjectPin) =>
-		JSON.stringify(Object.entries(pin).sort(([a], [b]) => a.localeCompare(b)));
-	return form(left) === form(right);
 }
 
 function isTracked(pins: ProjectPin[], project: SettingsProject): boolean {
