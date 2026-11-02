@@ -64,12 +64,14 @@ describe("pinned projects", () => {
 					await fetch(new URL("/api/settings", base))
 				).json()) as Configuration;
 			const overviewNow = () => settledOverview(base, readOverview<Overview>);
+			const shownCard = async () =>
+				(await overviewNow()).projects.find(
+					(project) => project.name === shown,
+				);
 			const cardSave = async (
 				edit: (pins: ProjectPin[], ref: ProjectPin) => ProjectPin[],
 			) => {
-				const card = (await overviewNow()).projects.find(
-					(project) => project.name === shown,
-				);
+				const card = await shownCard();
 				if (card === undefined) {
 					throw new Error(`no overview card for ${shown}`);
 				}
@@ -80,10 +82,6 @@ describe("pinned projects", () => {
 				});
 				expect(response.status).toBe(200);
 			};
-			const shownCard = async () =>
-				(await overviewNow()).projects.find(
-					(project) => project.name === shown,
-				);
 
 			expect((await shownCard())?.pinned).toBeUndefined();
 
