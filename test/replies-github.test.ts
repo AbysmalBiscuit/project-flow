@@ -120,7 +120,7 @@ test("a GitHub project with a PM Bot posts an unnamed ask unchanged", async () =
 	}
 });
 
-test("a reply under another comment posts the typed text and leaves the ask open", async () => {
+test("a reply under another comment leaves the ask open, and a reply under the ask settles it", async () => {
 	const sent: string[] = [];
 	const headline = "Which name?";
 	const recorded = linearFake({
@@ -205,24 +205,20 @@ test("a reply under another comment posts the typed text and leaves the ask open
 			}),
 		});
 		expect(underAsk.status).toBe(201);
-		const quoted = `> ${headline}\n\nUse the short name.`;
 		expect(
 			JSON.parse(sent.find((body) => body.includes("commentCreate")) ?? "{}"),
 		).toMatchObject({
 			variables: {
 				input: {
 					parentId: "comment-ask-26",
-					body: quoted,
+					body: "Use the short name.",
 				},
 			},
 		});
 		const answered = (await (
 			await fetch(new URL("/api/needs-you", app.base))
 		).json()) as NeedsYouItem[];
-		expect(answered.find((item) => item.key === "PF-26")).toMatchObject({
-			headline,
-			answered: true,
-		});
+		expect(answered.filter((item) => item.key === "PF-26")).toEqual([]);
 	} finally {
 		await app.stop();
 	}

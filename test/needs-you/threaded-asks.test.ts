@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import type { TrackerRequest } from "../support/fetch.ts";
+import { json, type TrackerRequest, trackerRequest } from "../support/fetch.ts";
 import { linearFake } from "../support/linear.ts";
 import {
 	ask,
@@ -68,8 +68,8 @@ describe("needs you", () => {
 		);
 	});
 
-	test("a threaded Linear reply answers the ask before the factory edits it", async () => {
-		const { items } = await readNeedsYou(
+	test("a threaded Linear reply settles the ask before the factory edits it", async () => {
+		const { items, needsYou } = await readNeedsYou(
 			linearFake({
 				project: linearProject,
 				issues: [
@@ -93,9 +93,71 @@ describe("needs you", () => {
 			linearConfig,
 			linearEnv,
 		);
-		expect(items.filter((item) => item.key === "PF-31")).toMatchObject([
-			{ reason: "ask", answered: true },
-		]);
+		expect(items.filter((item) => item.key === "PF-31")).toEqual([]);
+		expect(needsYou).toBe(0);
+	});
+
+	test("a threaded reply on a later Linear comment page settles the ask", async () => {
+		const sent: TrackerRequest[] = [];
+		const recorded = linearFake({
+			project: linearProject,
+			sent,
+			issues: [
+				linearIssue("PF-33", "Name the column", "Pick a name.", [], {
+					attachments: {
+						nodes: [{ url: "https://example.com/spec", title: "Spec" }],
+					},
+					comments: {
+						nodes: [
+							{
+								id: "comment-ask",
+								createdAt: "2026-11-01T10:00:00.000Z",
+								body: askBody.replace("pf-30", "pf-33"),
+								user: agent,
+							},
+						],
+						pageInfo: { hasNextPage: true, endCursor: "page-2" },
+					},
+				}),
+			],
+		});
+		const { items, needsYou } = await readNeedsYou(
+			async (input, init) => {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (!body.includes("IssueComments")) {
+					return recorded(input, init);
+				}
+				sent.push(trackerRequest(input, init));
+				return json({
+					data: {
+						issue: {
+							comments: {
+								nodes: [
+									{
+										id: "comment-reply",
+										createdAt: "2026-11-01T11:00:00.000Z",
+										body: "Go with A.",
+										user: lev,
+										parent: { id: "comment-ask" },
+									},
+								],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					},
+				});
+			},
+			linearConfig,
+			linearEnv,
+		);
+		expect(items.filter((item) => item.key === "PF-33")).toEqual([]);
+		expect(needsYou).toBe(0);
+		const pageRead = sent.find((request) =>
+			request.query.includes("IssueComments"),
+		);
+		expect(pageRead?.query).toMatch(
+			/comments\([^)]*\)\s*\{\s*nodes\s*\{[^}]*parent\s*\{\s*id\s*\}/,
+		);
 	});
 
 	test("a top-level comment from Lev with no prefix, quote or thread link leaves the ask open", async () => {

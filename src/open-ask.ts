@@ -51,7 +51,7 @@ export function openAsk(comments: Comment[], pmBot: boolean): OpenAsk | null {
 	const ask = readAsks(comments)
 		.filter(
 			(item) =>
-				item.answer?.by !== "record" &&
+				(item.answer === null || item.answer.by === "reply") &&
 				addressedToLev(item.comment.body, pmBot),
 		)
 		.at(-1);

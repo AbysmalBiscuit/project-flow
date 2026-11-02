@@ -9,10 +9,12 @@ const numberedOption = /^(\d+)[.)]\s+(\S.*)$/;
 const answeredByLine = /^[*_\s]*answered by\b/i;
 
 /**
- * A `reply` is Lev's answer. A `record` is an id quote, a progress line or
- * an `Answered by` line that the factory adds to the ask.
+ * A `reply` is Lev's answer. A `thread` is Lev's answer in the tracker
+ * thread of the ask. A `record` is an id quote, a progress line or an
+ * `Answered by` line that the factory adds to the ask. A thread answer and
+ * a record settle the ask.
  */
-export type AskAnswer = { by: "reply" | "record"; comment: Comment };
+export type AskAnswer = { by: "reply" | "thread" | "record"; comment: Comment };
 
 export type Ask = {
 	id: string;
@@ -81,10 +83,18 @@ export function readAsks(comments: Comment[]): Ask[] {
 		});
 }
 
+/** Tells if a comment with the thread parent `parentId` replies in the thread of the ask. */
+export function inAskThread(
+	parentId: string | undefined,
+	ask: Comment,
+): boolean {
+	return parentId !== undefined && parentId === ask.id;
+}
+
 /**
  * Decides if a comment after the ask, a progress comment anywhere, or the
- * ask itself answers the ask. A record wins over a reply, and the latest
- * reply wins. A reply in the thread of the ask needs no prefix or quote.
+ * ask itself answers the ask. A record wins over a thread answer, a thread
+ * answer wins over a reply, and the latest reply wins.
  */
 export function askAnswer(comments: Comment[], ask: Comment): AskAnswer | null {
 	const id = askId(ask.body);
@@ -109,16 +119,19 @@ export function askAnswer(comments: Comment[], ask: Comment): AskAnswer | null {
 	if (record !== undefined) {
 		return { by: "record", comment: record };
 	}
-	const reply = later.findLast((comment) => {
-		if (workcellMarker.test(comment.body) || isProgress(comment.body)) {
-			return false;
-		}
+	const replies = later.filter(
+		(comment) =>
+			!workcellMarker.test(comment.body) && !isProgress(comment.body),
+	);
+	const thread = replies.findLast((comment) =>
+		inAskThread(comment.parentId, ask),
+	);
+	if (thread !== undefined) {
+		return { by: "thread", comment: thread };
+	}
+	const reply = replies.findLast((comment) => {
 		const opening = comment.body.trim();
-		return (
-			(ask.id !== undefined && comment.parentId === ask.id) ||
-			answerPrefix.test(opening) ||
-			quotesAskText(opening, ask.body)
-		);
+		return answerPrefix.test(opening) || quotesAskText(opening, ask.body);
 	});
 	return reply === undefined ? null : { by: "reply", comment: reply };
 }

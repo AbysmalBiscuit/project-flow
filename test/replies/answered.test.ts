@@ -55,7 +55,6 @@ describe("replies", () => {
 					tracker: "linear",
 					project: "widget-launch",
 					key: "PF-11",
-					parentId: "comment-ask-11",
 					body: "Reply: the short name.",
 				}),
 			});
