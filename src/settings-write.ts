@@ -214,6 +214,7 @@ export function viewOnlyChange(
 		theme: previousTheme,
 		states: previousStates,
 		stateMappings: previousMappings,
+		pinnedProjects: previousPins,
 		...rest
 	} = before;
 	const {
@@ -222,6 +223,7 @@ export function viewOnlyChange(
 		theme: nextTheme,
 		states: nextStates,
 		stateMappings: nextMappings,
+		pinnedProjects: nextPins,
 		...kept
 	} = after;
 	const restSame = JSON.stringify(rest) === JSON.stringify(kept);
@@ -230,12 +232,17 @@ export function viewOnlyChange(
 	const overviewChanged =
 		JSON.stringify(previousOverview) !== JSON.stringify(nextOverview);
 	const themeChanged = previousTheme !== nextTheme;
+	const pinsChanged = JSON.stringify(previousPins) !== JSON.stringify(nextPins);
 	const statesChanged =
 		JSON.stringify([previousStates, previousMappings]) !==
 		JSON.stringify([nextStates, nextMappings]);
 	return (
 		restSame &&
-		(viewsChanged || overviewChanged || themeChanged || statesChanged)
+		(viewsChanged ||
+			overviewChanged ||
+			themeChanged ||
+			statesChanged ||
+			pinsChanged)
 	);
 }
 

@@ -2,8 +2,10 @@ import { describe, expect, test } from "bun:test";
 
 import type { Configuration, ProjectPin } from "../../src/configuration.ts";
 import type { Overview } from "../../src/domain.ts";
+import type { Fetch } from "../../src/fetch.ts";
+import { urlOf } from "../support/fetch.ts";
 import { settledOverview } from "../support/reads.ts";
-import { quiet, savedRepo, shown, withApp } from "./_support.ts";
+import { quiet, recorded, savedRepo, shown, withApp } from "./_support.ts";
 
 const tracked: ProjectPin[] = [
 	{ tracker: "github", repo: shown },
@@ -55,6 +57,85 @@ describe("pinned projects", () => {
 			expect(descending.status).toBe(200);
 			expect(await overviewNames(base)).toEqual([shown, quiet, savedRepo]);
 		});
+	});
+
+	test("a pin-only save answers while a poll is held open and sends no tracker request", async () => {
+		let releaseReads: () => void = () => {};
+		const readsHeld = new Promise<void>((resolve) => {
+			releaseReads = resolve;
+		});
+		let enteredHold: () => void = () => {};
+		const holding = new Promise<void>((resolve) => {
+			enteredHold = resolve;
+		});
+		let holdReads = false;
+		const held =
+			(requests: string[]): Fetch =>
+			async (input, init) => {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (
+					holdReads &&
+					urlOf(input) === "https://api.github.com/graphql" &&
+					body.includes("query RepoRead")
+				) {
+					enteredHold();
+					await readsHeld;
+				}
+				return recorded(requests, input, init);
+			};
+		const pins: ProjectPin[] = [
+			{ tracker: "github", repo: shown },
+			{ tracker: "github", repo: quiet },
+		];
+		try {
+			await withApp(
+				JSON.stringify({ tracked: pins }),
+				async (base, _path, requests) => {
+					expect(await overviewNames(base)).toEqual([quiet, shown]);
+					holdReads = true;
+					const refreshing = fetch(new URL("/api/refresh", base), {
+						method: "POST",
+					});
+					await holding;
+					const current = (await (
+						await fetch(new URL("/api/settings", base))
+					).json()) as Configuration;
+					const sent = requests.length;
+					const pinned = await save(base, {
+						...current,
+						pinnedProjects: [{ tracker: "github", repo: shown }],
+					});
+					expect(pinned.status).toBe(200);
+					expect(requests.length).toBe(sent);
+					const during = (await (
+						await fetch(new URL("/api/overview", base))
+					).json()) as Overview;
+					expect(during.projects.map((project) => project.name)).toEqual([
+						shown,
+						quiet,
+					]);
+					expect(requests.length).toBe(sent);
+					holdReads = false;
+					releaseReads();
+					expect((await refreshing).status).toBe(204);
+
+					const written = (await pinned.json()) as Configuration;
+					const settled = requests.length;
+					const polled = await save(base, {
+						...written,
+						pinnedProjects: [],
+						pollIntervalSeconds: 120,
+					});
+					expect(polled.status).toBe(200);
+					expect(requests.length).toBeGreaterThan(settled);
+					expect(await overviewNames(base)).toEqual([quiet, shown]);
+				},
+				undefined,
+				held,
+			);
+		} finally {
+			releaseReads();
+		}
 	});
 
 	test("a legacy pinned list tracks the projects and pins none", async () => {
