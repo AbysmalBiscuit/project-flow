@@ -17,6 +17,13 @@ import { clsx } from "./ui.ts";
 /** How long a run action error stays before it hides. */
 export const actionToastHideMs = 6_000;
 
+const savedToastHideMs = 4_000;
+
+/** How long a toast of a tone stays before it hides. */
+export function toastHideMs(tone: "saved" | "error"): number {
+	return tone === "saved" ? savedToastHideMs : actionToastHideMs;
+}
+
 const styles = stylex.create({
 	toast: {
 		position: "fixed",
