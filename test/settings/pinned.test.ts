@@ -3,9 +3,10 @@ import { describe, expect, test } from "bun:test";
 import type { Configuration, ProjectPin } from "../../src/configuration.ts";
 import type { Overview } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
+import { cardPinWrite } from "../../src/project-pins.ts";
 import { samePin } from "../../src/project-ref.ts";
 import { urlOf } from "../support/fetch.ts";
-import { settledOverview } from "../support/reads.ts";
+import { readOverview, settledOverview } from "../support/reads.ts";
 import { quiet, recorded, savedRepo, shown, withApp } from "./_support.ts";
 
 const tracked: ProjectPin[] = [
@@ -108,6 +109,53 @@ describe("pinned projects", () => {
 			expect((await settingsNow()).pinnedProjects).toEqual([]);
 			expect(await overviewNames(base)).toEqual([savedRepo, quiet, shown]);
 			expect((await shownCard())?.pinned).toBeUndefined();
+		});
+	});
+
+	test("a card pin from stale settings keeps a pin that another save wrote", async () => {
+		await withApp(JSON.stringify({ tracked }), async (base) => {
+			const stale = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			const card = (await settledOverview(base, readOverview<Overview>))
+				.projects;
+			const shownRef = card.find((project) => project.name === shown)?.ref;
+			if (shownRef === undefined) {
+				throw new Error(`no overview card for ${shown}`);
+			}
+			const quietPin: ProjectPin = { tracker: "github", repo: quiet };
+			const pinsNow = async () =>
+				(
+					(await (
+						await fetch(new URL("/api/settings", base))
+					).json()) as Configuration
+				).pinnedProjects;
+
+			expect(
+				(await save(base, { ...stale, pinnedProjects: [quietPin] })).status,
+			).toBe(200);
+
+			expect(
+				(
+					await save(base, {
+						...stale,
+						...cardPinWrite(stale.pinnedProjects, shownRef, true),
+					})
+				).status,
+			).toBe(200);
+			expect(await pinsNow()).toEqual([quietPin, shownRef]);
+			expect(await overviewNames(base)).toEqual([quiet, shown, savedRepo]);
+
+			const pinnedCard = [shownRef];
+			expect(
+				(
+					await save(base, {
+						...stale,
+						...cardPinWrite(pinnedCard, shownRef, false),
+					})
+				).status,
+			).toBe(200);
+			expect(await pinsNow()).toEqual([quietPin]);
 		});
 	});
 

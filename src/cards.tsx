@@ -53,11 +53,12 @@ import {
 	usePollProgress,
 } from "./poll-freshness.tsx";
 import { SegmentedBar, ticketTotal } from "./progress-bar.tsx";
-import { markPinned, withPin } from "./project-pins.ts";
+import { cardPinWrite, markPinned } from "./project-pins.ts";
 import {
 	configurationOf,
 	pageQuery,
 	pageQueryClient,
+	type SettingsPatch,
 	useSaveSettings,
 } from "./queries.ts";
 import { PageFrame, type PageView } from "./shell.tsx";
@@ -689,7 +690,7 @@ function OverviewPage({
 	const needsQuery = useQuery(pageQuery.needsYou);
 	const needs = needsQuery.data ?? [];
 	const save = useSaveSettings({ refetchProjects: false, optimistic: true });
-	const savePatch = (patch: (current: Configuration) => Configuration) => {
+	const savePatch = (patch: SettingsPatch) => {
 		void save
 			.mutateAsync(patch)
 			.catch(() => pageQueryClient.invalidateQueries(pageQuery.settings));
@@ -706,11 +707,7 @@ function OverviewPage({
 					const on = project.pinned !== true;
 					savePatch((current) => ({
 						...current,
-						pinnedProjects: withPin(current.pinnedProjects, {
-							names: [project.ref],
-							pin: project.ref,
-							on,
-						}),
+						...cardPinWrite(current.pinnedProjects, project.ref, on),
 					}));
 				}}
 			/>

@@ -26,3 +26,20 @@ export function withPin(
 	);
 	return on ? [...others, pin] : others;
 }
+
+/**
+ * The pin fields of a settings save from an overview card. The baseline is
+ * the list without this one edit, so the server keeps every other live pin,
+ * even when `pins` already holds the optimistic edit.
+ */
+export function cardPinWrite(
+	pins: ProjectPin[],
+	ref: ProjectPin,
+	on: boolean,
+): { pinnedProjects: ProjectPin[]; baselinePinnedProjects: ProjectPin[] } {
+	const edit = { names: [ref], pin: ref };
+	return {
+		pinnedProjects: withPin(pins, { ...edit, on }),
+		baselinePinnedProjects: withPin(pins, { ...edit, on: !on }),
+	};
+}
