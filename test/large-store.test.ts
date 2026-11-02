@@ -115,8 +115,8 @@ test("a large store answers each read within the limit while a poll publishes", 
 			void (async () => {
 				const seeded = await settledOverview(base, readOverview);
 				expect(seeded.projects.map((project) => project.name)).toEqual([
-					repo,
 					otherRepo,
+					repo,
 				]);
 				const refresh = await fetch(new URL("/api/refresh", base), {
 					method: "POST",

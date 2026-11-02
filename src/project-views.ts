@@ -2,9 +2,16 @@ import { attentionOf } from "./attention.ts";
 import { type TicketGraph, ticketGraph } from "./blockers.ts";
 import type { Configuration } from "./configuration.ts";
 import { projectCounts } from "./counts.ts";
-import type { Attention, FetchStatus, Overview, Snapshot } from "./domain.ts";
+import {
+	type Attention,
+	type FetchStatus,
+	type Overview,
+	type Snapshot,
+	trackerLabels,
+} from "./domain.ts";
 import { pullActions } from "./merge-gate.ts";
 import { projectHasPmBot } from "./open-ask.ts";
+import { sortProjects } from "./overview-sort.ts";
 import { staleView } from "./poll-merge.ts";
 import type { PollOptions } from "./poll.ts";
 import type { Viewer } from "./ports.ts";
@@ -14,6 +21,7 @@ import {
 	projectId,
 	refPin,
 	refRepo,
+	samePin,
 	sameProject,
 	settingsKey,
 } from "./project-ref.ts";
@@ -313,7 +321,16 @@ export function overview(
 				),
 			)
 		: [];
-	const projects = [...counted, ...pending];
+	const projects = sortProjects(
+		[...counted, ...pending].map((project) =>
+			configuration.pinnedProjects.some((pin) => samePin(pin, project.ref))
+				? { ...project, pinned: true as const }
+				: project,
+		),
+		configuration.overview.sort,
+		configuration.overview.direction,
+		(kind) => trackerLabels[kind],
+	);
 	const goodPolls = projects.flatMap((project) => {
 		const at = options.store.lastGoodPollAt(pinRef(project.ref));
 		return at === null ? [] : [at.toISOString()];

@@ -213,6 +213,7 @@ const configurationSchema = z
 		hosts: z.array(declaredHost).default([]),
 		tracked: z.array(projectRef).optional(),
 		pinned: z.array(projectRef).optional(),
+		pinnedProjects: z.array(projectRef).default([]),
 		hidden: z.unknown().optional(),
 		activityWindowDays: z.unknown().optional(),
 		pollIntervalSeconds: z.number().int().positive().default(300),
@@ -258,7 +259,7 @@ const configurationSchema = z
 			.default({}),
 		stateColours: legacyStateColours.optional(),
 	})
-	.superRefine(({ hosts, tracked, pinned }, context) => {
+	.superRefine(({ hosts, tracked, pinned, pinnedProjects }, context) => {
 		const declared = new Set<string>();
 		for (const [index, { host }] of hosts.entries()) {
 			if (knownHosts.includes(host) || declared.has(host)) {
@@ -269,6 +270,7 @@ const configurationSchema = z
 		for (const [field, pins] of [
 			["tracked", tracked],
 			["pinned", pinned],
+			["pinnedProjects", pinnedProjects],
 		] as const) {
 			for (const [index, pin] of (pins ?? []).entries()) {
 				if ("host" in pin && !declared.has(pin.host)) {

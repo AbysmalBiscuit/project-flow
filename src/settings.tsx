@@ -320,6 +320,15 @@ function withoutProject(
 	return pins.filter((pin) => !named.some((item) => samePin(item, pin)));
 }
 
+/** The pin of a tracked project in the form that the overview reads, so a pin matches its tracked entry. */
+function pinOf(draft: Configuration, project: SettingsProject): ProjectPin {
+	const named = [project.ref, ...project.savedPins];
+	return (
+		draft.tracked.find((pin) => named.some((item) => samePin(item, pin))) ??
+		project.ref
+	);
+}
+
 function botsOf(
 	draft: Configuration,
 	project: SettingsProject,
@@ -504,6 +513,7 @@ function ProjectsTable({
 					<tr>
 						<th className={clsx(fields.headCell)}>{settingsCopy.project}</th>
 						<th className={clsx(fields.headSwitch)}>{settingsCopy.tracked}</th>
+						<th className={clsx(fields.headSwitch)}>{settingsCopy.pinned}</th>
 						<th className={clsx(fields.headSwitch)}>{settingsCopy.pmBot}</th>
 						<th className={clsx(fields.headCell)}>
 							{settingsCopy.expectedBots}
@@ -539,6 +549,7 @@ function ProjectRow({
 	const repos = project.repos;
 	const pmBot = pmBotOf(draft, project);
 	const tracked = isTracked(draft.tracked, project);
+	const pinned = tracked && isTracked(draft.pinnedProjects, project);
 	return (
 		<tr id={`project-row-${id}`}>
 			<td className={clsx(fields.cell)}>
@@ -555,13 +566,35 @@ function ProjectRow({
 					checked={tracked}
 					label={`${settingsCopy.tracked} ${project.name}`}
 					onChange={(next) =>
-						onChange({
-							tracked: next
-								? [...draft.tracked, project.ref]
-								: withoutProject(draft.tracked, project),
-						})
+						onChange(
+							next
+								? { tracked: [...draft.tracked, project.ref] }
+								: {
+										tracked: withoutProject(draft.tracked, project),
+										pinnedProjects: withoutProject(
+											draft.pinnedProjects,
+											project,
+										),
+									},
+						)
 					}
 				/>
+			</td>
+			<td className={clsx(fields.switchCell)}>
+				{tracked ? (
+					<Switch
+						id={`pin-${id}`}
+						checked={pinned}
+						label={`${settingsCopy.pinned} ${project.name}`}
+						onChange={(next) =>
+							onChange({
+								pinnedProjects: next
+									? [...draft.pinnedProjects, pinOf(draft, project)]
+									: withoutProject(draft.pinnedProjects, project),
+							})
+						}
+					/>
+				) : null}
 			</td>
 			<td className={clsx(fields.switchCell)}>
 				<Switch

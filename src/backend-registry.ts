@@ -6,6 +6,7 @@ import {
 	forgeKinds,
 	type TrackerKind,
 	trackerKinds,
+	trackerLabels,
 } from "./domain.ts";
 import {
 	type FactoryTokenMint,
@@ -162,7 +163,7 @@ export function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 	};
 	return {
 		github: {
-			label: "GitHub",
+			label: trackerLabels.github,
 			hint: "Token from gh auth token",
 			switches: [
 				{
@@ -211,7 +212,7 @@ export function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 			forge: (context) => githubOf(context)?.forge ?? null,
 		},
 		gitlab: {
-			label: "GitLab",
+			label: trackerLabels.gitlab,
 			hint: "GITLAB_TOKEN found in the environment",
 			home: {
 				host: gitlabHost,
@@ -238,7 +239,7 @@ export function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 				host === gitlabHost ? gitlabForge(host, token, fetch) : null,
 		},
 		linear: {
-			label: "Linear",
+			label: trackerLabels.linear,
 			hint: "LINEAR_API_KEY found in the environment",
 			home: {
 				host: "linear.app",
@@ -264,7 +265,7 @@ export function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 			tracker: ({ token, fetch }) => linearTracker(token, fetch),
 		},
 		forgejo: {
-			label: "Forgejo",
+			label: trackerLabels.forgejo,
 			hint: "Token from the env var that each declared host names",
 			async checkHost(host, token, fetchImpl) {
 				const user = await checkForgejoToken(host, token, fetchImpl);
