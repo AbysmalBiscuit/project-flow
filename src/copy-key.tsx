@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { textControl } from "./control-styles.ts";
 import { panel } from "./panel-styles.ts";
@@ -13,18 +13,25 @@ const copyKeyCopy = {
 	failed: "Copy failed",
 } as const;
 
-type Outcome = { tone: "saved" | "error"; message: string };
+type Outcome = { id: number; tone: "saved" | "error"; message: string };
 
 /** A ticket key that copies itself to the clipboard on a click or on Enter. */
 export function CopyKey({ ticketKey }: { ticketKey: string }) {
 	const [outcome, setOutcome] = useState<Outcome | null>(null);
+	const copies = useRef(0);
 	async function copy(): Promise<void> {
+		copies.current += 1;
+		const id = copies.current;
 		try {
 			await navigator.clipboard.writeText(ticketKey);
-			setOutcome({ tone: "saved", message: copyKeyCopy.copied });
+			setOutcome({ id, tone: "saved", message: copyKeyCopy.copied });
 		} catch (cause) {
 			const reason = cause instanceof Error ? `: ${cause.message}` : "";
-			setOutcome({ tone: "error", message: `${copyKeyCopy.failed}${reason}` });
+			setOutcome({
+				id,
+				tone: "error",
+				message: `${copyKeyCopy.failed}${reason}`,
+			});
 		}
 	}
 	return (
@@ -48,6 +55,7 @@ export function CopyKey({ ticketKey }: { ticketKey: string }) {
 			</button>
 			{outcome === null ? null : (
 				<Toast
+					key={outcome.id}
 					tone={outcome.tone}
 					message={outcome.message}
 					hideMs={outcome.tone === "saved" ? copiedHideMs : actionToastHideMs}
