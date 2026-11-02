@@ -450,6 +450,121 @@ export async function issueList(
 	return handler(bare, { method: "GET" });
 }
 
+type RestReader = {
+	rest: Fetch;
+	jsonRows: (url: string, required?: boolean) => Promise<unknown>;
+};
+
+/**
+ * Reads recorded REST answers. A failed answer other than a 404 throws, and a
+ * list follows its next links.
+ */
+export function restReader(handler: Fetch): RestReader {
+	const rest: Fetch = async (restInput, restInit) => {
+		const restBody = typeof restInit?.body === "string" ? restInit.body : "";
+		if (
+			urlOf(restInput) === "https://api.github.com/graphql" &&
+			restBody.includes("query RepoRead")
+		) {
+			return new Response("[]", { status: 404 });
+		}
+		let response: Response;
+		try {
+			response = await handler(restInput, restInit);
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : "recorded page failed";
+			return new Response(JSON.stringify({ errors: [{ message }] }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		}
+		if (response.status === 304) {
+			return response;
+		}
+		if (!response.ok && response.status !== 404) {
+			throw new Error(`recorded page ${response.status} ${urlOf(restInput)}`);
+		}
+		return response;
+	};
+	const jsonRows = async (url: string, required = false): Promise<unknown> => {
+		const response = await rest(url, { method: "GET" });
+		if (response.status === 304) {
+			return [];
+		}
+		if (!response.ok) {
+			if (required) {
+				throw new Error(`GitHub read repo failed (HTTP ${response.status})`);
+			}
+			return [];
+		}
+		const rows = await response.json();
+		const next = response.headers
+			.get("link")
+			?.match(/<([^>]+)>; rel="next"/)?.[1];
+		if (next === undefined) {
+			return rows;
+		}
+		if (Array.isArray(rows)) {
+			const later = await jsonRows(next, true);
+			return [...rows, ...(Array.isArray(later) ? later : [])];
+		}
+		const checkRuns = (rows as { check_runs?: unknown }).check_runs;
+		if (!Array.isArray(checkRuns)) {
+			return rows;
+		}
+		const later = (await jsonRows(next, true)) as { check_runs?: unknown };
+		return {
+			check_runs: [
+				...checkRuns,
+				...(Array.isArray(later.check_runs) ? later.check_runs : []),
+			],
+		};
+	};
+	return { rest, jsonRows };
+}
+
+/** A recorded REST PR with the rows of its comments, reviews, reactions, checks and head commit. */
+export async function pullWithRows(
+	jsonRows: RestReader["jsonRows"],
+	repo: string,
+	pull: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+	const number = pull.number;
+	const sha = (pull.head as { sha?: string } | undefined)?.sha ?? "";
+	const [comments, reviews, reactions, checks, commit] = await Promise.all([
+		jsonRows(
+			`https://api.github.com/repos/${repo}/issues/${number}/comments?per_page=100&page=1`,
+		),
+		jsonRows(
+			`https://api.github.com/repos/${repo}/pulls/${number}/reviews?per_page=100&page=1`,
+		),
+		jsonRows(
+			`https://api.github.com/repos/${repo}/issues/${number}/reactions?per_page=100&page=1`,
+		),
+		sha === ""
+			? Promise.resolve({ check_runs: [] })
+			: jsonRows(
+					`https://api.github.com/repos/${repo}/commits/${sha}/check-runs?per_page=100`,
+				),
+		sha === ""
+			? Promise.resolve(null)
+			: jsonRows(`https://api.github.com/repos/${repo}/commits/${sha}`),
+	]);
+	const checkRuns = (checks as { check_runs?: unknown } | null)?.check_runs;
+	const committedAt = (
+		commit as { commit?: { committer?: { date?: unknown } } } | null
+	)?.commit?.committer?.date;
+	return {
+		...pull,
+		commentRows: Array.isArray(comments) ? comments : [],
+		reviewRows: Array.isArray(reviews) ? reviews : [],
+		reactionRows: Array.isArray(reactions) ? reactions : [],
+		checkRows: Array.isArray(checkRuns) ? checkRuns : [],
+		...(typeof committedAt === "string" ? { committedAt } : {}),
+	};
+}
+
 export function repoReadFromHandler(
 	input: string | URL | Request,
 	init: RequestInit | undefined,
@@ -470,36 +585,7 @@ export function repoReadFromHandler(
 	const repo = `${owner}/${name}`;
 	return (async () => {
 		try {
-			const rest: Fetch = async (restInput, restInit) => {
-				const restBody =
-					typeof restInit?.body === "string" ? restInit.body : "";
-				if (
-					urlOf(restInput) === "https://api.github.com/graphql" &&
-					restBody.includes("query RepoRead")
-				) {
-					return new Response("[]", { status: 404 });
-				}
-				let response: Response;
-				try {
-					response = await handler(restInput, restInit);
-				} catch (error) {
-					const message =
-						error instanceof Error ? error.message : "recorded page failed";
-					return new Response(JSON.stringify({ errors: [{ message }] }), {
-						status: 200,
-						headers: { "content-type": "application/json" },
-					});
-				}
-				if (response.status === 304) {
-					return response;
-				}
-				if (!response.ok && response.status !== 404) {
-					throw new Error(
-						`recorded page ${response.status} ${urlOf(restInput)}`,
-					);
-				}
-				return response;
-			};
+			const { rest, jsonRows } = restReader(handler);
 			const issuesResponse = await issueList(handler, repo);
 			if (!issuesResponse.ok && issuesResponse.status !== 304) {
 				return new Response(await issuesResponse.text(), {
@@ -589,32 +675,6 @@ export function repoReadFromHandler(
 							color?: string;
 						}[])
 					: [];
-			const jsonRows = async (
-				url: string,
-				required = false,
-			): Promise<unknown> => {
-				const response = await rest(url, { method: "GET" });
-				if (response.status === 304) {
-					return [];
-				}
-				if (!response.ok) {
-					if (required) {
-						throw new Error(
-							`GitHub read repo failed (HTTP ${response.status})`,
-						);
-					}
-					return [];
-				}
-				const rows = await response.json();
-				const next = response.headers
-					.get("link")
-					?.match(/<([^>]+)>; rel="next"/)?.[1];
-				if (next === undefined || !Array.isArray(rows)) {
-					return rows;
-				}
-				const later = await jsonRows(next, true);
-				return [...rows, ...(Array.isArray(later) ? later : [])];
-			};
 			const withComments = await Promise.all(
 				(Array.isArray(issues) ? issues : []).map(async (issue) => {
 					const rows = await jsonRows(
@@ -644,47 +704,9 @@ export function repoReadFromHandler(
 				}),
 			);
 			const withReviews = await Promise.all(
-				(Array.isArray(pulls) ? pulls : []).map(async (pull) => {
-					const number = pull.number;
-					const sha = (pull.head as { sha?: string } | undefined)?.sha ?? "";
-					const [comments, reviews, reactions, checks, commit] =
-						await Promise.all([
-							jsonRows(
-								`https://api.github.com/repos/${repo}/issues/${number}/comments?per_page=100&page=1`,
-							),
-							jsonRows(
-								`https://api.github.com/repos/${repo}/pulls/${number}/reviews?per_page=100&page=1`,
-							),
-							jsonRows(
-								`https://api.github.com/repos/${repo}/issues/${number}/reactions?per_page=100&page=1`,
-							),
-							sha === ""
-								? Promise.resolve({ check_runs: [] })
-								: jsonRows(
-										`https://api.github.com/repos/${repo}/commits/${sha}/check-runs?per_page=100`,
-									),
-							sha === ""
-								? Promise.resolve(null)
-								: jsonRows(
-										`https://api.github.com/repos/${repo}/commits/${sha}`,
-									),
-						]);
-					const checkRuns = (checks as { check_runs?: unknown } | null)
-						?.check_runs;
-					const committedAt = (
-						commit as {
-							commit?: { committer?: { date?: unknown } };
-						} | null
-					)?.commit?.committer?.date;
-					return {
-						...pull,
-						commentRows: Array.isArray(comments) ? comments : [],
-						reviewRows: Array.isArray(reviews) ? reviews : [],
-						reactionRows: Array.isArray(reactions) ? reactions : [],
-						checkRows: Array.isArray(checkRuns) ? checkRuns : [],
-						...(typeof committedAt === "string" ? { committedAt } : {}),
-					};
-				}),
+				(Array.isArray(pulls) ? pulls : []).map((pull) =>
+					pullWithRows(jsonRows, repo, pull),
+				),
 			);
 			const page = repoReadFromLists(
 				input,

@@ -34,7 +34,7 @@ type RepoIncludes = {
 
 export const closingSelection = `nodes { number } ${connectionPage}`;
 
-const pullNodeFields = `id number title url isDraft body state mergedAt updatedAt headRefName baseRefName headRefOid
+export const pullNodeFields = `id number title url isDraft body state mergedAt updatedAt headRefName baseRefName headRefOid
 				autoMergeRequest { enabledAt }
 				commits(last: 1) { nodes { commit { committedDate } } }
 				closingIssuesReferences(first: 10, userLinkedOnly: true) { ${closingSelection} }`;

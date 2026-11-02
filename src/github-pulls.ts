@@ -10,7 +10,6 @@ import type {
 import { reviewStateValue } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { githubHeaders, pages } from "./github-pages.ts";
-import { type PullLink, TrackerError } from "./ports.ts";
 import { numberedKey } from "./ticket-key.ts";
 
 export const githubPull = z.object({
@@ -42,103 +41,6 @@ async function loadEachPull<T>(
 		}
 	}
 	return pulls;
-}
-
-/**
- * Loads each linked open PR once, with the keys of every ticket that links it,
- * then the merged history of each repo.
- */
-export async function loadLinkedPulls(
-	token: string,
-	fetchImpl: Fetch,
-	links: PullLink[],
-	historyRepos: string[],
-	seen: Map<string, ReviewEvidence>,
-): Promise<PullRequest[]> {
-	const targets = new Map<
-		string,
-		{ repo: string; number: number; closingKeys: string[] }
-	>();
-	for (const link of links) {
-		const key = numberedKey(link.repo, link.number);
-		const target = targets.get(key);
-		if (target === undefined) {
-			targets.set(key, {
-				repo: link.repo,
-				number: link.number,
-				closingKeys: [link.ticketKey],
-			});
-		} else if (!target.closingKeys.includes(link.ticketKey)) {
-			target.closingKeys.push(link.ticketKey);
-		}
-	}
-	const pulls = await loadEachPull(
-		targets.values(),
-		({ repo, number, closingKeys }) =>
-			loadOpenPull(token, fetchImpl, repo, number, closingKeys),
-	);
-	const repos = new Set([...pulls.map((pull) => pull.repo), ...historyRepos]);
-	for (const repo of repos) {
-		pulls.push(...(await mergedPullHistory(repo, token, fetchImpl, seen)));
-	}
-	return pulls;
-}
-
-async function loadOpenPull(
-	token: string,
-	fetchImpl: Fetch,
-	repo: string,
-	number: number,
-	closingKeys: string[],
-): Promise<PullRequest | null> {
-	const response = await fetchImpl(
-		`https://api.github.com/repos/${repo}/pulls/${number}`,
-		{ headers: githubHeaders(token) },
-	);
-	if (!response.ok) {
-		throw new TrackerError(
-			`GitHub list pulls failed (HTTP ${response.status}): ${repo}`,
-			response.status,
-		);
-	}
-	const pull = githubPull.parse(await response.json());
-	const body = pull.body ?? "";
-	const merged = (pull.merged_at ?? null) !== null;
-	if (pull.state !== "open" && !merged) {
-		return null;
-	}
-	const head = merged ? "" : (pull.head.sha ?? "");
-	const review =
-		head === ""
-			? { checks: [], comments: [], reviews: [], reactions: [] }
-			: await pullReview(
-					repo,
-					pull.number,
-					head,
-					pull.draft === true,
-					token,
-					fetchImpl,
-				);
-	const headCommittedAt =
-		merged || pull.draft === true || head === ""
-			? null
-			: await fetchHeadCommittedAt(repo, head, token, fetchImpl);
-	return {
-		repo,
-		number: pull.number,
-		url: pull.html_url,
-		title: pull.title,
-		draft: pull.draft === true,
-		branch: pull.head.ref,
-		...(pull.base === undefined ? {} : { baseBranch: pull.base.ref }),
-		body,
-		closingKeys,
-		headSha: head,
-		headCommittedAt,
-		merged,
-		autoMerge: pull.auto_merge != null,
-		...review,
-	};
 }
 
 async function fetchRows<Row, Mapped>(
@@ -327,7 +229,7 @@ export type ReviewEvidence = Pick<
 	"checks" | "comments" | "reviews" | "reactions"
 >;
 
-async function mergedPullHistory(
+export async function mergedPullHistory(
 	repo: string,
 	token: string,
 	fetchImpl: Fetch,
@@ -364,32 +266,6 @@ async function mergedPullHistory(
 			...review,
 		};
 	});
-}
-
-const githubCommit = z.object({
-	commit: z.object({
-		committer: z.object({ date: z.string() }).nullable(),
-	}),
-});
-
-export async function fetchHeadCommittedAt(
-	repo: string,
-	sha: string,
-	token: string,
-	fetchImpl: Fetch,
-): Promise<string | null> {
-	const response = await fetchImpl(
-		`https://api.github.com/repos/${repo}/commits/${sha}`,
-		{ headers: githubHeaders(token) },
-	);
-	if (!response.ok) {
-		return null;
-	}
-	const parsed = githubCommit.safeParse(await response.json());
-	if (!parsed.success) {
-		return null;
-	}
-	return parsed.data.commit.committer?.date ?? null;
 }
 
 export async function pullReview(

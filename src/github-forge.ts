@@ -1,8 +1,9 @@
 import { z } from "zod";
 
 import type { Fetch } from "./fetch.ts";
+import { loadLinkedPulls } from "./github-linked-pulls.ts";
 import { githubHeaders } from "./github-pages.ts";
-import { loadLinkedPulls, type ReviewEvidence } from "./github-pulls.ts";
+import type { ReviewEvidence } from "./github-pulls.ts";
 import type { GithubReads } from "./github-reads.ts";
 import { readAutoMerge } from "./github-repo-query.ts";
 import { type Forge, type PullTarget, TrackerError } from "./ports.ts";
