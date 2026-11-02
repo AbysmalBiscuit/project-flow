@@ -24,11 +24,7 @@ async function save(base: string, next: Configuration): Promise<Response> {
 }
 
 async function overviewNames(base: string): Promise<string[]> {
-	const body = await settledOverview(
-		base,
-		async (url) =>
-			(await (await fetch(new URL("/api/overview", url))).json()) as Overview,
-	);
+	const body = await settledOverview(base, readOverview<Overview>);
 	return body.projects.map((project) => project.name);
 }
 
@@ -67,14 +63,7 @@ describe("pinned projects", () => {
 				(await (
 					await fetch(new URL("/api/settings", base))
 				).json()) as Configuration;
-			const overviewNow = () =>
-				settledOverview(
-					base,
-					async (url) =>
-						(await (
-							await fetch(new URL("/api/overview", url))
-						).json()) as Overview,
-				);
+			const overviewNow = () => settledOverview(base, readOverview<Overview>);
 			const cardSave = async (
 				edit: (pins: ProjectPin[], ref: ProjectPin) => ProjectPin[],
 			) => {
