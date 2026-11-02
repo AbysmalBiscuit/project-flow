@@ -661,6 +661,39 @@ describe("project graph layout", () => {
 		]);
 	});
 
+	test("group by assignee heads each band with the assignee name and keys it by id", async () => {
+		const assigned = (
+			key: string,
+			id: string,
+			displayName: string,
+			email: string,
+		) => ({
+			...linearTicket(key, key, "unstarted", null),
+			assignee: { id, name: displayName, displayName, email },
+		});
+		const report = await hierarchyReport("", [
+			assigned("WID-1", "user-lev", "lev", "lev@example.com"),
+			assigned("WID-2", "user-ada", "ada", "ada@one.example"),
+			assigned("WID-3", "user-ada-2", "ada", "ada@two.example"),
+		]);
+		const input = layoutInput(report, "assignee", []);
+		expect({
+			groups: input.groups.map((group) => [group.id, group.label]),
+			cards: input.cards.map((item) => [item.id, item.group]),
+		}).toEqual({
+			groups: [
+				[groupId("user-ada"), "ada (ada@one.example)"],
+				[groupId("user-ada-2"), "ada (ada@two.example)"],
+				[groupId("user-lev"), "lev"],
+			],
+			cards: [
+				[cardOf("WID-1"), groupId("user-lev")],
+				[cardOf("WID-2"), groupId("user-ada")],
+				[cardOf("WID-3"), groupId("user-ada-2")],
+			],
+		});
+	});
+
 	test("a card that grows keeps the order of every card in each layer", async () => {
 		const chipRow = 28;
 		for (const direction of ["left-to-right", "top-to-bottom"] as const) {

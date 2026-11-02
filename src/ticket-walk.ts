@@ -28,6 +28,7 @@ import {
 } from "./review.ts";
 import { type RunStarts, runStartView } from "./run-start.ts";
 import {
+	assigneeLabels,
 	assigneesOf,
 	chipsOf,
 	shownFactoryRun,
@@ -84,6 +85,7 @@ export function walkTickets(walk: TicketWalk) {
 	const linkedByTicket = new Map<string, PullRequest[]>();
 	const linkedIds = new Set<string>();
 	const subTickets = subTicketCounts(tickets);
+	const labels = assigneeLabels(tickets);
 	const workcellPulls = new Set(
 		factoryRuns.flatMap((run) =>
 			run.pull === undefined ? [] : [pullId(run.pull)],
@@ -166,7 +168,7 @@ export function walkTickets(walk: TicketWalk) {
 		counts[shown.state] += 1;
 		statusTypes[shown.lane.statusType] += 1;
 		views.push({
-			...ticketView(walk, ticket, shown, lane, blockers, newestRun),
+			...ticketView(walk, ticket, shown, lane, blockers, newestRun, labels),
 			...countOf(subTickets, ticket.key),
 		});
 		if (ticket.state === "open") {
@@ -205,6 +207,7 @@ function ticketView(
 	lane: ReturnType<typeof laneForTicket>,
 	blockers: ReturnType<typeof openBlockers>,
 	newestRun: FactoryRun | undefined,
+	labels: ReadonlyMap<string, string>,
 ): TicketView {
 	const userState = stateOfTicket(
 		walk.states,
@@ -235,7 +238,7 @@ function ticketView(
 		...shownFactoryRun(ticket, walk.factoryRuns, walk.pulls, walk.now),
 		...runStartView(ticket, newestRun, walk.runStarts),
 		...(ticket.updatedAt === "" ? {} : { updatedAt: ticket.updatedAt }),
-		...assigneesOf(ticket),
+		...assigneesOf(ticket, labels),
 		...(ticket.labels.length === 0 ? {} : { labels: ticket.labels }),
 		...(ticket.parent === null ? {} : { parent: ticket.parent }),
 	};

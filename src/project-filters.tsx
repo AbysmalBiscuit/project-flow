@@ -183,13 +183,16 @@ function FilterPanel({
 			name.toLowerCase(),
 		),
 	);
-	const people = [
-		...new Set(
-			report.tickets.flatMap((ticket) =>
-				(ticket.assignees ?? []).map((name) => name.trim()),
-			),
+	const people = new Map(
+		report.tickets.flatMap((ticket) =>
+			(ticket.assignees ?? []).flatMap((id) => {
+				const trimmed = id.trim();
+				return trimmed === ""
+					? []
+					: [[trimmed, ticket.assigneeNames?.[id] ?? trimmed] as const];
+			}),
 		),
-	].filter((name) => name !== "");
+	);
 	const picked = new Set(view.assignees.map((name) => name.toLowerCase()));
 	const [ageDraft, setAgeDraft] = useState<Record<string, string>>({});
 	return (
@@ -290,9 +293,9 @@ function FilterPanel({
 				/>
 			</label>
 			<p className={clsx(board.menuLabel)}>Assignees</p>
-			{people.map((person) => (
+			{[...people].map(([person, label]) => (
 				<label key={person} className={clsx(board.menuRow)}>
-					<span>{person}</span>
+					<span>{label}</span>
 					<input
 						type="checkbox"
 						className={clsx(board.check)}

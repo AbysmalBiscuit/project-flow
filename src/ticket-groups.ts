@@ -15,6 +15,7 @@ type GroupedTicket = {
 	workstreamKey?: string;
 	themeGroup?: string;
 	assignees?: string[];
+	assigneeNames?: Record<string, string>;
 };
 
 export function themeGroupOf(workstream: string, theme: string): string {
@@ -48,8 +49,13 @@ function groupBandsOf(
 				}),
 			),
 		];
-		const bands = names.length === 0 ? [noAssignee] : names;
-		return bands.map((name) => ({ key: name, label: name }));
+		if (names.length === 0) {
+			return [{ key: noAssignee, label: noAssignee }];
+		}
+		return names.map((name) => ({
+			key: name,
+			label: view.assigneeNames?.[name] ?? name,
+		}));
 	}
 	if (key === "workstream") {
 		const label = view.workstream ?? noWorkstream;

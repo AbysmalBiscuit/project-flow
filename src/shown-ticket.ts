@@ -223,9 +223,39 @@ export function shownFactoryRun(
 	};
 }
 
+/**
+ * The shown name of each named assignee of a project, by assignee id. Two
+ * people of one project with the same name also show their email.
+ */
+export function assigneeLabels(
+	tickets: readonly Ticket[],
+): Map<string, string> {
+	const people = new Map(
+		tickets.flatMap((ticket) => Object.entries(ticket.assigneeNames ?? {})),
+	);
+	const idsByName = Map.groupBy(people, ([, person]) =>
+		person.name.toLowerCase(),
+	);
+	return new Map(
+		[...people].map(([id, person]) => {
+			const shared =
+				(idsByName.get(person.name.toLowerCase())?.length ?? 0) > 1;
+			return [
+				id,
+				shared && person.email !== undefined
+					? `${person.name} (${person.email})`
+					: person.name,
+			];
+		}),
+	);
+}
+
 export function assigneesOf(
 	ticket: Ticket,
-): { assignees: string[] } | Record<string, never> {
+	labels: ReadonlyMap<string, string>,
+):
+	| { assignees: string[]; assigneeNames?: Record<string, string> }
+	| Record<string, never> {
 	const names = [
 		...(ticket.assignees ?? []),
 		...(ticket.assignee === undefined || ticket.assignee === null
@@ -235,7 +265,17 @@ export function assigneesOf(
 		const trimmed = name.trim();
 		return trimmed === "" ? [] : [trimmed];
 	});
-	return names.length === 0 ? {} : { assignees: [...new Set(names)] };
+	if (names.length === 0) {
+		return {};
+	}
+	const assignees = [...new Set(names)];
+	const named = assignees.flatMap((id) => {
+		const label = labels.get(id);
+		return label === undefined ? [] : [[id, label] as const];
+	});
+	return named.length === 0
+		? { assignees }
+		: { assignees, assigneeNames: Object.fromEntries(named) };
 }
 
 export function chipsOf(
