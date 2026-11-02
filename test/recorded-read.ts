@@ -1,6 +1,9 @@
 import type { Fetch } from "../src/fetch.ts";
-import { answerPullsByNumber, recordedId } from "./pulls-by-number-read.ts";
 import { urlOf } from "./support/fetch.ts";
+import {
+	answerPullsByNumber,
+	recordedId,
+} from "./support/pulls-by-number-read.ts";
 import { repoReadFromHandler } from "./support/repo-read.ts";
 
 function nullRepository(body: unknown): boolean {
