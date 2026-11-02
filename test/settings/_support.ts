@@ -622,6 +622,7 @@ export async function withAppFile(
 	) => Promise<void>,
 	listCheckouts?: (roots: string[]) => Promise<LocalCheckout[]>,
 	makeFetch: (requests: string[]) => Fetch = fetching,
+	ioOptions?: Parameters<typeof testIo>[1],
 ): Promise<void> {
 	const root = await mkdtemp(join(tmpdir(), "project-flow-settings-"));
 	const requests: string[] = [];
@@ -634,19 +635,22 @@ export async function withAppFile(
 	try {
 		const result = await run(
 			["--config", path, "--host", "127.0.0.1", "--port", "0"],
-			testIo({
-				env: {
-					GITHUB_TOKEN: "recorded-token",
-					LINEAR_API_KEY: "recorded-linear-key",
+			testIo(
+				{
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: makeFetch(requests),
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					now: () => new Date("2026-08-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+					...(listCheckouts === undefined ? {} : { listCheckouts }),
 				},
-				fetch: makeFetch(requests),
-				readGhToken: async () => null,
-				databasePath: join(root, "project-flow.sqlite"),
-				now: () => new Date("2026-08-18T12:00:00.000Z"),
-				stdout: (line) => startChecks(line),
-				waitForStop: checks,
-				...(listCheckouts === undefined ? {} : { listCheckouts }),
-			}),
+				ioOptions,
+			),
 		);
 		expect(result.stderr).toBe("");
 		expect(result.exitCode).toBe(0);
@@ -664,10 +668,11 @@ export async function withApp(
 	) => Promise<void>,
 	listCheckouts?: (roots: string[]) => Promise<LocalCheckout[]>,
 	makeFetch: (requests: string[]) => Fetch = fetching,
+	ioOptions?: Parameters<typeof testIo>[1],
 ): Promise<void> {
 	const { path, cleanup } = await tempConfig(body);
 	try {
-		await withAppFile(path, check, listCheckouts, makeFetch);
+		await withAppFile(path, check, listCheckouts, makeFetch, ioOptions);
 	} finally {
 		await cleanup();
 	}
