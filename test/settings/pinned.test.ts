@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import type { Configuration, ProjectPin } from "../../src/configuration.ts";
 import type { Overview } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
+import { samePin } from "../../src/project-ref.ts";
 import { urlOf } from "../support/fetch.ts";
 import { settledOverview } from "../support/reads.ts";
 import { quiet, recorded, savedRepo, shown, withApp } from "./_support.ts";
@@ -136,6 +137,75 @@ describe("pinned projects", () => {
 		} finally {
 			releaseReads();
 		}
+	});
+
+	test("a stale save keeps the pins that it did not edit", async () => {
+		await withApp(JSON.stringify({ tracked }), async (base) => {
+			const loaded = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			const stale = (edit: Partial<Configuration>, pins: ProjectPin[]) =>
+				fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...loaded,
+						...edit,
+						baselineTracked: loaded.tracked,
+						baselinePinnedProjects: pins,
+					}),
+				});
+			const pinsNow = async () =>
+				(
+					(await (
+						await fetch(new URL("/api/settings", base))
+					).json()) as Configuration
+				).pinnedProjects;
+			const shownPin = { tracker: "github", repo: shown } as const;
+			const quietPin = { tracker: "github", repo: quiet } as const;
+
+			expect((await stale({ pinnedProjects: [shownPin] }, [])).status).toBe(
+				200,
+			);
+			expect(
+				(
+					await stale(
+						{
+							tracked: tracked.filter(
+								(pin) => samePin(pin, shownPin) || samePin(pin, quietPin),
+							),
+							pinnedProjects: [],
+						},
+						[],
+					)
+				).status,
+			).toBe(200);
+			expect(await pinsNow()).toEqual([shownPin]);
+
+			expect((await stale({ pinnedProjects: [quietPin] }, [])).status).toBe(
+				200,
+			);
+			expect(await pinsNow()).toEqual([shownPin, quietPin]);
+
+			expect(
+				(await stale({ pinnedProjects: [quietPin] }, [shownPin, quietPin]))
+					.status,
+			).toBe(200);
+			expect(await pinsNow()).toEqual([quietPin]);
+
+			expect(
+				(
+					await stale(
+						{
+							tracked: [{ tracker: "github", repo: shown }],
+							pinnedProjects: [],
+						},
+						[],
+					)
+				).status,
+			).toBe(200);
+			expect(await pinsNow()).toEqual([]);
+		});
 	});
 
 	test("a legacy pinned list tracks the projects and pins none", async () => {

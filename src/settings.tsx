@@ -729,6 +729,8 @@ export function Page() {
 							},
 							tracked: next.tracked,
 							baselineTracked: baseline.tracked,
+							pinnedProjects: next.pinnedProjects,
+							baselinePinnedProjects: baseline.pinnedProjects,
 							pmBot: next.pmBot,
 							expectedBots: next.expectedBots,
 							projectViews: {
