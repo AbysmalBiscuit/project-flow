@@ -282,10 +282,11 @@ function PinControl({
 		<span className={clsx(cards.pinSlot, pinned && cards.pinShown)}>
 			<Button
 				icon="pin"
-				name={
+				name={overviewControlLabel.pinProject(project.name)}
+				tooltip={
 					pinned
 						? overviewControlLabel.unpinProject(project.name)
-						: overviewControlLabel.pinProject(project.name)
+						: overviewControlLabel.pinToTop(project.name)
 				}
 				pressed={pinned}
 				onClick={() => onTogglePin(project)}
