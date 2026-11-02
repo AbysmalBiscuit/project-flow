@@ -53,8 +53,7 @@ import {
 	usePollProgress,
 } from "./poll-freshness.tsx";
 import { SegmentedBar, ticketTotal } from "./progress-bar.tsx";
-import { markPinned } from "./project-pins.ts";
-import { samePin } from "./project-ref.ts";
+import { markPinned, withPin } from "./project-pins.ts";
 import {
 	configurationOf,
 	pageQuery,
@@ -703,16 +702,15 @@ function OverviewPage({
 			<CardsList
 				projects={projects}
 				onTogglePin={(project) => {
-					const pin = project.pinned !== true;
-					savePatch((current) => {
-						const others = current.pinnedProjects.filter(
-							(item) => !samePin(item, project.ref),
-						);
-						return {
-							...current,
-							pinnedProjects: pin ? [...others, project.ref] : others,
-						};
-					});
+					const on = project.pinned !== true;
+					savePatch((current) => ({
+						...current,
+						pinnedProjects: withPin(current.pinnedProjects, {
+							names: [project.ref],
+							pin: project.ref,
+							on,
+						}),
+					}));
 				}}
 			/>
 		),

@@ -11,6 +11,7 @@ import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
 import { Loading } from "./loading.tsx";
+import { withPin } from "./project-pins.ts";
 import { samePin } from "./project-ref.ts";
 import { pageQuery, useSaveSettings } from "./queries.ts";
 import { repoKey } from "./repo-key.ts";
@@ -582,9 +583,11 @@ function ProjectRow({
 						label={`${settingsCopy.pinned} ${project.name}`}
 						onChange={(next) =>
 							onChange({
-								pinnedProjects: next
-									? [...draft.pinnedProjects, pinOf(draft, project)]
-									: withoutProject(draft.pinnedProjects, project),
+								pinnedProjects: withPin(draft.pinnedProjects, {
+									names: [project.ref, ...project.savedPins],
+									pin: pinOf(draft, project),
+									on: next,
+								}),
 							})
 						}
 					/>
