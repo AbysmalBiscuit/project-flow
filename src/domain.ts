@@ -363,8 +363,12 @@ export type ThreadComment = {
 	url: string;
 	parentId: string | null;
 	kind: "comment" | "review";
+	/** One entry for each emoji that people reacted with, in tracker order. */
+	reactions: ThreadReaction[];
 	children: ThreadComment[];
 };
+
+export type ThreadReaction = { emoji: string; count: number };
 
 export type Thread = {
 	tracker: TrackerKind;

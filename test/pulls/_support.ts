@@ -148,6 +148,17 @@ export function mergeFake({
 			repoReads += 1;
 			return read;
 		}
+		const sent = typeof init?.body === "string" ? init.body : "";
+		if (sent.includes("query ReviewReactions")) {
+			const { variables } = JSON.parse(sent) as {
+				variables: { ids: string[] };
+			};
+			return Response.json({
+				data: {
+					nodes: variables.ids.map((id) => ({ id, reactionGroups: [] })),
+				},
+			});
+		}
 		if (url === "https://api.github.com/graphql") {
 			return Response.json({ data: {} });
 		}

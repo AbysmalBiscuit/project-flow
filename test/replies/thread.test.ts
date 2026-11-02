@@ -137,6 +137,7 @@ describe("replies", () => {
 					url: "https://github.com/acme/widget/issues/7#issuecomment-70",
 					parentId: null,
 					kind: "comment",
+					reactions: [],
 					children: [],
 				},
 			]);
@@ -194,6 +195,7 @@ describe("replies", () => {
 					url: "https://github.com/acme/widget/pull/8#discussion_r44",
 					parentId: null,
 					kind: "review",
+					reactions: [],
 					children: [
 						{
 							id: "45",
@@ -204,6 +206,7 @@ describe("replies", () => {
 							url: "https://github.com/acme/widget/pull/8#discussion_r45",
 							parentId: "44",
 							kind: "review",
+							reactions: [],
 							children: [],
 						},
 					],
@@ -308,6 +311,7 @@ describe("replies", () => {
 					url: "https://github.com/acme/widget/issues/9#issuecomment-90",
 					parentId: null,
 					kind: "comment",
+					reactions: [],
 					children: [],
 				},
 				{
@@ -319,6 +323,7 @@ describe("replies", () => {
 					url: "https://github.com/acme/widget/pull/12#pullrequestreview-130",
 					parentId: null,
 					kind: "comment",
+					reactions: [],
 					children: [],
 				},
 				{
@@ -330,6 +335,7 @@ describe("replies", () => {
 					url: "https://github.com/acme/widget/pull/12#discussion_r120",
 					parentId: null,
 					kind: "review",
+					reactions: [],
 					children: [],
 				},
 			]);
@@ -401,6 +407,7 @@ describe("replies", () => {
 					url: "https://linear.app/issue/PF-1#comment-parent",
 					parentId: null,
 					kind: "comment",
+					reactions: [],
 					children: [
 						{
 							id: "comment-child",
@@ -411,6 +418,7 @@ describe("replies", () => {
 							url: "https://linear.app/issue/PF-1#comment-child",
 							parentId: "comment-parent",
 							kind: "comment",
+							reactions: [],
 							children: [],
 						},
 					],
