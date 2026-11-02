@@ -690,7 +690,8 @@ function repoPagesQuery(pages: PendingPage[], size: number): string {
 
 /**
  * Reads every pending page, many items per request, until each list ends. A
- * PR whose own page has an error goes in `broken` and gets no more pages.
+ * PR whose own page has an error or a malformed list goes in `broken` and gets
+ * no more pages.
  */
 export async function readPages(
 	token: string,
@@ -731,7 +732,16 @@ export async function readPages(
 				if (broken.has(page.id)) {
 					return;
 				}
-				const cursor = page.accept(read.data[`c${at}`]);
+				let cursor: string | null;
+				try {
+					cursor = page.accept(read.data[`c${at}`]);
+				} catch (error) {
+					if (!page.pull) {
+						throw error;
+					}
+					broken.add(page.id);
+					return;
+				}
 				if (cursor !== null) {
 					next.push({ ...page, cursor });
 				}

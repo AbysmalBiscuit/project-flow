@@ -344,6 +344,23 @@ describe("linked PRs read through GitHub GraphQL", () => {
 		expect(stateOf("WID-84")).not.toBe(stateOf("WID-83"));
 	});
 
+	test("a malformed later page drops only the PR that owns it", async () => {
+		const read = await readLinked([83, 84], {
+			answers: new Map<number, Answer>([
+				[83, pullNode(83, { reviews: list([], "reviews-2") })],
+				[84, pullNode(84)],
+			]),
+			laterPages: new Map([["PR_83@reviews-2", { reviews: "malformed" }]]),
+		});
+		expect(read.error).toBeNull();
+		expect(read.tickets.map(({ key, pull }) => ({ key, pull }))).toEqual(
+			expect.arrayContaining([
+				{ key: "WID-83", pull: undefined },
+				{ key: "WID-84", pull: `${repo}#84` },
+			]),
+		);
+	});
+
 	test("a linked PR that GitHub cannot find or read does not fail the other PRs of its chunk", async () => {
 		const read = await readLinked([83, 84, 85], {
 			answers: new Map<number, Answer>([
