@@ -190,6 +190,8 @@ export type TicketView = {
 	queued?: Queued;
 	updatedAt?: string;
 	assignees?: string[];
+	/** The label names of the ticket, as its tracker read gives them. */
+	labels?: string[];
 	workstream?: string;
 	workstreamKey?: string;
 	theme?: string;

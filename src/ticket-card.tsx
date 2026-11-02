@@ -33,6 +33,7 @@ type CardTicket = Pick<
 	| "parent"
 	| "subTickets"
 	| "unlinkedPr"
+	| "labels"
 >;
 
 /**
@@ -66,6 +67,7 @@ export function TicketCardBody({
 	const parentKey = hierarchy ? ticket.parent : undefined;
 	const subTickets = hierarchy ? ticket.subTickets : undefined;
 	const outsideParent = parent?.outside;
+	const trackerLabels = [...new Set(ticket.labels)];
 	return (
 		<>
 			<span
@@ -94,7 +96,8 @@ export function TicketCardBody({
 			subTickets === undefined &&
 			fedRun?.stage === undefined &&
 			ticket.queued === undefined &&
-			!ticket.needsYou ? null : (
+			!ticket.needsYou &&
+			trackerLabels.length === 0 ? null : (
 				<span className={clsx(board.chips)}>
 					{fedRun?.stage === undefined ? null : (
 						<StageChip stage={fedRun.stage} />
@@ -131,6 +134,14 @@ export function TicketCardBody({
 							{navLabel.needsYou}
 						</span>
 					) : null}
+					{trackerLabels.map((label) => (
+						<span
+							key={label}
+							className={clsx(board.chip, board.chipStatic, board.chipLabel)}
+						>
+							{label}
+						</span>
+					))}
 				</span>
 			)}
 		</>

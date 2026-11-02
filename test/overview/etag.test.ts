@@ -589,6 +589,7 @@ describe("GET /api/overview", () => {
 							statusType: "inProgress",
 							enteredStateAt: "2026-10-18T12:00:00.000Z",
 							updatedAt: "2026-10-18T12:00:00.000Z",
+							labels: ["factory: running"],
 						},
 					]);
 					const labelReadsSent = sent.filter((item) =>
