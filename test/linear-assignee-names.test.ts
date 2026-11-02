@@ -88,4 +88,43 @@ describe("GET /api/projects/:name Linear assignees", () => {
 			},
 		);
 	});
+
+	test("two assignees with one display name and no email show a short user id", async () => {
+		const sam = (id: string) => ({
+			id,
+			name: "Sam",
+			displayName: "sam",
+			email: null,
+		});
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "linear", project: linearSlug }] }),
+			linearFake({
+				project: {
+					id: "project-widget",
+					name: "Widget launch",
+					slugId: linearSlug,
+				},
+				issues: [
+					{
+						...linearIssue("WID-1", "", "unstarted"),
+						assignee: sam("3f9c21aa-0000-4000-8000-000000000001"),
+					},
+					{
+						...linearIssue("WID-2", "", "unstarted"),
+						assignee: sam("7b04e5d2-0000-4000-8000-000000000002"),
+					},
+				],
+			}),
+			{ LINEAR_API_KEY: "recorded-linear-key" },
+			async (base) => {
+				const report = (await (
+					await fetch(new URL("/api/projects/Widget%20launch?view=all", base))
+				).json()) as ProjectReport;
+				expect(report.tickets.map((ticket) => ticket.assigneeNames)).toEqual([
+					{ "3f9c21aa-0000-4000-8000-000000000001": "sam (3f9c21aa)" },
+					{ "7b04e5d2-0000-4000-8000-000000000002": "sam (7b04e5d2)" },
+				]);
+			},
+		);
+	});
 });

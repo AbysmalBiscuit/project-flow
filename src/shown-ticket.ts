@@ -225,7 +225,8 @@ export function shownFactoryRun(
 
 /**
  * The shown name of each named assignee of a project, by assignee id. Two
- * people of one project with the same name also show their email.
+ * people of one project with the same name also show their email, or the
+ * start of their user id when the email is missing.
  */
 export function assigneeLabels(
 	tickets: readonly Ticket[],
@@ -242,8 +243,8 @@ export function assigneeLabels(
 				(idsByName.get(person.name.toLowerCase())?.length ?? 0) > 1;
 			return [
 				id,
-				shared && person.email !== undefined
-					? `${person.name} (${person.email})`
+				shared
+					? `${person.name} (${person.email ?? id.slice(0, 8)})`
 					: person.name,
 			];
 		}),
