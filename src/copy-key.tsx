@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { textControl } from "./control-styles.ts";
 import { panel } from "./panel-styles.ts";
-import { Toast } from "./toast.tsx";
+import { actionToastHideMs, Toast } from "./toast.tsx";
 import { clsx } from "./ui.ts";
 
 const copiedHideMs = 2_000;
@@ -50,7 +50,7 @@ export function CopyKey({ ticketKey }: { ticketKey: string }) {
 				<Toast
 					tone={outcome.tone}
 					message={outcome.message}
-					hideMs={copiedHideMs}
+					hideMs={outcome.tone === "saved" ? copiedHideMs : actionToastHideMs}
 					onClose={() => setOutcome(null)}
 				/>
 			)}
