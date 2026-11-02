@@ -1,5 +1,9 @@
 import type { Fetch } from "../src/fetch.ts";
 import { urlOf } from "./support/fetch.ts";
+import {
+	answerPullsByNumber,
+	recordedId,
+} from "./support/pulls-by-number-read.ts";
 import { repoReadFromHandler } from "./support/repo-read.ts";
 
 function nullRepository(body: unknown): boolean {
@@ -109,11 +113,6 @@ const emptyList = {
 	nodes: [],
 	pageInfo: { hasNextPage: false, endCursor: null },
 };
-
-/** A node id for a recorded issue or PR, which names its repo and number. */
-function recordedId(kind: "issue" | "pull", repo: string, number: unknown) {
-	return `${kind}:${repo}#${String(number)}`;
-}
 
 function parseRecordedId(
 	id: string,
@@ -380,6 +379,18 @@ export function answerRecordedRepoRead(fetchImpl: Fetch): Fetch {
 				`${variables?.owner ?? ""}/${variables?.name ?? ""}`,
 			);
 			return Response.json(payload);
+		}
+		if (body.includes("query PullsByNumber")) {
+			const payload: unknown = answered.ok
+				? await answered
+						.clone()
+						.json()
+						.catch(() => null)
+				: null;
+			const failed = !answered.ok && answered.status !== 404;
+			return failed || answeredItself(payload, /^p\d+$/)
+				? answered
+				: answerPullsByNumber(fetchImpl, body);
 		}
 		if (body.includes("query RepoLists") || body.includes("query RepoPages")) {
 			const payload: unknown = answered.ok

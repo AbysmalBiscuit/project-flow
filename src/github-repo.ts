@@ -93,7 +93,7 @@ function ticketFromGraphql(
 	return ticketFromGithubIssue(issue, repo, comments);
 }
 
-function reviewFromGraphql(pull: PullLists): ReviewEvidence {
+export function reviewFromGraphql(pull: PullLists): ReviewEvidence {
 	const checks: BotCheck[] = [];
 	for (const node of pull.statusCheckRollup?.contexts.nodes ?? []) {
 		if (node?.context !== undefined && node.state !== undefined) {
@@ -162,14 +162,14 @@ function reviewFromGraphql(pull: PullLists): ReviewEvidence {
 	return { checks, comments, reviews, reactions };
 }
 
-const noEvidence: ReviewEvidence = {
+export const noEvidence: ReviewEvidence = {
 	checks: [],
 	comments: [],
 	reviews: [],
 	reactions: [],
 };
 
-function pullFromGraphql(
+export function pullFromGraphql(
 	pull: z.infer<typeof graphqlPullNode>,
 	repo: string,
 	evidence: ReviewEvidence,

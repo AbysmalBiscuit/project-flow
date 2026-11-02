@@ -34,7 +34,7 @@ type RepoIncludes = {
 
 export const closingSelection = `nodes { number } ${connectionPage}`;
 
-const pullNodeFields = `id number title url isDraft body state mergedAt updatedAt headRefName baseRefName headRefOid
+export const pullNodeFields = `id number title url isDraft body state mergedAt updatedAt headRefName baseRefName headRefOid
 				autoMergeRequest { enabledAt }
 				commits(last: 1) { nodes { commit { committedDate } } }
 				closingIssuesReferences(first: 10, userLinkedOnly: true) { ${closingSelection} }`;
@@ -387,14 +387,15 @@ export async function postPollQuery(
 	fetchImpl: Fetch,
 	repo: string,
 	build: (size: number) => Pick<GraphqlQuery, "query" | "variables">,
+	label = "read repo",
 	size = pageSize,
 ): Promise<unknown> {
 	const body = await postGithubGraphql(
 		{ token, fetchImpl },
-		{ ...build(size), label: "read repo", subject: repo },
+		{ ...build(size), label, subject: repo },
 	).catch(notFoundAsNull);
 	if (body !== null && size === pageSize && resourceLimited(body)) {
-		return postPollQuery(token, fetchImpl, repo, build, pageSize / 2);
+		return postPollQuery(token, fetchImpl, repo, build, label, pageSize / 2);
 	}
 	return body;
 }
@@ -412,12 +413,13 @@ export function pollData(
 	body: unknown,
 	repo: string,
 	brokenPull: (path: ErrorPath) => string | null = () => null,
+	label = "read repo",
 ): { data: Record<string, unknown>; broken: Set<string> } {
 	const broken = new Set<string>();
 	for (const error of graphqlErrors.safeParse(body).data?.errors ?? []) {
 		const pull = error.path === undefined ? null : brokenPull(error.path);
 		if (pull === null) {
-			throw new TrackerError(`GitHub read repo failed: ${error.message}`, 502, [
+			throw new TrackerError(`GitHub ${label} failed: ${error.message}`, 502, [
 				error.message,
 			]);
 		}
@@ -425,7 +427,7 @@ export function pollData(
 	}
 	const parsed = pollPage.safeParse(body);
 	if (!parsed.success) {
-		throw new TrackerError(`GitHub read repo failed: ${repo}`, 502);
+		throw new TrackerError(`GitHub ${label} failed: ${repo}`, 502);
 	}
 	return { data: parsed.data.data, broken };
 }
@@ -622,8 +624,11 @@ type PendingPage = {
 	id: string;
 	pull: boolean;
 	cursor: string;
+	/** The list field that the page continues, such as `reviews`. */
+	field: string;
 	selection: (size: number, after: string) => string;
-	accept: (node: unknown) => string | null;
+	/** Adds the page to its list and gives the next cursor, or null when the page is malformed. */
+	accept: (node: unknown) => { cursor: string | null } | null;
 };
 
 type PagePath = {
@@ -656,6 +661,7 @@ export function pendingPage<Node extends z.ZodType>(
 		id,
 		pull: path.type === "PullRequest",
 		cursor,
+		field: path.field,
 		selection: (size, after) => {
 			const list = `${path.field}(first: ${size}, after: ${after}${path.args ?? ""}) { ${selection} }`;
 			return `... on ${path.type} { ${path.wrap === undefined ? list : `${path.wrap} { ${list} }`} }`;
@@ -664,13 +670,10 @@ export function pendingPage<Node extends z.ZodType>(
 			const holder = path.wrap === undefined ? data : child(data, path.wrap);
 			const parsed = connection.safeParse(child(holder, path.field));
 			if (!parsed.success) {
-				throw new TrackerError(
-					`GitHub read repo failed: ${path.field} of ${id}`,
-					502,
-				);
+				return null;
 			}
 			target.nodes.push(...parsed.data.nodes);
-			return nextCursor(parsed.data);
+			return { cursor: nextCursor(parsed.data) };
 		},
 	};
 }
@@ -690,7 +693,8 @@ function repoPagesQuery(pages: PendingPage[], size: number): string {
 
 /**
  * Reads every pending page, many items per request, until each list ends. A
- * PR whose own page has an error goes in `broken` and gets no more pages.
+ * PR whose own page has an error goes in `broken` and gets no more pages. A
+ * malformed list fails the read.
  */
 export async function readPages(
 	token: string,
@@ -698,6 +702,7 @@ export async function readPages(
 	repo: string,
 	pages: (PendingPage | null)[],
 	broken: Set<string>,
+	label = "read repo",
 ): Promise<void> {
 	let open = pages.flatMap((page) => (page === null ? [] : [page]));
 	while (open.length > 0) {
@@ -707,15 +712,21 @@ export async function readPages(
 			pagesPerBatch,
 		)) {
 			const read = pollData(
-				await postPollQuery(token, fetchImpl, repo, (size) => ({
-					query: repoPagesQuery(batch, size),
-					variables: Object.fromEntries(
-						batch.flatMap((page, at) => [
-							[`id${at}`, page.id],
-							[`after${at}`, page.cursor],
-						]),
-					),
-				})),
+				await postPollQuery(
+					token,
+					fetchImpl,
+					repo,
+					(size) => ({
+						query: repoPagesQuery(batch, size),
+						variables: Object.fromEntries(
+							batch.flatMap((page, at) => [
+								[`id${at}`, page.id],
+								[`after${at}`, page.cursor],
+							]),
+						),
+					}),
+					label,
+				),
 				repo,
 				([alias]) => {
 					const page = batch[Number(String(alias).slice(1))];
@@ -723,6 +734,7 @@ export async function readPages(
 						? page.id
 						: null;
 				},
+				label,
 			);
 			for (const id of read.broken) {
 				broken.add(id);
@@ -731,9 +743,15 @@ export async function readPages(
 				if (broken.has(page.id)) {
 					return;
 				}
-				const cursor = page.accept(read.data[`c${at}`]);
-				if (cursor !== null) {
-					next.push({ ...page, cursor });
+				const accepted = page.accept(read.data[`c${at}`]);
+				if (accepted === null) {
+					throw new TrackerError(
+						`GitHub ${label} failed: ${page.field} of ${page.id}`,
+						502,
+					);
+				}
+				if (accepted.cursor !== null) {
+					next.push({ ...page, cursor: accepted.cursor });
 				}
 			});
 		}
