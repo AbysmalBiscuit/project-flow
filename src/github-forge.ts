@@ -3,11 +3,10 @@ import { z } from "zod";
 import type { Fetch } from "./fetch.ts";
 import { loadLinkedPulls } from "./github-linked-pulls.ts";
 import { githubHeaders } from "./github-pages.ts";
-import type { ReviewEvidence } from "./github-pulls.ts";
+import { keepMergedEvidence, type ReviewEvidence } from "./github-pulls.ts";
 import type { GithubReads } from "./github-reads.ts";
 import { readAutoMerge } from "./github-repo-query.ts";
 import { type Forge, type PullTarget, TrackerError } from "./ports.ts";
-import { numberedKey } from "./ticket-key.ts";
 
 const refusal = z.object({
 	message: z.string(),
@@ -61,7 +60,7 @@ export function githubForge(
 			const { pulls } = await readOf(repo);
 			for (const pull of pulls) {
 				if (pull.merged) {
-					seenReviews.set(numberedKey(repo, pull.number), {
+					keepMergedEvidence(seenReviews, repo, pull.number, {
 						checks: pull.checks,
 						comments: pull.comments,
 						reviews: pull.reviews,

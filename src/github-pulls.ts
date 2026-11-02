@@ -230,8 +230,22 @@ export type ReviewEvidence = Pick<
 >;
 
 /**
- * The complete evidence of a merged PR. A merged PR does not change, so the
- * first complete read stays in `seen` for every later read.
+ * Keeps the complete evidence of a merged PR in `seen`. Each complete read
+ * replaces the kept evidence, so the newest read wins.
+ */
+export function keepMergedEvidence(
+	seen: Map<string, ReviewEvidence>,
+	repo: string,
+	number: number,
+	evidence: ReviewEvidence,
+): ReviewEvidence {
+	seen.set(numberedKey(repo, number), evidence);
+	return evidence;
+}
+
+/**
+ * The kept evidence of a merged PR. When `seen` has none, `read` gives the
+ * complete evidence, and `seen` keeps it.
  */
 export async function mergedEvidence(
 	seen: Map<string, ReviewEvidence>,
@@ -239,14 +253,10 @@ export async function mergedEvidence(
 	number: number,
 	read: () => Promise<ReviewEvidence>,
 ): Promise<ReviewEvidence> {
-	const key = numberedKey(repo, number);
-	const kept = seen.get(key);
-	if (kept !== undefined) {
-		return kept;
-	}
-	const evidence = await read();
-	seen.set(key, evidence);
-	return evidence;
+	return (
+		seen.get(numberedKey(repo, number)) ??
+		keepMergedEvidence(seen, repo, number, await read())
+	);
 }
 
 export async function mergedPullHistory(

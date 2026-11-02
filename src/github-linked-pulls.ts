@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { PullRequest } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import {
-	mergedEvidence,
+	keepMergedEvidence,
 	mergedPullHistory,
 	type ReviewEvidence,
 } from "./github-pulls.ts";
@@ -203,7 +203,10 @@ async function readChunk(
 			continue;
 		}
 		if (withLists && complete) {
-			await mergedEvidence(seen, target.repo, node.number, async () =>
+			keepMergedEvidence(
+				seen,
+				target.repo,
+				node.number,
 				reviewFromGraphql(node),
 			);
 		}
