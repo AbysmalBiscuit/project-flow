@@ -363,7 +363,7 @@ export type ThreadComment = {
 	url: string;
 	parentId: string | null;
 	kind: "comment" | "review";
-	/** One entry for each emoji that people reacted with, in tracker order. */
+	/** One entry for each emoji that people reacted with. */
 	reactions: ThreadReaction[];
 	children: ThreadComment[];
 };
