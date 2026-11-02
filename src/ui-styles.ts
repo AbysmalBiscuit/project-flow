@@ -405,7 +405,7 @@ export const cards = stylex.create({
 		flexDirection: "column",
 		gap: space.sm,
 		boxSizing: "border-box",
-		height: measure.overviewCard,
+		minHeight: measure.overviewCard,
 		minWidth: 0,
 		overflow: "hidden",
 		padding: space.lg,
