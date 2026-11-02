@@ -6,7 +6,7 @@ import type {
 	Ticket,
 	WorkcellRun,
 } from "./domain.ts";
-import { numberedKey, sameTicketKey } from "./ticket-key.ts";
+import { foldKey, numberedKey, sameTicketKey } from "./ticket-key.ts";
 
 const stageLine = /^stage\s+(\d+)\b/i;
 
@@ -268,16 +268,47 @@ export function runFor<Run extends Pick<WorkcellRun, "key" | "repo">>(
 	return runsFor(ticket, runs)[0];
 }
 
+type RunKeys = Pick<WorkcellRun, "key" | "repo">;
+
+/** Each run list by folded ticket key, built once per list instead of a scan per ticket. */
+const runIndexes = new WeakMap<readonly RunKeys[], Map<string, RunKeys[]>>();
+
+function runIndex<Run extends RunKeys>(
+	runs: readonly Run[],
+): Map<string, Run[]> {
+	const known = runIndexes.get(runs);
+	if (known !== undefined) {
+		return known as Map<string, Run[]>;
+	}
+	const index = new Map<string, Run[]>();
+	for (const run of runs) {
+		const keys = new Set([foldKey(run.key)]);
+		if (run.repo !== undefined) {
+			keys.add(foldKey(numberedKey(run.repo, run.key)));
+		}
+		for (const key of keys) {
+			const listed = index.get(key);
+			if (listed === undefined) {
+				index.set(key, [run]);
+			} else {
+				listed.push(run);
+			}
+		}
+	}
+	runIndexes.set(runs, index);
+	return index;
+}
+
 /** The runs of a ticket, in the order of `runs`. */
-export function runsFor<Run extends Pick<WorkcellRun, "key" | "repo">>(
+export function runsFor<Run extends RunKeys>(
 	ticket: Ticket,
-	runs: Run[],
+	runs: readonly Run[],
 ): Run[] {
 	const key = ticket.key;
 	if (key === null) {
 		return [];
 	}
-	return runs.filter((run) => isRunOf(run, key));
+	return [...(runIndex(runs).get(foldKey(key)) ?? [])];
 }
 
 /** True when `run` is a run of the ticket with `key`. A GitHub run can name its ticket by number and repo. */
