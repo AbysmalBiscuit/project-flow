@@ -16,7 +16,11 @@ _Avoid_: Discovered project, membership project
 
 **Tracked project**:
 A project that the configuration names in its tracked list. Project Flow sends ticket, PR and branch requests only for tracked projects. Only tracked projects show on the overview.
-_Avoid_: Pinned project, hidden project, watched project
+_Avoid_: Hidden project, watched project
+
+**Pinned project**:
+A tracked project that the configuration names in its `pinnedProjects` list. The overview shows each pinned project before the other projects. The overview sort orders the projects in each group.
+_Avoid_: Starred project, favourite project
 
 **Ticket**:
 One unit of tracked work: a GitHub issue or a Linear issue.
