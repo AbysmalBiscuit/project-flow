@@ -478,7 +478,7 @@ export const cards = stylex.create({
 		overflow: "hidden",
 	},
 	chip: {
-		display: "inline-block",
+		display: { default: "inline-block", ":is([hidden])": "none" },
 		padding: `${space.twoXs} ${space.sm}`,
 		borderWidth: measure.hairline,
 		borderStyle: "solid",
@@ -492,7 +492,7 @@ export const cards = stylex.create({
 		textDecoration: "none",
 	},
 	tagChip: {
-		display: "inline-block",
+		display: { default: "inline-block", ":is([hidden])": "none" },
 		padding: `${space.twoXs} ${space.sm}`,
 		borderRadius: radius.sm,
 		backgroundColor: colours.segment,
