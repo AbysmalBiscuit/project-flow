@@ -23,7 +23,13 @@ export function linearIssue(
 	identifier: string,
 	title: string,
 	description: string,
-	comments: { body: string; user?: { id: string; name: string } }[] = [],
+	comments: {
+		body: string;
+		id?: string;
+		createdAt?: string;
+		user?: { id: string; name: string };
+		parent?: { id: string } | null;
+	}[] = [],
 	fields: Record<string, unknown> = {},
 ): Record<string, unknown> {
 	return {
@@ -173,7 +179,10 @@ export function githubRecorded(
 export async function readNeedsYou(
 	fetchImpl: Fetch,
 	config: Record<string, unknown>,
-	now?: Date,
+	{
+		now,
+		env = { GITHUB_TOKEN: "recorded-token" },
+	}: { now?: Date; env?: Record<string, string> } = {},
 ): Promise<{ items: NeedsYouItem[]; needsYou: number }> {
 	const { path, cleanup } = await tempConfig(JSON.stringify(config));
 	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
@@ -204,7 +213,7 @@ export async function readNeedsYou(
 		const result = await run(
 			["--config", path, "--host", "127.0.0.1", "--port", "0"],
 			testIo({
-				env: { GITHUB_TOKEN: "recorded-token" },
+				env,
 				fetch: fetchImpl,
 				readGhToken: async () => null,
 				databasePath: join(root, "store.sqlite"),

@@ -6,8 +6,12 @@ const askMarker = /<!--\s*workcell:ask\s+([A-Za-z0-9_.-]+)\s*-->/i;
 const workcellMarker = /<!--\s*workcell:/i;
 const answerPrefix = /^(?:senior|reply|answer)\b/i;
 const numberedOption = /^(\d+)[.)]\s+(\S.*)$/;
+const answeredByLine = /^[*_\s]*answered by\b/i;
 
-/** A `reply` is Lev's answer; a `record` is an id quote or progress line. */
+/**
+ * A `reply` is Lev's answer. A `record` is an id quote, a progress line or
+ * an `Answered by` line that the factory adds to the ask.
+ */
 export type AskAnswer = { by: "reply" | "record"; comment: Comment };
 
 export type Ask = {
@@ -78,13 +82,17 @@ export function readAsks(comments: Comment[]): Ask[] {
 }
 
 /**
- * Decides if a comment after the ask, or a progress comment anywhere,
- * answers the ask. A record wins over a reply, and the latest reply wins.
+ * Decides if a comment after the ask, a progress comment anywhere, or the
+ * ask itself answers the ask. A record wins over a reply, and the latest
+ * reply wins. A reply in the thread of the ask needs no prefix or quote.
  */
 export function askAnswer(comments: Comment[], ask: Comment): AskAnswer | null {
 	const id = askId(ask.body);
 	if (id === null) {
 		return null;
+	}
+	if (ask.body.split("\n").some((line) => answeredByLine.test(line))) {
+		return { by: "record", comment: ask };
 	}
 	const askAt = comments.indexOf(ask);
 	const later = comments.slice(askAt + 1);
@@ -106,7 +114,11 @@ export function askAnswer(comments: Comment[], ask: Comment): AskAnswer | null {
 			return false;
 		}
 		const opening = comment.body.trim();
-		return answerPrefix.test(opening) || quotesAskText(opening, ask.body);
+		return (
+			(ask.id !== undefined && comment.parentId === ask.id) ||
+			answerPrefix.test(opening) ||
+			quotesAskText(opening, ask.body)
+		);
 	});
 	return reply === undefined ? null : { by: "reply", comment: reply };
 }
@@ -146,7 +158,7 @@ function quotesAsk(body: string, id: string): boolean {
 
 function quotesAskText(body: string, askBody: string): boolean {
 	const headline = askHeadline(askBody);
-	const text = askBody.replace(askMarker, "").trim();
+	const text = askText(askBody).trim();
 	if (headline === "" && text === "") {
 		return false;
 	}
@@ -163,8 +175,17 @@ function quotesAskText(body: string, askBody: string): boolean {
 	});
 }
 
+/** The ask body without its marker and without the `Answered by` line. */
+function askText(body: string): string {
+	return body
+		.replace(askMarker, "")
+		.split("\n")
+		.filter((line) => !answeredByLine.test(line))
+		.join("\n");
+}
+
 export function askHeadline(body: string): string {
-	const text = body.replace(askMarker, "").trim();
+	const text = askText(body).trim();
 	const named = text
 		.split(/(?<=[.!?])\s+|\n+/)
 		.map((part) => part.trim())
@@ -180,7 +201,7 @@ export function askHeadline(body: string): string {
 }
 
 function askOptions(body: string): AskOption[] {
-	const text = body.replace(askMarker, "");
+	const text = askText(body);
 	const options: AskOption[] = [];
 	for (const line of text.split("\n")) {
 		const match = line.trim().match(numberedOption);
@@ -195,8 +216,7 @@ function askOptions(body: string): AskOption[] {
 }
 
 function askQuestion(body: string, headline: string): string {
-	const lines = body
-		.replace(askMarker, "")
+	const lines = askText(body)
 		.split("\n")
 		.map((line) => line.trim())
 		.filter(

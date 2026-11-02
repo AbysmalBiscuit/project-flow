@@ -72,7 +72,7 @@ describe("needs you", () => {
 				checkRuns: [{ name: "ci", status: "completed", conclusion: "success" }],
 			}),
 			{ pinned: [{ tracker: "github", repo }], pmBot: { [repo]: false } },
-			new Date("2026-10-18T12:00:00.000Z"),
+			{ now: new Date("2026-10-18T12:00:00.000Z") },
 		);
 		expect(items.find((item) => item.key === `${repo}#8`)).toMatchObject({
 			reason: "decide",

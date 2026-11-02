@@ -77,6 +77,8 @@ export type Comment = {
 	updatedAt?: string;
 	author?: string;
 	reactions?: number;
+	/** The id of the comment that this comment replies to in a tracker thread. */
+	parentId?: string;
 };
 
 export type TicketStatus = {

@@ -91,7 +91,7 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 				nodes { url title }
 			}
 			comments(first: 50) {
-				nodes { id body createdAt updatedAt user { name displayName } reactions { id } }
+				nodes { id body createdAt updatedAt parent { id } user { name displayName } reactions { id } }
 				pageInfo { hasNextPage endCursor }
 			}
 			history(first: 50) {
@@ -115,6 +115,22 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 		}
 	}
 }`;
+
+const commentNode = z.object({
+	id: z.string().optional(),
+	body: z.string().nullable().optional(),
+	createdAt: z.string().optional(),
+	updatedAt: z.string().optional(),
+	parent: z.object({ id: z.string() }).nullable().optional(),
+	user: z
+		.object({
+			name: z.string().nullable().optional(),
+			displayName: z.string().nullable().optional(),
+		})
+		.nullable()
+		.optional(),
+	reactions: z.array(z.object({ id: z.string() })).optional(),
+});
 
 const attachmentNode = z.object({
 	url: z.string(),
@@ -212,22 +228,7 @@ const issueNode = z.object({
 	attachments: z.object({ nodes: z.array(attachmentNode) }).optional(),
 	comments: z
 		.object({
-			nodes: z.array(
-				z.object({
-					id: z.string().optional(),
-					body: z.string().nullable().optional(),
-					createdAt: z.string().optional(),
-					updatedAt: z.string().optional(),
-					user: z
-						.object({
-							name: z.string().nullable().optional(),
-							displayName: z.string().nullable().optional(),
-						})
-						.nullable()
-						.optional(),
-					reactions: z.array(z.object({ id: z.string() })).optional(),
-				}),
-			),
+			nodes: z.array(commentNode),
 			pageInfo: pageInfo.optional(),
 		})
 		.optional(),
@@ -556,22 +557,7 @@ const commentPage = z.object({
 	issue: z
 		.object({
 			comments: z.object({
-				nodes: z.array(
-					z.object({
-						id: z.string().optional(),
-						body: z.string().nullable(),
-						createdAt: z.string().optional(),
-						updatedAt: z.string().optional(),
-						user: z
-							.object({
-								name: z.string().nullable().optional(),
-								displayName: z.string().nullable().optional(),
-							})
-							.nullable()
-							.optional(),
-						reactions: z.array(z.object({ id: z.string() })).optional(),
-					}),
-				),
+				nodes: z.array(commentNode),
 				pageInfo,
 			}),
 		})
@@ -581,7 +567,7 @@ const commentPage = z.object({
 const commentsQuery = `query IssueComments($id: String!, $after: String) {
 	issue(id: $id) {
 		comments(first: 50, after: $after) {
-			nodes { id body createdAt updatedAt user { name displayName } reactions { id } }
+			nodes { id body createdAt updatedAt parent { id } user { name displayName } reactions { id } }
 			pageInfo { hasNextPage endCursor }
 		}
 	}
@@ -589,20 +575,9 @@ const commentsQuery = `query IssueComments($id: String!, $after: String) {
 
 type ListedComment = Comment;
 
-function listedComment(node: {
-	id?: string | undefined;
-	body?: string | null | undefined;
-	createdAt?: string | undefined;
-	updatedAt?: string | undefined;
-	user?:
-		| {
-				name?: string | null | undefined;
-				displayName?: string | null | undefined;
-		  }
-		| null
-		| undefined;
-	reactions?: { id: string }[] | undefined;
-}): ListedComment | null {
+function listedComment(
+	node: z.infer<typeof commentNode>,
+): ListedComment | null {
 	const body = node.body ?? "";
 	if (body === "") {
 		return null;
@@ -614,6 +589,7 @@ function listedComment(node: {
 		...(node.createdAt === undefined ? {} : { createdAt: node.createdAt }),
 		...(node.updatedAt === undefined ? {} : { updatedAt: node.updatedAt }),
 		...(author === undefined ? {} : { author }),
+		...(node.parent?.id === undefined ? {} : { parentId: node.parent.id }),
 		...(node.reactions === undefined
 			? {}
 			: { reactions: node.reactions.length }),
