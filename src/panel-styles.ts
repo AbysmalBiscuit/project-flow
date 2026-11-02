@@ -141,6 +141,28 @@ export const panel = stylex.create({
 	answer: {
 		marginTop: space.sm,
 	},
+	reactions: {
+		display: "flex",
+		flexWrap: "wrap",
+		gap: space.xs,
+		margin: `${space.xs} 0 0`,
+		padding: measure.none,
+		listStyle: "none",
+	},
+	reaction: {
+		display: "inline-flex",
+		alignItems: "center",
+		gap: space.xs,
+		padding: `${space.twoXs} ${space.sm}`,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.controlLine,
+		borderRadius: radius.pill,
+		backgroundColor: colours.segment,
+		color: colours.inkSoft,
+		fontSize: type.small,
+		fontVariantNumeric: "tabular-nums",
+	},
 	reply: {
 		display: "flex",
 		flex: "0 0 auto",
