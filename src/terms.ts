@@ -58,12 +58,6 @@ export const openParentLabel = "Open";
 
 export const projectPageLabel = "Project page";
 
-export const copyKeyCopy = {
-	action: (key: string) => `Copy ${key}`,
-	copied: "Copied",
-	failed: "Copy failed",
-} as const;
-
 export const openProjectLabel = "Open project";
 
 export function factoryTokenFallbackLabel(report: FactoryTokenReport): string {

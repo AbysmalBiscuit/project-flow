@@ -2,11 +2,16 @@ import { useState } from "react";
 
 import { textControl } from "./control-styles.ts";
 import { panel } from "./panel-styles.ts";
-import { copyKeyCopy } from "./terms.ts";
 import { Toast } from "./toast.tsx";
 import { clsx } from "./ui.ts";
 
 const copiedHideMs = 2_000;
+
+const copyKeyCopy = {
+	action: (key: string) => `Copy ${key}`,
+	copied: "Copied",
+	failed: "Copy failed",
+} as const;
 
 type Outcome = { tone: "saved" | "error"; message: string };
 
