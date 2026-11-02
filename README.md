@@ -43,7 +43,7 @@ The file can be empty `{}`. `src/configuration.ts` holds the schema. That schema
 
 - `theme` is `light` or `dark`. The header theme button writes it. The page opens in that theme. The default is `light`.
 - `tracked` names the tracked projects. The app polls only these projects, and only these projects show on the overview. The default is `[]`.
-- `pinnedProjects` names the pinned projects. The overview shows a pinned tracked project before the other projects, for each sort key and direction. The overview sort orders the projects in each group. The Pinned switch in Settings writes this list. The default is `[]`.
+- `pinnedProjects` names the pinned projects. The overview shows a pinned tracked project before the other projects, for each sort key and direction. The overview sort orders the projects in each group. The Pinned switch in Settings and the pin icon on a project card write this list. The pin icon sits in the top right corner of the card. A pinned card always shows the icon. An unpinned card shows it on hover or keyboard focus. A click on the icon pins or unpins the project. The default is `[]`.
 - `pollIntervalSeconds` is the gap between polls. The default is `300`.
 - `checkoutRoots` names folders the app scans for local checkouts. Each entry is an absolute path. The app does not expand `~`. The default is the `Git` folder in the home directory.
 - `expectedBots` names the review bots for a repo. The key is `owner/name`. The value is a list of `grok`, `codex` and `greptile`. An empty list means the repo has no expected bots. When the field is absent, the app reads the bots from the repo's recent merged PRs.
