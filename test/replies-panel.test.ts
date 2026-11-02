@@ -96,7 +96,7 @@ test("a plain panel reply quotes an open ask and a reaction acknowledges it", as
 		if (createdNode === undefined) {
 			throw new Error("posted reply missing from recorded comments");
 		}
-		createdNode.reactions = [{ id: "reaction-ack" }];
+		createdNode.reactions = [{ id: "reaction-ack", emoji: "+1" }];
 		await refreshSettled(app.base);
 		const afterPoll = (await (
 			await fetch(new URL("/api/needs-you", app.base))

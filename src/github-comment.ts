@@ -1,6 +1,12 @@
 import { z } from "zod";
 
 import type { Comment } from "./domain.ts";
+import {
+	githubReactionGroups,
+	githubRestReactions,
+	reactionTotal,
+	restReactions,
+} from "./reactions.ts";
 
 export const graphqlActor = z.object({ login: z.string() }).nullable();
 
@@ -10,7 +16,7 @@ export const graphqlComment = z.object({
 	createdAt: z.string().optional(),
 	updatedAt: z.string().optional(),
 	author: graphqlActor.optional(),
-	reactions: z.object({ totalCount: z.number() }).optional(),
+	reactionGroups: githubReactionGroups.optional(),
 });
 
 export const githubComment = z.object({
@@ -19,7 +25,7 @@ export const githubComment = z.object({
 	created_at: z.string().optional(),
 	updated_at: z.string().optional(),
 	user: z.object({ login: z.string() }).nullable().optional(),
-	reactions: z.object({ total_count: z.number().optional() }).optional(),
+	reactions: githubRestReactions.optional(),
 });
 
 export function commentFromGithub(
@@ -41,8 +47,8 @@ export function commentFromGithub(
 		...(comment.user?.login === undefined
 			? {}
 			: { author: comment.user.login }),
-		...(comment.reactions?.total_count === undefined
+		...(comment.reactions === undefined
 			? {}
-			: { reactions: comment.reactions.total_count }),
+			: { reactions: reactionTotal(restReactions(comment.reactions)) }),
 	};
 }

@@ -88,7 +88,7 @@ describe("needs you", () => {
 							body: "Reply: noted.",
 							created_at: "2026-10-01T01:00:00Z",
 							user: { login: "lev" },
-							reactions: { total_count: 1 },
+							reactions: { total_count: 1, eyes: 1 },
 						},
 					],
 				},

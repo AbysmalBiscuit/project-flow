@@ -98,7 +98,7 @@ describe("replies", () => {
 								body: "Reply: the short name.",
 								createdAt: "2026-08-18T12:30:00.000Z",
 								user: { name: "Lev" },
-								reactions: [{ id: "reaction-1" }],
+								reactions: [{ id: "reaction-1", emoji: "+1" }],
 							},
 						],
 					},

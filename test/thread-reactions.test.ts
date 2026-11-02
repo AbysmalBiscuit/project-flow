@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import type { Thread } from "../src/domain.ts";
+import type { NeedsYouItem, Thread } from "../src/domain.ts";
 import {
 	githubFetch,
 	issue,
@@ -222,6 +222,143 @@ test("a Linear thread returns the reactions of each comment by emoji", async () 
 		expect(requests.find((body) => body.includes("IssueThread"))).toContain(
 			"reactions { emoji }",
 		);
+	} finally {
+		await app.stop();
+	}
+});
+
+const ask = (id: string) => `<!-- workcell:ask ${id} -->`;
+
+const settledNeedsYou = async (base: string, key: string) => {
+	const response = await settledRead(new URL("/api/needs-you", base));
+	const items = (await response.json()) as NeedsYouItem[];
+	return items.find((item) => item.key === key);
+};
+
+test("a Linear reaction that acknowledges a reply is the pill under it", async () => {
+	const requests: string[] = [];
+	const recorded = linearFake({
+		project: {
+			id: "11111111-1111-4111-8111-111111111111",
+			name: "Widget launch",
+			slugId: "widget-launch",
+		},
+		requests,
+		issues: [
+			{
+				id: "issue-pf-9",
+				identifier: "PF-9",
+				title: "Needs a name",
+				description: "Body",
+				state: { type: "unstarted" },
+				updatedAt: "2026-08-18T12:00:00.000Z",
+				labels: { nodes: [] },
+				comments: {
+					nodes: [
+						{
+							id: "comment-ask",
+							body: `Which name?\n\n${ask("pf-9")}`,
+							createdAt: "2026-08-18T12:00:00.000Z",
+							user: { name: "Adaptyv Software Factory" },
+							reactions: [],
+						},
+						{
+							id: "comment-reply",
+							body: "Reply: the short name.",
+							createdAt: "2026-08-18T12:30:00.000Z",
+							user: { name: "Lev" },
+							reactions: [
+								{ id: "8f5eddda-34d2-423b-ae60-7022b30207bc", emoji: "+1" },
+							],
+						},
+					],
+				},
+			},
+		],
+	});
+	const app = await serve(
+		recorded,
+		JSON.stringify({
+			pinned: [{ tracker: "linear", project: "widget-launch" }],
+		}),
+	);
+	try {
+		expect(await settledNeedsYou(app.base, "PF-9")).toMatchObject({
+			answered: true,
+			acknowledged: true,
+		});
+		const response = await settledRead(
+			new URL("/api/threads/linear/PF-9?project=widget-launch", app.base),
+		);
+		const thread = (await response.json()) as Thread;
+		expect(reactionsOf(thread)).toEqual({
+			"comment-ask": [],
+			"comment-reply": [{ emoji: "👍", count: 1 }],
+		});
+		const poll = requests.find((body) => body.includes("ProjectIssues"));
+		expect(poll).toContain("reactions { emoji }");
+	} finally {
+		await app.stop();
+	}
+});
+
+test("a GitHub reaction that acknowledges a reply is the pill under it", async () => {
+	const sent: Sent[] = [];
+	const recorded = githubFetch(sent, {
+		issues: [issue(7, 2)],
+		comments: {
+			7: [
+				{
+					id: 70,
+					body: `This waits on Lev: which name?\n\n${ask("gh-7")}`,
+					user: { login: "workcell-bot" },
+					created_at: "2026-08-18T12:00:00.000Z",
+					html_url: "https://github.com/acme/widget/issues/7#issuecomment-70",
+					reactions: noReactions,
+				},
+				{
+					id: 71,
+					body: "Reply: the short name.",
+					user: { login: "lev" },
+					created_at: "2026-08-18T12:30:00.000Z",
+					html_url: "https://github.com/acme/widget/issues/7#issuecomment-71",
+					reactions: { ...noReactions, total_count: 1, eyes: 1 },
+				},
+			],
+		},
+	});
+	const app = await serve(
+		recorded,
+		JSON.stringify({
+			pinned: [{ tracker: "github", repo: "acme/widget" }],
+			pmBot: { "acme/widget": false },
+		}),
+	);
+	try {
+		expect(await settledNeedsYou(app.base, "acme/widget#7")).toMatchObject({
+			answered: true,
+			acknowledged: true,
+		});
+		const response = await settledRead(
+			new URL(
+				"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
+				app.base,
+			),
+		);
+		const thread = (await response.json()) as Thread;
+		expect(reactionsOf(thread)).toEqual({
+			"70": [],
+			"71": [{ emoji: "👀", count: 1 }],
+		});
+		expect(
+			sent.some(
+				(item) =>
+					item.body.includes("databaseId body") &&
+					item.body.includes(
+						"reactionGroups { content reactors { totalCount } }",
+					),
+			),
+		).toBe(true);
 	} finally {
 		await app.stop();
 	}

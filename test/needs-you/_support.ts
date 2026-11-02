@@ -86,7 +86,7 @@ export type RecordedComment = {
 	body: string;
 	created_at: string;
 	user: { login: string };
-	reactions?: { total_count: number };
+	reactions?: { total_count: number; "+1"?: number; eyes?: number };
 };
 
 /**

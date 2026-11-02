@@ -16,7 +16,7 @@ import {
 	linearPageInfo,
 } from "./linear-api.ts";
 import { TrackerError } from "./ports.ts";
-import { emojiReactions } from "./reactions.ts";
+import { emojiReactions, linearReactionSelection } from "./reactions.ts";
 
 const pageInfo = linearPageInfo;
 
@@ -33,7 +33,7 @@ const threadQuery = `query IssueThread($id: String!, $after: String) {
 				url
 				parent { id }
 				user { name displayName }
-				reactions { emoji }
+				${linearReactionSelection}
 			}
 			pageInfo { hasNextPage endCursor }
 		}
@@ -51,7 +51,6 @@ const threadPage = z.object({
 					linearCommentNode.extend({
 						id: z.string(),
 						url: z.string().optional(),
-						reactions: z.array(z.object({ emoji: z.string() })).optional(),
 					}),
 				),
 				pageInfo,

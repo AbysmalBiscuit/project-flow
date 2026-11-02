@@ -73,6 +73,7 @@ export function githubIssueNode(
 					createdAt?: unknown;
 					updatedAt?: unknown;
 					user?: { login?: unknown } | null;
+					reactions?: unknown;
 				};
 				return [
 					{
@@ -89,7 +90,7 @@ export function githubIssueNode(
 							row.user?.login === undefined
 								? null
 								: { login: String(row.user.login) },
-						reactions: { totalCount: 0 },
+						reactionGroups: reactionGroupsOf(row.reactions),
 					},
 				];
 			})
@@ -248,6 +249,21 @@ const reviewStateGraphql: Record<string, string> = {
 	pending: "PENDING",
 };
 
+/** The GraphQL reaction groups of the REST reaction counts of a comment. */
+function reactionGroupsOf(
+	reactions: unknown,
+): { content: string; reactors: { totalCount: number } }[] {
+	if (reactions === null || typeof reactions !== "object") {
+		return [];
+	}
+	return Object.entries(reactions).flatMap(([name, count]) => {
+		const content = reactionContentGraphql[name];
+		return content === undefined || typeof count !== "number"
+			? []
+			: [{ content, reactors: { totalCount: count } }];
+	});
+}
+
 const reactionContentGraphql: Record<string, string> = {
 	confused: "CONFUSED",
 	eyes: "EYES",
@@ -306,18 +322,12 @@ export function githubPullNode(
 		if (typeof login !== "string") {
 			return [];
 		}
-		const reactions = row.reactions as { total_count?: unknown } | undefined;
 		return [
 			{
 				author: { login },
 				body: row.body ?? "",
 				...(row.created_at == null ? {} : { createdAt: row.created_at }),
-				reactions: {
-					totalCount:
-						typeof reactions?.total_count === "number"
-							? reactions.total_count
-							: 0,
-				},
+				reactionGroups: reactionGroupsOf(row.reactions),
 			},
 		];
 	});

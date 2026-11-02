@@ -56,7 +56,7 @@ import {
 } from "./github-repo-query.ts";
 import { TrackerError } from "./ports.ts";
 import { repoParts } from "./project-ref.ts";
-import { reactionName } from "./reactions.ts";
+import { groupReactions, reactionName, reactionTotal } from "./reactions.ts";
 import { numberedKey, sameTicketKey } from "./ticket-key.ts";
 import { statusColours } from "./token-palette.ts";
 
@@ -84,12 +84,19 @@ function ticketFromGraphql(
 			created_at: comment.createdAt,
 			updated_at: comment.updatedAt,
 			user: comment.author ?? null,
-			reactions:
-				comment.reactions === undefined
-					? undefined
-					: { total_count: comment.reactions.totalCount },
 		});
-		return mapped === null ? [] : [mapped];
+		return mapped === null
+			? []
+			: [
+					comment.reactionGroups === undefined
+						? mapped
+						: {
+								...mapped,
+								reactions: reactionTotal(
+									groupReactions(comment.reactionGroups),
+								),
+							},
+				];
 	});
 	return ticketFromGithubIssue(issue, repo, comments);
 }
@@ -130,7 +137,7 @@ export function reviewFromGraphql(pull: PullLists): ReviewEvidence {
 			login,
 			body: comment.body ?? "",
 			createdAt: comment.createdAt ?? null,
-			reactions: comment.reactions?.totalCount ?? 0,
+			reactions: reactionTotal(groupReactions(comment.reactionGroups)),
 		});
 	}
 	const reviews: BotReview[] = [];
