@@ -23,6 +23,7 @@ import {
 	openEventStream,
 	type OverviewBody,
 	overviewOf,
+	projectTickets,
 	readOverview,
 	settledOverview,
 	settledOverviewEvent,
@@ -250,8 +251,9 @@ describe("live updates", () => {
 					const body = (await (
 						await fetch(new URL("/api/overview", base))
 					).json()) as OverviewBody;
-					expect(body.projects).toEqual([
-						counts(repo, 1, 0, "github", [githubTicket(1, "backlog")]),
+					expect(body.projects).toEqual([counts(repo, 1, 0, "github")]);
+					expect(await projectTickets(base, repo)).toMatchObject([
+						githubTicket(1, "backlog"),
 					]);
 					expect(body.fetchedAt).toBe(goodPoll);
 					expect(body.error).toBeNull();
@@ -638,8 +640,9 @@ describe("live updates", () => {
 					const body = await settledOverview(base, readOverview);
 					expect(body.error).toContain("not JSON");
 					expect(body.projects).toEqual([
-						counts(repo, 0, 0, "github", [], goodPoll),
+						counts(repo, 0, 0, "github", goodPoll),
 					]);
+					expect(await projectTickets(base, repo)).toEqual([]);
 					resolve();
 				})().catch(reject);
 			};

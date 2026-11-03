@@ -30,13 +30,15 @@ import {
 	ticket,
 	unrecorded,
 } from "../support/github.ts";
-import { settledRead } from "../support/reads.ts";
+import {
+	type openEventStream,
+	type OverviewWithTickets,
+	type ServedOverview,
+	settledRead,
+	withReportTickets,
+} from "../support/reads.ts";
 
-export type RunOverview = {
-	projects: { tickets: TicketView[] }[];
-	polling?: true;
-	factoryUnreachable?: true;
-};
+export type RunOverview = OverviewWithTickets<TicketView>;
 
 export const runClockStart = Date.parse("2026-10-25T14:20:00Z");
 
@@ -55,8 +57,13 @@ export async function overviewWhere(
 ): Promise<RunOverview> {
 	while (true) {
 		const response = await fetch(new URL("/api/overview", base));
-		const body = (await response.json()) as RunOverview;
-		if (body.polling !== true && accept(body)) {
+		const served = (await response.json()) as ServedOverview;
+		if (served.polling === true) {
+			await Bun.sleep(20);
+			continue;
+		}
+		const body = await withReportTickets<TicketView>(base, served);
+		if (accept(body)) {
 			return body;
 		}
 		await Bun.sleep(20);
@@ -176,15 +183,19 @@ export async function serveRuns(
 
 export const runPollMs = 10_000;
 
+/** Wait for an overview event after which the overview and the project reports meet `accept`. */
 export async function overviewEventWhere(
-	events: AsyncIterable<{ event: string; data: string }>,
+	stream: Pick<ReturnType<typeof openEventStream>, "base" | "events">,
 	accept: (body: RunOverview) => boolean,
 ): Promise<RunOverview> {
-	for await (const event of events) {
+	for await (const event of stream.events) {
 		if (event.event !== "overview") {
 			continue;
 		}
-		const body = JSON.parse(event.data) as RunOverview;
+		const body = await withReportTickets<TicketView>(
+			stream.base,
+			JSON.parse(event.data) as ServedOverview,
+		);
 		if (accept(body)) {
 			return body;
 		}

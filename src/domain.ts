@@ -354,6 +354,9 @@ export type ProjectCounts = {
 
 export type ProjectBody = Omit<ProjectCounts, "ref" | "displayKey">;
 
+/** A project card of the overview. The project report carries the tickets of the project. */
+export type OverviewCard = Omit<ProjectCounts, "tickets">;
+
 export type ThreadComment = {
 	id: string;
 	body: string;
@@ -518,7 +521,7 @@ export type ProjectReport = {
 };
 
 export type Overview = {
-	projects: ProjectCounts[];
+	projects: OverviewCard[];
 	fetchedAt: string | null;
 	error: string | null;
 	polling?: true;

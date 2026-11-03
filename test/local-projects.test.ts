@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import type { Overview } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { tempConfig, testIo } from "./support/app.ts";
@@ -13,7 +14,11 @@ import {
 	recordedDiscovery,
 	unrecorded,
 } from "./support/github.ts";
-import { trackFound } from "./support/reads.ts";
+import {
+	projectTickets,
+	type ShownTicket,
+	trackFound,
+} from "./support/reads.ts";
 import {
 	githubIssueNode,
 	repoReadIssues,
@@ -187,6 +192,47 @@ function localFetch(requests: string[]): Fetch {
 	};
 }
 
+const shownKeys = [
+	"key",
+	"title",
+	"state",
+	"blockers",
+	"lane",
+	"statusType",
+	"chips",
+	"run",
+	"enteredStateAt",
+	"updatedAt",
+] as const satisfies readonly (keyof ShownTicket)[];
+
+/**
+ * The overview, with the tickets of each project card from its project report.
+ * Each ticket keeps the fields that the overview card gave before the report took them.
+ */
+async function overviewWithTickets(base: string): Promise<unknown> {
+	const response = await fetch(new URL("/api/overview", base));
+	expect(response.status).toBe(200);
+	const body = (await response.json()) as Overview;
+	return {
+		...body,
+		projects: await Promise.all(
+			body.projects.map(async (project) => ({
+				...project,
+				tickets:
+					project.pending === true
+						? []
+						: (await projectTickets(base, project.name)).map((ticket) =>
+								Object.fromEntries(
+									shownKeys.flatMap((key) =>
+										ticket[key] === undefined ? [] : [[key, ticket[key]]],
+									),
+								),
+							),
+			})),
+		),
+	};
+}
+
 async function overview(input: {
 	files?: Record<string, string>;
 	todos?: string;
@@ -209,12 +255,8 @@ async function overview(input: {
 	const checks = new Promise<unknown>((resolve, reject) => {
 		startChecks = (base: string) => {
 			trackFound(base)
-				.then(() => fetch(new URL("/api/overview", base)))
-				.then(async (response) => {
-					expect(response.status).toBe(200);
-					resolve(await response.json());
-				})
-				.catch(reject);
+				.then(() => overviewWithTickets(base))
+				.then(resolve, reject);
 		};
 	});
 	try {

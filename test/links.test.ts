@@ -3,12 +3,14 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import type { Overview } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { tempConfig, testIo } from "./support/app.ts";
 import { urlOf } from "./support/fetch.ts";
 import { page, recordedDiscovery, repo, unrecorded } from "./support/github.ts";
 import { linearFake } from "./support/linear.ts";
+import { projectTickets } from "./support/reads.ts";
 import { repoReadFromHandler } from "./support/repo-read.ts";
 
 function issue(
@@ -208,6 +210,22 @@ function githubFetch(
 	};
 }
 
+/** The overview, with the tickets of each project card from its project report. */
+async function overviewWithTickets(base: string): Promise<unknown> {
+	const response = await fetch(new URL("/api/overview", base));
+	expect(response.status).toBe(200);
+	const body = (await response.json()) as Overview;
+	return {
+		...body,
+		projects: await Promise.all(
+			body.projects.map(async (card) => ({
+				...card,
+				tickets: await projectTickets(base, card.name),
+			})),
+		),
+	};
+}
+
 async function overview(
 	recorded: {
 		issues: Record<string, unknown>[];
@@ -226,12 +244,7 @@ async function overview(
 	let startChecks: (base: string) => void = () => {};
 	const checks = new Promise<unknown>((resolve, reject) => {
 		startChecks = (base: string) => {
-			fetch(new URL("/api/overview", base))
-				.then(async (response) => {
-					expect(response.status).toBe(200);
-					resolve(await response.json());
-				})
-				.catch(reject);
+			overviewWithTickets(base).then(resolve, reject);
 		};
 	});
 	try {
@@ -792,9 +805,7 @@ describe("PR links", () => {
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
 			startChecks = (base: string) => {
-				fetch(new URL("/api/overview", base))
-					.then(async (response) => resolve(await response.json()))
-					.catch(reject);
+				overviewWithTickets(base).then(resolve, reject);
 			};
 		});
 		try {

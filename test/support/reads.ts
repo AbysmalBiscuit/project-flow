@@ -128,6 +128,7 @@ function readSseEvents(buffer: string): {
 }
 
 export function openEventStream(base: string): {
+	base: string;
 	events: AsyncIterable<ChangeEvent>;
 	close: () => void;
 	ready: Promise<void>;
@@ -167,6 +168,7 @@ export function openEventStream(base: string): {
 		},
 	});
 	return {
+		base,
 		events: {
 			async *[Symbol.asyncIterator]() {
 				while (!closed) {
@@ -203,6 +205,122 @@ export type ShownTicket = {
 	updatedAt?: string;
 };
 
+/**
+ * The tickets of a project, as its unfiltered project report gives them.
+ * The report lists the unlinked PRs after the tickets, and `total` counts only the tickets.
+ */
+export async function projectTickets<Ticket extends ShownTicket = ShownTicket>(
+	base: string,
+	name: string,
+): Promise<Ticket[]> {
+	const response = await fetch(
+		new URL(`/api/projects/${encodeURIComponent(name)}?view=all`, base),
+	);
+	if (!response.ok) {
+		throw new Error(`the report of ${name} answered ${response.status}`);
+	}
+	const report = (await response.json()) as {
+		tickets: Ticket[];
+		total: number;
+	};
+	return report.tickets.slice(0, report.total);
+}
+
+/** The fields of an overview body that a ticket read needs. */
+export type ServedOverview = {
+	projects: { name: string; pending?: true }[];
+	polling?: true;
+	factoryUnreachable?: true;
+};
+
+/** An overview, with the tickets of each project card from its project report. */
+export type OverviewWithTickets<Ticket extends ShownTicket> = Omit<
+	ServedOverview,
+	"projects"
+> & {
+	projects: { name: string; tickets: Ticket[] }[];
+};
+
+/** Attach the report tickets of each project card, as the page reads them. A pending card has no report yet. */
+export async function withReportTickets<Ticket extends ShownTicket>(
+	base: string,
+	overview: ServedOverview,
+): Promise<OverviewWithTickets<Ticket>> {
+	return {
+		...overview,
+		projects: await Promise.all(
+			overview.projects.map(async (card) => ({
+				name: card.name,
+				tickets:
+					card.pending === true
+						? []
+						: await projectTickets<Ticket>(base, card.name),
+			})),
+		),
+	};
+}
+
+function cardFields({
+	key,
+	title,
+	state,
+	blockers,
+	lane,
+	statusType,
+	chips,
+	enteredStateAt,
+	updatedAt,
+}: ShownTicket): ShownTicket {
+	return {
+		key,
+		title,
+		state,
+		blockers,
+		...(lane === undefined ? {} : { lane }),
+		...(statusType === undefined ? {} : { statusType }),
+		...(chips === undefined ? {} : { chips }),
+		...(enteredStateAt === undefined ? {} : { enteredStateAt }),
+		...(updatedAt === undefined ? {} : { updatedAt }),
+	};
+}
+
+/**
+ * The overview, with the report tickets of each card cut to the fields that an overview card gave them.
+ * The report adds `run` from progress comments, so the cut leaves `run` out.
+ * A test compares whole cards and their tickets with one `toEqual`.
+ */
+export async function withCardTickets<Card extends { name: string }>(
+	base: string,
+	overview: { projects: Card[] },
+): Promise<{ projects: (Card & { tickets: ShownTicket[] })[] }> {
+	return {
+		...overview,
+		projects: await Promise.all(
+			overview.projects.map(async (card) => ({
+				...card,
+				tickets: (await projectTickets(base, card.name)).map(cardFields),
+			})),
+		),
+	};
+}
+
+/** Read the tickets of a project again until `accept` takes them. */
+export async function projectTicketsWhere<
+	Ticket extends ShownTicket = ShownTicket,
+>(
+	base: string,
+	name: string,
+	accept: (tickets: Ticket[]) => boolean,
+): Promise<Ticket[]> {
+	while (true) {
+		const tickets = await projectTickets<Ticket>(base, name);
+		if (accept(tickets)) {
+			return tickets;
+		}
+		await Bun.sleep(5);
+	}
+}
+
 export type OverviewBody = {
 	projects: {
 		name: string;
@@ -216,7 +334,6 @@ export type OverviewBody = {
 		awaitingMerge: number;
 		tags: string[];
 		unlinkedPrs: unknown[];
-		tickets: ShownTicket[];
 		crossProjectBlockers: unknown[];
 		needsYou: number;
 		progress: number;

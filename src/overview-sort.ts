@@ -1,5 +1,5 @@
 import type { useTrackerLabel } from "./backend-labels.ts";
-import type { CrossProjectBlocker, Overview, ProjectCounts } from "./domain.ts";
+import type { CrossProjectBlocker, Overview, OverviewCard } from "./domain.ts";
 import type { OverviewView } from "./overview-view.ts";
 import { outsideKey } from "./ticket-key.ts";
 
@@ -11,7 +11,7 @@ type FilterKey = OverviewView["filter"];
 export type SortKey = OverviewView["sort"];
 export type SortDirection = OverviewView["direction"];
 
-function matchesFilter(project: ProjectCounts, filter: FilterKey): boolean {
+function matchesFilter(project: OverviewCard, filter: FilterKey): boolean {
 	if (filter === "needs-you") {
 		return project.needsYou > 0;
 	}
@@ -21,7 +21,7 @@ function matchesFilter(project: ProjectCounts, filter: FilterKey): boolean {
 	return true;
 }
 
-function matchesSearch(project: ProjectCounts, query: string): boolean {
+function matchesSearch(project: OverviewCard, query: string): boolean {
 	const needle = query.trim().toLowerCase();
 	if (needle === "") {
 		return true;
@@ -42,7 +42,7 @@ function matchesSearch(project: ProjectCounts, query: string): boolean {
 export type TrackerLabel = ReturnType<typeof useTrackerLabel>;
 
 function sortValue(
-	project: ProjectCounts,
+	project: OverviewCard,
 	key: SortKey,
 	trackerLabel: TrackerLabel,
 ): number | string {
@@ -89,11 +89,11 @@ export function sortDirectionFor(
 
 /** Orders pinned projects before the rest, then each group by the sort key and direction. */
 export function sortProjects(
-	projects: ProjectCounts[],
+	projects: OverviewCard[],
 	key: SortKey,
 	direction: SortDirection,
 	trackerLabel: TrackerLabel,
-): ProjectCounts[] {
+): OverviewCard[] {
 	return [...projects].sort((left, right) => {
 		const pinDelta =
 			Number(right.pinned === true) - Number(left.pinned === true);
@@ -118,7 +118,7 @@ export function shownProjects(
 	view: OverviewView,
 	query: string,
 	trackerLabel: TrackerLabel,
-): ProjectCounts[] {
+): OverviewCard[] {
 	return sortProjects(
 		overview.projects.filter(
 			(project) =>

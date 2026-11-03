@@ -7,7 +7,11 @@ import type { Overview } from "../../src/domain.ts";
 import { run } from "../../src/main.ts";
 import { tempConfig, testIo } from "../support/app.ts";
 import { githubSince } from "../support/github.ts";
-import { readOverview, settledOverview } from "../support/reads.ts";
+import {
+	projectTickets,
+	readOverview,
+	settledOverview,
+} from "../support/reads.ts";
 import {
 	emptyPage,
 	type GraphqlRequest,
@@ -93,20 +97,23 @@ describe("batched GitHub reads", () => {
 			expect(failedRefresh.status).toBe(204);
 			const failed = await settledOverview(base, readOverview<Overview>);
 			expect(failed.projects[0]?.error).toContain("GitHub read repo failed");
-			expect(failed.projects[0]?.tickets).toHaveLength(2);
+			expect(await projectTickets(base, "acme/widget")).toHaveLength(2);
 			const refresh = await fetch(new URL("/api/refresh", base), {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
 			const recovered = await settledOverview(base, readOverview<Overview>);
 			expect(recovered.error).toBeNull();
-			expect(recovered.projects[0]?.tickets).toHaveLength(2);
+			expect(await projectTickets(base, "acme/widget")).toHaveLength(2);
 			const again = await fetch(new URL("/api/refresh", base), {
 				method: "POST",
 			});
 			expect(again.status).toBe(204);
 			const updated = await settledOverview(base, readOverview<Overview>);
-			expect(updated.projects[0]?.tickets[0]?.title).toBe("Recovered ticket");
+			expect(updated.projects[0]?.name).toBe("acme/widget");
+			expect((await projectTickets(base, "acme/widget"))[0]?.title).toBe(
+				"Recovered ticket",
+			);
 			expect(queries.length).toBeGreaterThanOrEqual(3);
 			stop();
 			await running;
@@ -317,13 +324,9 @@ describe("batched GitHub reads", () => {
 			expect(
 				incremental.every((request) => request.query.includes("issues(")),
 			).toBe(true);
-			const overview = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as Overview;
 			expect(
-				overview.projects
-					.find((item) => item.name === "acme/widget")
-					?.tickets.map((ticket) => ticket.key)
+				(await projectTickets(base, "acme/widget"))
+					.map((ticket) => ticket.key)
 					.sort(),
 			).toEqual(["acme/widget#101", "acme/widget#102", "acme/widget#200"]);
 			stop();

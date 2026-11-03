@@ -308,7 +308,7 @@ export function overview(
 	configuration: Configuration,
 ): Overview {
 	const counted = projectViews(options, configuration).map(
-		(item) => item.counts,
+		({ counts: { tickets: _tickets, ...card } }) => card,
 	);
 	const pending = options.polling
 		? pendingProjects(

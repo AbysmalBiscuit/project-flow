@@ -15,7 +15,7 @@ import {
 	recordedDiscovery,
 	unrecorded,
 } from "../support/github.ts";
-import { settledOverview } from "../support/reads.ts";
+import { projectTickets, settledOverview } from "../support/reads.ts";
 import { githubIssueNode, repoReadFromHandler } from "../support/repo-read.ts";
 import { githubTicket, readServedOverview } from "./_support.ts";
 
@@ -138,7 +138,9 @@ describe("GET /api/overview", () => {
 					const first = await fetch(new URL("/api/overview", base));
 					expect(first.status).toBe(200);
 					const before = (await first.json()) as Overview;
-					expect(before.projects[0]?.tickets.map((item) => item.key)).toEqual([
+					expect(before.projects[0]?.name).toBe(repoName);
+					const beforeTickets = await projectTickets(base, repoName);
+					expect(beforeTickets.map((item) => item.key)).toEqual([
 						`${repoName}#4`,
 					]);
 					clock.frozen = true;
@@ -147,7 +149,9 @@ describe("GET /api/overview", () => {
 					});
 					expect(refresh.status).toBe(204);
 					const after = await settledOverview(base, readServedOverview);
-					expect(after.projects[0]?.tickets.map((item) => item.key)).toEqual([
+					expect(after.projects[0]?.name).toBe(repoName);
+					const afterTickets = await projectTickets(base, repoName);
+					expect(afterTickets.map((item) => item.key)).toEqual([
 						`${repoName}#4`,
 						`${repoName}#8`,
 					]);
@@ -156,7 +160,8 @@ describe("GET /api/overview", () => {
 					});
 					expect(again.status).toBe(204);
 					const kept = await settledOverview(base, readServedOverview);
-					expect(kept.projects[0]?.tickets).toEqual(after.projects[0]?.tickets);
+					expect(kept.projects[0]?.name).toBe(repoName);
+					expect(await projectTickets(base, repoName)).toEqual(afterTickets);
 					expect(kept.error).toBeNull();
 					const repoReads = sent.filter((item) =>
 						item.body.includes("query RepoRead"),
@@ -324,10 +329,11 @@ describe("GET /api/overview", () => {
 					const first = await fetch(new URL("/api/overview", base));
 					expect(first.status).toBe(200);
 					const before = (await first.json()) as Overview;
+					expect(before.projects.map((project) => project.name)).toContain(
+						repoName,
+					);
 					expect(
-						before.projects
-							.find((project) => project.name === repoName)
-							?.tickets.map((item) => item.key),
+						(await projectTickets(base, repoName)).map((item) => item.key),
 					).toEqual([`${repoName}#4`]);
 					const refresh = await fetch(new URL("/api/refresh", base), {
 						method: "POST",

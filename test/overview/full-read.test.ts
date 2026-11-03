@@ -16,7 +16,7 @@ import {
 	recordedDiscovery,
 	unrecorded,
 } from "../support/github.ts";
-import { settledOverview } from "../support/reads.ts";
+import { projectTickets, settledOverview } from "../support/reads.ts";
 import { repoReadFromHandler } from "../support/repo-read.ts";
 import { emptyList, readServedOverview } from "./_support.ts";
 
@@ -107,7 +107,8 @@ describe("GET /api/overview", () => {
 			const emptyOverview = await fetch(new URL("/api/overview", base));
 			expect(emptyOverview.status).toBe(200);
 			const emptyBody = (await emptyOverview.json()) as Overview;
-			expect(emptyBody.projects[0]?.tickets).toEqual([]);
+			expect(emptyBody.projects[0]?.name).toBe(repoName);
+			expect(await projectTickets(base, repoName)).toEqual([]);
 			expect(emptyBody.error).toBeNull();
 			expect(repoReads).toEqual([{ since: null }]);
 			stopFill();
@@ -136,7 +137,7 @@ describe("GET /api/overview", () => {
 									}
 									expect(repoReads).toEqual([{ since: null }]);
 									expect(overviewBody.error).toBeNull();
-									expect(overviewBody.projects[0]?.tickets).toEqual([
+									expect(await projectTickets(line, repoName)).toMatchObject([
 										{
 											key: `${repoName}#9`,
 											title: "Ticket 9",
@@ -266,7 +267,7 @@ describe("GET /api/overview", () => {
 					}
 					expect(repoReads).toEqual([{ since: null }]);
 					expect(overviewBody.error).toBeNull();
-					expect(overviewBody.projects[0]?.tickets).toEqual([
+					expect(await projectTickets(base, repoName)).toMatchObject([
 						{
 							key: `${repoName}#9`,
 							title: "Ticket 9",
@@ -451,13 +452,11 @@ describe("GET /api/overview", () => {
 			const base = await opened;
 			const first = await settledOverview(base, readServedOverview);
 			expect(first.error).toBeNull();
-			expect(
-				first.projects.find((project) => project.name === repoName)?.tickets,
-			).toEqual([]);
-			expect(
-				first.projects.find((project) => project.name === "Claimed board")
-					?.tickets,
-			).toEqual([
+			expect(first.projects.map((project) => project.name)).toEqual(
+				expect.arrayContaining([repoName, "Claimed board"]),
+			);
+			expect(await projectTickets(base, repoName)).toEqual([]);
+			expect(await projectTickets(base, "Claimed board")).toMatchObject([
 				{
 					key: `${repoName}#9`,
 					title: "Ticket 9",
@@ -558,7 +557,8 @@ describe("GET /api/overview", () => {
 			const base = await opened;
 			const first = await settledOverview(base, readServedOverview);
 			expect(first.error).toBeNull();
-			expect(first.projects[0]?.tickets).toEqual([]);
+			expect(first.projects[0]?.name).toBe(repoName);
+			expect(await projectTickets(base, repoName)).toEqual([]);
 			expect(repoReads).toEqual([{ since: null }]);
 			const refresh = await fetch(new URL("/api/refresh", base), {
 				method: "POST",
@@ -569,7 +569,8 @@ describe("GET /api/overview", () => {
 			}
 			const second = await settledOverview(base, readServedOverview);
 			expect(second.error).toBeNull();
-			expect(second.projects[0]?.tickets).toEqual([]);
+			expect(second.projects[0]?.name).toBe(repoName);
+			expect(await projectTickets(base, repoName)).toEqual([]);
 			expect(repoReads[1]).toEqual({ since: null });
 		} finally {
 			stop();

@@ -13,6 +13,7 @@ import {
 	urlOf,
 } from "../support/fetch.ts";
 import { recordedDiscovery, unrecorded } from "../support/github.ts";
+import { projectTickets } from "../support/reads.ts";
 import {
 	blocked,
 	blocker,
@@ -107,7 +108,6 @@ describe("inbox", () => {
 				).json()) as {
 					projects: {
 						name: string;
-						tickets: { key: string; state: string }[];
 						crossProjectBlockers: {
 							project: string;
 							tracker: string;
@@ -120,8 +120,9 @@ describe("inbox", () => {
 					(item) => item.name === "Project Flow",
 				);
 				expect(
-					project?.tickets.find((item) => item.key === recorded.identifier)
-						?.state,
+					(await projectTickets(base, "Project Flow")).find(
+						(item) => item.key === recorded.identifier,
+					)?.state,
 				).toBe("backlog");
 				expect(project?.crossProjectBlockers).toEqual([
 					{
@@ -151,13 +152,13 @@ describe("inbox", () => {
 				expect(await inboxOf(base)).toEqual([event]);
 				const cleared = (await (
 					await fetch(new URL("/api/overview", base))
-				).json()) as {
-					projects: { tickets: { key: string; state: string }[] }[];
-				};
+				).json()) as { projects: { name: string }[] };
+				const clearedTickets = await Promise.all(
+					cleared.projects.map((item) => projectTickets(base, item.name)),
+				);
 				expect(
-					cleared.projects
-						.flatMap((item) => item.tickets)
-						.find((item) => item.key === recorded.identifier)?.state,
+					clearedTickets.flat().find((item) => item.key === recorded.identifier)
+						?.state,
 				).toBe("backlog");
 			},
 		);
@@ -257,7 +258,6 @@ describe("inbox", () => {
 				).json()) as {
 					projects: {
 						name: string;
-						tickets: { key: string; state: string }[];
 						crossProjectBlockers: {
 							project: string;
 							tracker: string;
@@ -277,24 +277,18 @@ describe("inbox", () => {
 						title: blockerRelation.issue.title,
 					},
 				]);
-				expect(
-					overview.projects.find((item) => item.name === beta.name)?.tickets[0]
-						?.state,
-				).toBe("backlog");
+				expect((await projectTickets(base, beta.name))[0]?.state).toBe(
+					"backlog",
+				);
 				setIssues([dropped, openBlocker, betaTicket]);
 				await refresh(base);
 				expect(await inboxOf(base)).toEqual([]);
-				const after = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as typeof overview;
-				expect(
-					after.projects.find((item) => item.name === alpha.name)?.tickets[0]
-						?.state,
-				).not.toBe("blocked");
-				expect(
-					after.projects.find((item) => item.name === beta.name)?.tickets[0]
-						?.state,
-				).toBe("backlog");
+				expect((await projectTickets(base, alpha.name))[0]?.state).not.toBe(
+					"blocked",
+				);
+				expect((await projectTickets(base, beta.name))[0]?.state).toBe(
+					"backlog",
+				);
 				const issueReads = requests.filter((request) =>
 					request.query.includes("ProjectIssues"),
 				);

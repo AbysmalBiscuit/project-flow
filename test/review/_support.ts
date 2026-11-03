@@ -1,4 +1,5 @@
 import { repo } from "../support/github.ts";
+import { projectTickets, type ShownTicket } from "../support/reads.ts";
 
 export const older = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 export const grok = "grok-code-review[bot]";
@@ -107,6 +108,26 @@ function laneName(state: string): string {
 		return "Awaiting merge";
 	}
 	return "Backlog";
+}
+
+/** The overview, with the tickets of each project card from its project report. */
+export async function withReportTickets(
+	base: string,
+	overview: unknown,
+): Promise<{ projects: { name: string; tickets: ShownTicket[] }[] }> {
+	const body = overview as { projects: { name: string; pending?: true }[] };
+	return {
+		...body,
+		projects: await Promise.all(
+			body.projects.map(async (project) => ({
+				...project,
+				tickets:
+					project.pending === true
+						? []
+						: await projectTickets(base, project.name),
+			})),
+		),
+	};
 }
 
 export function issue(number: number): Record<string, unknown> {

@@ -10,6 +10,7 @@ import { tempConfig, testIo } from "../support/app.ts";
 import { urlOf } from "../support/fetch.ts";
 import { recordedDiscovery, unrecorded } from "../support/github.ts";
 import { linearFake } from "../support/linear.ts";
+import { projectTickets, type ShownTicket } from "../support/reads.ts";
 import { repoReadIssues } from "../support/repo-read.ts";
 
 describe("startup", () => {
@@ -164,15 +165,21 @@ describe("startup", () => {
 			},
 		});
 		let startChecks: (base: string) => void = () => {};
-		const checks = new Promise<Overview>((resolve, reject) => {
-			startChecks = (base: string) => {
-				fetch(new URL("/api/overview", base))
-					.then(async (response) =>
-						resolve((await response.json()) as Overview),
-					)
-					.catch(reject);
-			};
-		});
+		const checks = new Promise<{ overview: Overview; tickets: ShownTicket[] }>(
+			(resolve, reject) => {
+				startChecks = (base: string) => {
+					Promise.all([
+						fetch(new URL("/api/overview", base)).then(
+							(response) => response.json() as Promise<Overview>,
+						),
+						projectTickets(base, "Widget launch"),
+					]).then(
+						([overview, tickets]) => resolve({ overview, tickets }),
+						reject,
+					);
+				};
+			},
+		);
 		try {
 			const result = await run(
 				["--config", path, "--host", "127.0.0.1", "--port", "0"],
@@ -190,12 +197,12 @@ describe("startup", () => {
 				throw new Error(result.stderr);
 			}
 			const body = await checks;
-			expect(body.projects[0]).toMatchObject({
+			expect(body.overview.projects[0]).toMatchObject({
 				name: "Widget launch",
 				tracker: "linear",
 				inReview: 1,
-				tickets: [{ key: "WID-8", state: "inReview" }],
 			});
+			expect(body.tickets).toMatchObject([{ key: "WID-8", state: "inReview" }]);
 			expect(authorizations).toContain("Bearer gh-printed-token");
 		} finally {
 			await cleanup();
@@ -239,15 +246,21 @@ describe("startup", () => {
 			},
 		});
 		let startChecks: (base: string) => void = () => {};
-		const checks = new Promise<Overview>((resolve, reject) => {
-			startChecks = (base: string) => {
-				fetch(new URL("/api/overview", base))
-					.then(async (response) =>
-						resolve((await response.json()) as Overview),
-					)
-					.catch(reject);
-			};
-		});
+		const checks = new Promise<{ overview: Overview; tickets: ShownTicket[] }>(
+			(resolve, reject) => {
+				startChecks = (base: string) => {
+					Promise.all([
+						fetch(new URL("/api/overview", base)).then(
+							(response) => response.json() as Promise<Overview>,
+						),
+						projectTickets(base, "Widget launch"),
+					]).then(
+						([overview, tickets]) => resolve({ overview, tickets }),
+						reject,
+					);
+				};
+			},
+		);
 		try {
 			const result = await run(
 				["--config", path, "--host", "127.0.0.1", "--port", "0"],
@@ -265,12 +278,12 @@ describe("startup", () => {
 			expect(result.exitCode).toBe(0);
 			expect(result.listened).toBe(true);
 			const body = await checks;
-			expect(body.projects[0]).toMatchObject({
+			expect(body.overview.projects[0]).toMatchObject({
 				tracker: "linear",
 				error: missingToken,
 				inReview: 0,
-				tickets: [{ key: "WID-8", state: "backlog" }],
 			});
+			expect(body.tickets).toMatchObject([{ key: "WID-8", state: "backlog" }]);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });

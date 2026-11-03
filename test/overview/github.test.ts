@@ -16,13 +16,16 @@ import {
 	repo,
 	unrecorded,
 } from "../support/github.ts";
-import { settledOverview } from "../support/reads.ts";
+import { settledOverview, type ShownTicket } from "../support/reads.ts";
 import {
 	assertCard,
+	cardTickets,
 	emptyList,
 	githubFetch,
 	githubTicket,
 } from "./_support.ts";
+
+type Served = { body: Overview; tickets: Record<string, ShownTicket[]> };
 
 describe("GET /api/overview", () => {
 	test("a GitHub list failure does not serve an overview", async () => {
@@ -139,7 +142,7 @@ describe("GET /api/overview", () => {
 							expect(response.status).toBe(200);
 							return (await response.json()) as Overview;
 						});
-						resolve(body);
+						resolve({ body, tickets: await cardTickets(base, body) });
 					})().catch(reject);
 				};
 			});
@@ -167,7 +170,10 @@ describe("GET /api/overview", () => {
 			}
 		};
 		try {
-			const first = (await serve(repoA, false)) as Overview;
+			const { body: first, tickets: firstTickets } = (await serve(
+				repoA,
+				false,
+			)) as Served;
 			expect(first).toEqual({
 				projects: [
 					{
@@ -184,18 +190,6 @@ describe("GET /api/overview", () => {
 						awaitingMerge: 0,
 						tags: [],
 						unlinkedPrs: [],
-						tickets: [
-							{
-								key: `${repoA}#1`,
-								title: "Ticket 1",
-								state: "backlog",
-								blockers: [],
-								lane: "Backlog",
-								statusType: "backlog",
-								enteredStateAt: "2026-10-18T12:00:00.000Z",
-								updatedAt: "2026-10-18T12:00:00.000Z",
-							},
-						],
 						crossProjectBlockers: [],
 						needsYou: 0,
 						progress: 0,
@@ -214,8 +208,23 @@ describe("GET /api/overview", () => {
 				fetchedAt: first.fetchedAt,
 				error: null,
 			});
+			expect(firstTickets[repoA]).toMatchObject([
+				{
+					key: `${repoA}#1`,
+					title: "Ticket 1",
+					state: "backlog",
+					blockers: [],
+					lane: "Backlog",
+					statusType: "backlog",
+					enteredStateAt: "2026-10-18T12:00:00.000Z",
+					updatedAt: "2026-10-18T12:00:00.000Z",
+				},
+			]);
 			const before = requests.length;
-			const second = (await serve(repoB, true)) as Overview;
+			const { body: second, tickets: secondTickets } = (await serve(
+				repoB,
+				true,
+			)) as Served;
 			expect(second.projects.map((project) => project.name)).toEqual([repoB]);
 			expect(second).toEqual({
 				projects: [
@@ -233,18 +242,6 @@ describe("GET /api/overview", () => {
 						awaitingMerge: 0,
 						tags: [],
 						unlinkedPrs: [],
-						tickets: [
-							{
-								key: `${repoB}#1`,
-								title: "Ticket 1",
-								state: "backlog",
-								blockers: [],
-								lane: "Backlog",
-								statusType: "backlog",
-								enteredStateAt: "2026-10-18T12:00:00.000Z",
-								updatedAt: "2026-10-18T12:00:00.000Z",
-							},
-						],
 						crossProjectBlockers: [],
 						needsYou: 0,
 						progress: 0,
@@ -263,6 +260,18 @@ describe("GET /api/overview", () => {
 				fetchedAt: second.fetchedAt,
 				error: null,
 			});
+			expect(secondTickets[repoB]).toMatchObject([
+				{
+					key: `${repoB}#1`,
+					title: "Ticket 1",
+					state: "backlog",
+					blockers: [],
+					lane: "Backlog",
+					statusType: "backlog",
+					enteredStateAt: "2026-10-18T12:00:00.000Z",
+					updatedAt: "2026-10-18T12:00:00.000Z",
+				},
+			]);
 			const beta = requests
 				.slice(before)
 				.filter((url) => url.includes(`/repos/${repoB}/issues`));

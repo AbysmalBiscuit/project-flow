@@ -1,14 +1,15 @@
 import { describe, expect, test } from "bun:test";
 
 import { linearFake } from "../support/linear.ts";
+import { projectTickets } from "../support/reads.ts";
 import {
 	expectLanesHoldTickets,
 	flight,
+	type LaneTicket,
 	linearIssue,
 	linearSlug,
 	linearStates,
 	linearTeam,
-	type OverviewBody,
 	projectFetch,
 	projectItem,
 	projectOf,
@@ -45,12 +46,7 @@ describe("tracker lanes", () => {
 			{ LINEAR_API_KEY: "recorded-linear-key" },
 			async (base) => {
 				const report = await projectOf(base, "Widget launch");
-				const overview = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
-				const tickets =
-					overview.projects.find((item) => item.name === "Widget launch")
-						?.tickets ?? [];
+				const tickets = await projectTickets<LaneTicket>(base, "Widget launch");
 				expect(tickets.find((item) => item.key === "WID-30")).toEqual(
 					expect.objectContaining({
 						status: "In Progress",
@@ -66,7 +62,7 @@ describe("tracker lanes", () => {
 				expect(report.statuses.map((lane) => lane.name)).not.toContain(
 					"Icebox",
 				);
-				expectLanesHoldTickets(report, overview, "Widget launch");
+				await expectLanesHoldTickets(base, report, "Widget launch");
 			},
 		);
 	});
@@ -120,10 +116,7 @@ describe("tracker lanes", () => {
 				expect(icebox?.statusType).toBe("backlog");
 				expect(building?.status ?? building?.lane).toBe("Doing");
 				expect(building?.statusType).toBe("inProgress");
-				const overview = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
-				expectLanesHoldTickets(report, overview, "Widget board");
+				await expectLanesHoldTickets(base, report, "Widget board");
 			},
 		);
 	});
@@ -169,10 +162,7 @@ describe("tracker lanes", () => {
 				const building = items.find((item) => item.key === "acme/widget#20");
 				expect(building?.status ?? building?.lane).toBe("In progress");
 				expect(building?.statusType).toBe("inProgress");
-				const overview = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
-				expectLanesHoldTickets(report, overview, "Widget board");
+				await expectLanesHoldTickets(base, report, "Widget board");
 			},
 		);
 	});

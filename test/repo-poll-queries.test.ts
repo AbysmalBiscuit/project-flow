@@ -10,7 +10,12 @@ import recordedRepoRead from "./fixtures/github-repo-read.json";
 import { tempConfig, testIo } from "./support/app.ts";
 import { trackerRequest } from "./support/fetch.ts";
 import { recordedViewer, unrecorded } from "./support/github.ts";
-import { readOverview, settledOverview } from "./support/reads.ts";
+import {
+	projectTickets,
+	readOverview,
+	settledOverview,
+	type ShownTicket,
+} from "./support/reads.ts";
 
 type Sent = {
 	operation: string;
@@ -62,12 +67,13 @@ function ofOperation(sent: Sent[], operation: string): Sent[] {
 
 /**
  * Starts the app on the recorded `acme/widget` repo read, runs the given number
- * of polls and returns the last overview with every GitHub GraphQL query sent.
+ * of polls and returns the last overview, the tickets of the `acme/widget`
+ * report and every GitHub GraphQL query sent.
  */
 async function poll(
 	answer: Answer,
 	polls = 1,
-): Promise<{ overview: Overview; sent: Sent[] }> {
+): Promise<{ overview: Overview; tickets: ShownTicket[]; sent: Sent[] }> {
 	const root = await mkdtemp(join(tmpdir(), "project-flow-repo-poll-"));
 	const { path, cleanup } = await tempConfig(
 		JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
@@ -100,12 +106,17 @@ async function poll(
 			? new Response("not recorded", { status: 404 })
 			: Response.json(body);
 	};
-	let finish: (overview: Overview) => void = () => {};
+	let finish: (read: {
+		overview: Overview;
+		tickets: ShownTicket[];
+	}) => void = () => {};
 	let fail: (error: unknown) => void = () => {};
-	const done = new Promise<Overview>((resolve, reject) => {
-		finish = resolve;
-		fail = reject;
-	});
+	const done = new Promise<{ overview: Overview; tickets: ShownTicket[] }>(
+		(resolve, reject) => {
+			finish = resolve;
+			fail = reject;
+		},
+	);
 	const check = async (base: string) => {
 		let overview = await settledOverview(base, readOverview<Overview>);
 		for (let count = 1; count < polls; count += 1) {
@@ -113,7 +124,7 @@ async function poll(
 			await Bun.sleep(50);
 			overview = await settledOverview(base, readOverview<Overview>);
 		}
-		return overview;
+		return { overview, tickets: await projectTickets(base, "acme/widget") };
 	};
 	try {
 		const result = await run(
@@ -133,7 +144,7 @@ async function poll(
 		);
 		expect(result.stderr).toBe("");
 		expect(result.exitCode).toBe(0);
-		return { overview: await done, sent };
+		return { ...(await done), sent };
 	} finally {
 		await cleanup();
 		await rm(root, { recursive: true, force: true });
@@ -274,7 +285,7 @@ describe("repo poll queries", () => {
 	});
 
 	test("a repo read that GitHub refuses for its cost retries once with half the page size", async () => {
-		const { overview, sent } = await poll((item, earlier) =>
+		const { overview, tickets, sent } = await poll((item, earlier) =>
 			listsRepo(item) && !earlier.some(listsRepo) ? refused : undefined,
 		);
 		const reads = sent.filter(listsRepo);
@@ -283,7 +294,7 @@ describe("repo poll queries", () => {
 		expect(reads[1]?.query).toContain("issues(first: 50");
 		expect(reads[1]?.query).toContain("pullRequests(first: 50");
 		expect(widget(overview)?.error).toBeNull();
-		expect(widget(overview)?.tickets.map((ticket) => ticket.key)).toEqual([
+		expect(tickets.map((ticket) => ticket.key)).toEqual([
 			"acme/widget#101",
 			"acme/widget#102",
 		]);
@@ -335,7 +346,7 @@ describe("repo poll queries", () => {
 	});
 
 	test("a list read with a missing node fails the poll and keeps the stored rows", async () => {
-		const { overview } = await poll(
+		const { overview, tickets } = await poll(
 			(item, earlier) =>
 				item.operation === "RepoLists" &&
 				ofOperation(earlier, "RepoLists").length > 0
@@ -347,7 +358,7 @@ describe("repo poll queries", () => {
 			2,
 		);
 		expect(widget(overview)?.error).toContain("Could not resolve to a node");
-		expect(widget(overview)?.tickets.map((ticket) => ticket.key)).toEqual([
+		expect(tickets.map((ticket) => ticket.key)).toEqual([
 			"acme/widget#101",
 			"acme/widget#102",
 		]);

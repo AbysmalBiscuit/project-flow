@@ -10,7 +10,7 @@ import { tempConfig, testIo } from "../support/app.ts";
 import { urlOf } from "../support/fetch.ts";
 import { repo } from "../support/github.ts";
 import { settledOverview } from "../support/reads.ts";
-import { progress } from "./_support.ts";
+import { progress, withReportTickets } from "./_support.ts";
 
 describe("review cycle", () => {
 	test("a workcell progress comment on a GitHub project ticket keeps its PR in review", async () => {
@@ -36,7 +36,7 @@ describe("review cycle", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						resolve(await response.json());
+						resolve(await withReportTickets(base, await response.json()));
 					})
 					.catch(reject);
 			};
@@ -101,7 +101,7 @@ describe("review cycle", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						resolve(await response.json());
+						resolve(await withReportTickets(base, await response.json()));
 					})
 					.catch(reject);
 			};
@@ -174,7 +174,7 @@ describe("review cycle", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						resolve(await response.json());
+						resolve(await withReportTickets(base, await response.json()));
 					})
 					.catch(reject);
 			};
@@ -257,7 +257,7 @@ describe("review cycle", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						resolve(await response.json());
+						resolve(await withReportTickets(base, await response.json()));
 					})
 					.catch(reject);
 			};
@@ -364,7 +364,7 @@ describe("review cycle", () => {
 								polling?: true;
 							};
 						});
-						expect(first).toMatchObject({
+						expect(await withReportTickets(base, first)).toMatchObject({
 							projects: [
 								{
 									name: "Widget board",
@@ -386,7 +386,7 @@ describe("review cycle", () => {
 								polling?: true;
 							};
 						});
-						expect(second).toMatchObject({
+						expect(await withReportTickets(base, second)).toMatchObject({
 							projects: [
 								{
 									name: "Widget board",
@@ -458,7 +458,9 @@ describe("review cycle", () => {
 						const base = await checks;
 						const firstResponse = await fetch(new URL("/api/overview", base));
 						expect(firstResponse.status).toBe(200);
-						expect(await firstResponse.json()).toMatchObject({
+						expect(
+							await withReportTickets(base, await firstResponse.json()),
+						).toMatchObject({
 							projects: [
 								{
 									name: "Widget board",
@@ -486,7 +488,7 @@ describe("review cycle", () => {
 								await Bun.sleep(20);
 							}
 						}
-						expect(second).toMatchObject({
+						expect(await withReportTickets(base, second)).toMatchObject({
 							projects: [
 								{
 									name: "Widget board",
@@ -550,7 +552,7 @@ describe("review cycle", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						resolve(await response.json());
+						resolve(await withReportTickets(base, await response.json()));
 					})
 					.catch(reject);
 			};
@@ -622,7 +624,7 @@ describe("review cycle", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						resolve(await response.json());
+						resolve(await withReportTickets(base, await response.json()));
 					})
 					.catch(reject);
 			};
@@ -706,7 +708,7 @@ describe("review cycle", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						resolve(await response.json());
+						resolve(await withReportTickets(base, await response.json()));
 					})
 					.catch(reject);
 			};

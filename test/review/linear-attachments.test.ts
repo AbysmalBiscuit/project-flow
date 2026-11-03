@@ -13,7 +13,7 @@ import {
 	unrecorded,
 } from "../support/github.ts";
 import { linearFake } from "../support/linear.ts";
-import { readOverview } from "../support/reads.ts";
+import { projectTickets, readOverview } from "../support/reads.ts";
 
 const linearProject = "widget-launch-0d42ae5d46d0";
 
@@ -60,9 +60,10 @@ async function ticketPulls(base: string) {
 	const report = (await response.json()) as {
 		tickets: { key: string; pull?: string }[];
 	};
+	const tickets = await projectTickets(base, project?.name ?? "");
 	return {
 		error: project?.error,
-		states: project?.tickets.map(({ key, state }) => ({ key, state })),
+		states: tickets.map(({ key, state }) => ({ key, state })),
 		pulls: report.tickets.map(({ key, pull }) => ({ key, pull })),
 	};
 }

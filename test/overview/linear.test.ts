@@ -3,12 +3,14 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { Overview, ProjectCounts } from "../../src/domain.ts";
+import type { Overview, OverviewCard } from "../../src/domain.ts";
 import { run } from "../../src/main.ts";
 import { tempConfig, testIo } from "../support/app.ts";
 import { repo } from "../support/github.ts";
 import { linearFake } from "../support/linear.ts";
+import { projectTickets, type ShownTicket } from "../support/reads.ts";
 import {
+	cardTickets,
 	linearFetch,
 	linearIssue,
 	linearName,
@@ -147,7 +149,10 @@ describe("GET /api/overview", () => {
 		const checks = new Promise<unknown>((resolve, reject) => {
 			startChecks = (base: string) => {
 				fetch(new URL("/api/overview", base))
-					.then(async (response) => resolve(await response.json()))
+					.then(async (response) => {
+						const body = (await response.json()) as Overview;
+						resolve({ body, tickets: await cardTickets(base, body) });
+					})
 					.catch(reject);
 			};
 		});
@@ -167,7 +172,10 @@ describe("GET /api/overview", () => {
 				}),
 			);
 			expect(result.exitCode).toBe(0);
-			const body = (await checks) as Overview;
+			const { body, tickets } = (await checks) as {
+				body: Overview;
+				tickets: Record<string, ShownTicket[]>;
+			};
 			expect(body).toEqual({
 				projects: [
 					{
@@ -184,18 +192,6 @@ describe("GET /api/overview", () => {
 						awaitingMerge: 0,
 						tags: [],
 						unlinkedPrs: [],
-						tickets: [
-							{
-								key: "WID-1",
-								title: "Linear ticket 1",
-								state: "done",
-								blockers: [],
-								lane: "Done",
-								statusType: "done",
-								enteredStateAt: "2026-08-18T12:00:00.000Z",
-								updatedAt: "2026-08-18T12:00:00.000Z",
-							},
-						],
 						crossProjectBlockers: [],
 						needsYou: 0,
 						progress: 100,
@@ -214,6 +210,18 @@ describe("GET /api/overview", () => {
 				fetchedAt: body.fetchedAt,
 				error: null,
 			});
+			expect(tickets[linearName]).toMatchObject([
+				{
+					key: "WID-1",
+					title: "Linear ticket 1",
+					state: "done",
+					blockers: [],
+					lane: "Done",
+					statusType: "done",
+					enteredStateAt: "2026-08-18T12:00:00.000Z",
+					updatedAt: "2026-08-18T12:00:00.000Z",
+				},
+			]);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
@@ -389,7 +397,7 @@ describe("GET /api/overview", () => {
 					.then(async (response) => {
 						expect(response.status).toBe(200);
 						const body = (await response.json()) as {
-							projects: ProjectCounts[];
+							projects: OverviewCard[];
 							error: string | null;
 						};
 						expect(body.projects).toHaveLength(2);
@@ -410,68 +418,6 @@ describe("GET /api/overview", () => {
 							awaitingMerge: 0,
 							tags: [],
 							unlinkedPrs: [],
-							tickets: [
-								{
-									key: `${repo}#1`,
-									title: "Ticket 1",
-									state: "done",
-									blockers: [],
-									lane: "Done",
-									statusType: "done",
-									enteredStateAt: "2026-10-18T12:00:00.000Z",
-									updatedAt: "2026-10-18T12:00:00.000Z",
-								},
-								{
-									key: `${repo}#2`,
-									title: "Ticket 2",
-									state: "dropped",
-									blockers: [],
-									lane: "Dropped",
-									statusType: "dropped",
-									enteredStateAt: "2026-10-18T12:00:00.000Z",
-									updatedAt: "2026-10-18T12:00:00.000Z",
-								},
-								{
-									key: `${repo}#3`,
-									title: "Ticket 3",
-									state: "dropped",
-									blockers: [],
-									lane: "Dropped",
-									statusType: "dropped",
-									enteredStateAt: "2026-10-18T12:00:00.000Z",
-									updatedAt: "2026-10-18T12:00:00.000Z",
-								},
-								{
-									key: `${repo}#4`,
-									title: "Ticket 4",
-									state: "done",
-									blockers: [],
-									lane: "Done",
-									statusType: "done",
-									enteredStateAt: "2026-10-18T12:00:00.000Z",
-									updatedAt: "2026-10-18T12:00:00.000Z",
-								},
-								{
-									key: `${repo}#5`,
-									title: "Ticket 5",
-									state: "backlog",
-									blockers: [],
-									lane: "Backlog",
-									statusType: "backlog",
-									enteredStateAt: "2026-10-18T12:00:00.000Z",
-									updatedAt: "2026-10-18T12:00:00.000Z",
-								},
-								{
-									key: `${repo}#6`,
-									title: "Ticket 6",
-									state: "backlog",
-									blockers: [],
-									lane: "Backlog",
-									statusType: "backlog",
-									enteredStateAt: "2026-10-18T12:00:00.000Z",
-									updatedAt: "2026-10-18T12:00:00.000Z",
-								},
-							],
 							crossProjectBlockers: [],
 							needsYou: 0,
 							progress: 33,
@@ -486,6 +432,68 @@ describe("GET /api/overview", () => {
 								dropped: 2,
 							},
 						});
+						expect(await projectTickets(base, repo)).toMatchObject([
+							{
+								key: `${repo}#1`,
+								title: "Ticket 1",
+								state: "done",
+								blockers: [],
+								lane: "Done",
+								statusType: "done",
+								enteredStateAt: "2026-10-18T12:00:00.000Z",
+								updatedAt: "2026-10-18T12:00:00.000Z",
+							},
+							{
+								key: `${repo}#2`,
+								title: "Ticket 2",
+								state: "dropped",
+								blockers: [],
+								lane: "Dropped",
+								statusType: "dropped",
+								enteredStateAt: "2026-10-18T12:00:00.000Z",
+								updatedAt: "2026-10-18T12:00:00.000Z",
+							},
+							{
+								key: `${repo}#3`,
+								title: "Ticket 3",
+								state: "dropped",
+								blockers: [],
+								lane: "Dropped",
+								statusType: "dropped",
+								enteredStateAt: "2026-10-18T12:00:00.000Z",
+								updatedAt: "2026-10-18T12:00:00.000Z",
+							},
+							{
+								key: `${repo}#4`,
+								title: "Ticket 4",
+								state: "done",
+								blockers: [],
+								lane: "Done",
+								statusType: "done",
+								enteredStateAt: "2026-10-18T12:00:00.000Z",
+								updatedAt: "2026-10-18T12:00:00.000Z",
+							},
+							{
+								key: `${repo}#5`,
+								title: "Ticket 5",
+								state: "backlog",
+								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
+								enteredStateAt: "2026-10-18T12:00:00.000Z",
+								updatedAt: "2026-10-18T12:00:00.000Z",
+							},
+							{
+								key: `${repo}#6`,
+								title: "Ticket 6",
+								state: "backlog",
+								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
+								enteredStateAt: "2026-10-18T12:00:00.000Z",
+								updatedAt: "2026-10-18T12:00:00.000Z",
+							},
+						]);
 						const linear = body.projects.find(
 							(project) => project.tracker === "linear",
 						);
@@ -503,68 +511,6 @@ describe("GET /api/overview", () => {
 							awaitingMerge: 0,
 							tags: [],
 							unlinkedPrs: [],
-							tickets: [
-								{
-									key: "WID-1",
-									title: "Linear ticket 1",
-									state: "done",
-									blockers: [],
-									lane: "Done",
-									statusType: "done",
-									enteredStateAt: "2026-08-18T12:00:00.000Z",
-									updatedAt: "2026-08-18T12:00:00.000Z",
-								},
-								{
-									key: "WID-2",
-									title: "Linear ticket 2",
-									state: "dropped",
-									blockers: [],
-									lane: "Dropped",
-									statusType: "dropped",
-									enteredStateAt: "2026-08-18T12:00:00.000Z",
-									updatedAt: "2026-08-18T12:00:00.000Z",
-								},
-								{
-									key: "WID-3",
-									title: "Linear ticket 3",
-									state: "dropped",
-									blockers: [],
-									lane: "Dropped",
-									statusType: "dropped",
-									enteredStateAt: "2026-08-18T12:00:00.000Z",
-									updatedAt: "2026-08-18T12:00:00.000Z",
-								},
-								{
-									key: "WID-4",
-									title: "Linear ticket 4",
-									state: "done",
-									blockers: [],
-									lane: "Done",
-									statusType: "done",
-									enteredStateAt: "2026-08-18T12:00:00.000Z",
-									updatedAt: "2026-08-18T12:00:00.000Z",
-								},
-								{
-									key: "WID-5",
-									title: "Linear ticket 5",
-									state: "backlog",
-									blockers: [],
-									lane: "Backlog",
-									statusType: "backlog",
-									enteredStateAt: "2026-08-18T12:00:00.000Z",
-									updatedAt: "2026-08-18T12:00:00.000Z",
-								},
-								{
-									key: "WID-6",
-									title: "Linear ticket 6",
-									state: "backlog",
-									blockers: [],
-									lane: "Backlog",
-									statusType: "backlog",
-									enteredStateAt: "2026-08-18T12:00:00.000Z",
-									updatedAt: "2026-08-18T12:00:00.000Z",
-								},
-							],
 							crossProjectBlockers: [],
 							needsYou: 0,
 							progress: 33,
@@ -579,6 +525,68 @@ describe("GET /api/overview", () => {
 								dropped: 2,
 							},
 						});
+						expect(await projectTickets(base, linearName)).toMatchObject([
+							{
+								key: "WID-1",
+								title: "Linear ticket 1",
+								state: "done",
+								blockers: [],
+								lane: "Done",
+								statusType: "done",
+								enteredStateAt: "2026-08-18T12:00:00.000Z",
+								updatedAt: "2026-08-18T12:00:00.000Z",
+							},
+							{
+								key: "WID-2",
+								title: "Linear ticket 2",
+								state: "dropped",
+								blockers: [],
+								lane: "Dropped",
+								statusType: "dropped",
+								enteredStateAt: "2026-08-18T12:00:00.000Z",
+								updatedAt: "2026-08-18T12:00:00.000Z",
+							},
+							{
+								key: "WID-3",
+								title: "Linear ticket 3",
+								state: "dropped",
+								blockers: [],
+								lane: "Dropped",
+								statusType: "dropped",
+								enteredStateAt: "2026-08-18T12:00:00.000Z",
+								updatedAt: "2026-08-18T12:00:00.000Z",
+							},
+							{
+								key: "WID-4",
+								title: "Linear ticket 4",
+								state: "done",
+								blockers: [],
+								lane: "Done",
+								statusType: "done",
+								enteredStateAt: "2026-08-18T12:00:00.000Z",
+								updatedAt: "2026-08-18T12:00:00.000Z",
+							},
+							{
+								key: "WID-5",
+								title: "Linear ticket 5",
+								state: "backlog",
+								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
+								enteredStateAt: "2026-08-18T12:00:00.000Z",
+								updatedAt: "2026-08-18T12:00:00.000Z",
+							},
+							{
+								key: "WID-6",
+								title: "Linear ticket 6",
+								state: "backlog",
+								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
+								enteredStateAt: "2026-08-18T12:00:00.000Z",
+								updatedAt: "2026-08-18T12:00:00.000Z",
+							},
+						]);
 						expect(body.error).toBeNull();
 						resolve();
 					})

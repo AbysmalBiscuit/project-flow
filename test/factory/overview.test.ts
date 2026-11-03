@@ -361,7 +361,7 @@ describe("factory runs", () => {
 			};
 			app.advance(runPollMs);
 			const changed = await overviewEventWhere(
-				stream.events,
+				stream,
 				(seen) => factoryRunOf(seen, 41)?.statusKind === "blocked",
 			);
 			expect(factoryRunOf(changed, 41)).toMatchObject({
@@ -450,7 +450,7 @@ describe("factory runs", () => {
 			app.factories[hubUrl] = "down";
 			app.advance(runPollMs);
 			const changed = await overviewEventWhere(
-				stream.events,
+				stream,
 				(seen) => factoryRunOf(seen, 41)?.coveredByFeed === false,
 			);
 			expect(changed.factoryUnreachable).toBe(true);
@@ -667,7 +667,7 @@ describe("factory runs", () => {
 				};
 				app.advance(runPollMs);
 				const changed = await overviewEventWhere(
-					stream.events,
+					stream,
 					(seen) => factoryRunOf(seen, 42)?.statusKind !== "queued",
 				);
 				expect(factoryRunOf(changed, 42)).toEqual({
@@ -712,7 +712,7 @@ describe("factory runs", () => {
 				app.factories[laptopUrl] = "down";
 				app.advance(runPollMs);
 				const down = await overviewEventWhere(
-					stream.events,
+					stream,
 					(seen) => factoryRunOf(seen, 41)?.factory === "work hub",
 				);
 				expect(factoryRunOf(down, 41)).toMatchObject({
@@ -725,7 +725,7 @@ describe("factory runs", () => {
 				app.factories[laptopUrl] = boxAnswers;
 				app.advance(runPollMs);
 				const back = await overviewEventWhere(
-					stream.events,
+					stream,
 					(seen) => factoryRunOf(seen, 41)?.factory === "laptop",
 				);
 				expect(factoryRunOf(back, 41)).toMatchObject({

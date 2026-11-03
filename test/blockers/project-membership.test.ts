@@ -13,7 +13,7 @@ import {
 	recordedDiscovery,
 	unrecorded,
 } from "../support/github.ts";
-import { blockersOf, issue } from "./_support.ts";
+import { blockersOf, issue, overviewWithTickets } from "./_support.ts";
 
 describe("GET /api/overview blockers", () => {
 	test("a ticket on a GitHub project leaves the pinned repo card", async () => {
@@ -149,7 +149,7 @@ describe("GET /api/overview blockers", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						const overview = (await response.json()) as {
+						const overview = await overviewWithTickets<{
 							projects: {
 								name: string;
 								tickets: {
@@ -158,7 +158,7 @@ describe("GET /api/overview blockers", () => {
 									blockers: string[];
 								}[];
 							}[];
-						};
+						}>(base, response);
 						const project = overview.projects.find(
 							(item) => item.name === board,
 						);
@@ -302,9 +302,9 @@ describe("GET /api/overview blockers", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						const body = (await response.json()) as {
+						const body = await overviewWithTickets<{
 							projects: { name: string; tickets: { key: string }[] }[];
-						};
+						}>(base, response);
 						const cards = body.projects.filter((item) =>
 							item.tickets.some((ticket) => ticket.key === `${githubRepo}#20`),
 						);

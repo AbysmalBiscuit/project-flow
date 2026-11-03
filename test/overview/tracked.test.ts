@@ -14,8 +14,8 @@ import {
 	repo,
 	unrecorded,
 } from "../support/github.ts";
-import { trackFound } from "../support/reads.ts";
-import { emptyList, githubTicket } from "./_support.ts";
+import { type ShownTicket, trackFound } from "../support/reads.ts";
+import { cardTickets, emptyList, githubTicket } from "./_support.ts";
 
 describe("GET /api/overview", () => {
 	test("a tracked GitHub project shows and an untracked GitHub project never shows", async () => {
@@ -143,7 +143,10 @@ describe("GET /api/overview", () => {
 		const checks = new Promise<unknown>((resolve, reject) => {
 			startChecks = (base: string) => {
 				fetch(new URL("/api/overview", base))
-					.then(async (response) => resolve(await response.json()))
+					.then(async (response) => {
+						const body = (await response.json()) as Overview;
+						resolve({ body, tickets: await cardTickets(base, body) });
+					})
 					.catch(reject);
 			};
 		});
@@ -162,7 +165,10 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			const body = (await checks) as Overview;
+			const { body, tickets } = (await checks) as {
+				body: Overview;
+				tickets: Record<string, ShownTicket[]>;
+			};
 			expect(body).toEqual({
 				projects: [
 					{
@@ -181,17 +187,6 @@ describe("GET /api/overview", () => {
 						crossProjectBlockers: [],
 						needsYou: 0,
 						progress: 0,
-						tickets: [
-							{
-								key: "acme/other#1",
-								title: "",
-								state: "backlog",
-								blockers: [],
-								lane: "Backlog",
-								statusType: "backlog",
-								enteredStateAt: "",
-							},
-						],
 						unlinkedPrs: [],
 						fetchedAt: body.projects[0]?.fetchedAt ?? null,
 						error: null,
@@ -208,6 +203,17 @@ describe("GET /api/overview", () => {
 				fetchedAt: body.fetchedAt,
 				error: null,
 			});
+			expect(tickets["Pinned board"]).toMatchObject([
+				{
+					key: "acme/other#1",
+					title: "",
+					state: "backlog",
+					blockers: [],
+					lane: "Backlog",
+					statusType: "backlog",
+					enteredStateAt: "",
+				},
+			]);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
@@ -337,7 +343,10 @@ describe("GET /api/overview", () => {
 		const checks = new Promise<unknown>((resolve, reject) => {
 			startChecks = (base: string) => {
 				fetch(new URL("/api/overview", base))
-					.then(async (response) => resolve(await response.json()))
+					.then(async (response) => {
+						const body = (await response.json()) as Overview;
+						resolve({ body, tickets: await cardTickets(base, body) });
+					})
 					.catch(reject);
 			};
 		});
@@ -359,7 +368,10 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			const body = (await checks) as Overview;
+			const { body, tickets } = (await checks) as {
+				body: Overview;
+				tickets: Record<string, ShownTicket[]>;
+			};
 			expect(body).toEqual({
 				projects: [
 					{
@@ -378,18 +390,6 @@ describe("GET /api/overview", () => {
 						crossProjectBlockers: [],
 						needsYou: 0,
 						progress: 0,
-						tickets: [
-							{
-								key: `${repo}#9`,
-								title: "Ticket 9",
-								state: "backlog",
-								blockers: [],
-								lane: "Backlog",
-								statusType: "backlog",
-								enteredStateAt: "2026-10-18T12:00:00.000Z",
-								updatedAt: "2026-10-18T12:00:00.000Z",
-							},
-						],
 						unlinkedPrs: [],
 						fetchedAt: body.projects[0]?.fetchedAt ?? null,
 						error: null,
@@ -406,6 +406,18 @@ describe("GET /api/overview", () => {
 				fetchedAt: body.fetchedAt,
 				error: null,
 			});
+			expect(tickets[repo]).toMatchObject([
+				{
+					key: `${repo}#9`,
+					title: "Ticket 9",
+					state: "backlog",
+					blockers: [],
+					lane: "Backlog",
+					statusType: "backlog",
+					enteredStateAt: "2026-10-18T12:00:00.000Z",
+					updatedAt: "2026-10-18T12:00:00.000Z",
+				},
+			]);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
@@ -534,7 +546,10 @@ describe("GET /api/overview", () => {
 			startChecks = (base: string) => {
 				trackFound(base)
 					.then(() => fetch(new URL("/api/overview", base)))
-					.then(async (response) => resolve(await response.json()))
+					.then(async (response) => {
+						const body = (await response.json()) as Overview;
+						resolve({ body, tickets: await cardTickets(base, body) });
+					})
 					.catch(reject);
 			};
 		});
@@ -556,7 +571,10 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			const body = (await checks) as Overview;
+			const { body, tickets } = (await checks) as {
+				body: Overview;
+				tickets: Record<string, ShownTicket[]>;
+			};
 			expect(body).toEqual({
 				projects: [
 					{
@@ -575,18 +593,6 @@ describe("GET /api/overview", () => {
 						crossProjectBlockers: [],
 						needsYou: 0,
 						progress: 0,
-						tickets: [
-							{
-								key: `${repo}#9`,
-								title: "Ticket 9",
-								state: "backlog",
-								blockers: [],
-								lane: "Backlog",
-								statusType: "backlog",
-								enteredStateAt: "2026-10-18T12:00:00.000Z",
-								updatedAt: "2026-10-18T12:00:00.000Z",
-							},
-						],
 						unlinkedPrs: [],
 						fetchedAt: body.projects[0]?.fetchedAt ?? null,
 						error: null,
@@ -603,6 +609,18 @@ describe("GET /api/overview", () => {
 				fetchedAt: body.fetchedAt,
 				error: null,
 			});
+			expect(tickets[repo]).toMatchObject([
+				{
+					key: `${repo}#9`,
+					title: "Ticket 9",
+					state: "backlog",
+					blockers: [],
+					lane: "Backlog",
+					statusType: "backlog",
+					enteredStateAt: "2026-10-18T12:00:00.000Z",
+					updatedAt: "2026-10-18T12:00:00.000Z",
+				},
+			]);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
@@ -730,7 +748,10 @@ describe("GET /api/overview", () => {
 		const checks = new Promise<unknown>((resolve, reject) => {
 			startChecks = (base: string) => {
 				fetch(new URL("/api/overview", base))
-					.then(async (response) => resolve(await response.json()))
+					.then(async (response) => {
+						const body = (await response.json()) as Overview;
+						resolve({ body, tickets: await cardTickets(base, body) });
+					})
 					.catch(reject);
 			};
 		});
@@ -752,7 +773,10 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			const body = (await checks) as Overview;
+			const { body, tickets } = (await checks) as {
+				body: Overview;
+				tickets: Record<string, ShownTicket[]>;
+			};
 			expect(body).toEqual({
 				projects: [
 					{
@@ -771,7 +795,6 @@ describe("GET /api/overview", () => {
 						crossProjectBlockers: [],
 						needsYou: 0,
 						progress: 0,
-						tickets: [],
 						unlinkedPrs: [],
 						fetchedAt: body.projects[0]?.fetchedAt ?? null,
 						error: null,
@@ -788,6 +811,7 @@ describe("GET /api/overview", () => {
 				fetchedAt: body.fetchedAt,
 				error: null,
 			});
+			expect(tickets["Quiet linear"]).toEqual([]);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });

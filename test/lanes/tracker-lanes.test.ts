@@ -89,10 +89,7 @@ describe("tracker lanes", () => {
 					placed("WID-1", "Ship the list", "In Progress", "inProgress"),
 					placed("WID-2", "Write the notes", "Todo", "backlog"),
 				]);
-				const overview = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
-				expectLanesHoldTickets(report, overview, "Widget launch");
+				await expectLanesHoldTickets(base, report, "Widget launch");
 			},
 		);
 	});
@@ -135,10 +132,7 @@ describe("tracker lanes", () => {
 					),
 					placed("acme/widget#8", "Write the copy", "Backlog", "backlog"),
 				]);
-				const overview = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
-				expectLanesHoldTickets(report, overview, "Widget board");
+				await expectLanesHoldTickets(base, report, "Widget board");
 			},
 		);
 	});
@@ -239,10 +233,7 @@ describe("tracker lanes", () => {
 				expect(
 					report.statuses.find((lane) => lane.name === "Dropped")?.added,
 				).toBe(true);
-				const overview = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
-				expectLanesHoldTickets(report, overview, githubRepo);
+				await expectLanesHoldTickets(base, report, githubRepo);
 				expect(
 					flight(report)
 						.map((item) => [

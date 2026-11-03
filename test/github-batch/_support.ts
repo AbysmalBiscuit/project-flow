@@ -10,6 +10,7 @@ import recordedRepoRead from "../fixtures/github-repo-read.json";
 import { tempConfig, testIo } from "../support/app.ts";
 import { json, trackerRequest } from "../support/fetch.ts";
 import { unrecorded } from "../support/github.ts";
+import { projectTickets, type ShownTicket } from "../support/reads.ts";
 
 const repoCount = 10;
 const pullCount = 10;
@@ -249,6 +250,8 @@ export async function startCounted(
 	hold?: { release: () => void; held: Promise<void> },
 ): Promise<{
 	overview: Overview;
+	/** The tickets of each project report, by project name. */
+	tickets: Record<string, ShownTicket[]>;
 	needsYou: NeedsYouItem[];
 	github: string[];
 	queries: GraphqlRequest[];
@@ -265,28 +268,44 @@ export async function startCounted(
 		return read(owner, name, request);
 	});
 	let startChecks: (base: string) => void = () => {};
-	const checked = new Promise<{ overview: Overview; needsYou: NeedsYouItem[] }>(
-		(resolve, reject) => {
-			startChecks = (base) => {
-				const ready = hold?.held ?? Promise.resolve();
-				ready
-					.then(() =>
-						Promise.all([
-							fetch(new URL("/api/overview", base)).then(
-								(response) => response.json() as Promise<Overview>,
-							),
-							fetch(new URL("/api/needs-you", base)).then(
-								(response) => response.json() as Promise<NeedsYouItem[]>,
-							),
-						]),
-					)
-					.then(
-						([overview, needsYou]) => resolve({ overview, needsYou }),
-						reject,
-					);
-			};
-		},
-	);
+	const checked = new Promise<{
+		overview: Overview;
+		tickets: Record<string, ShownTicket[]>;
+		needsYou: NeedsYouItem[];
+	}>((resolve, reject) => {
+		startChecks = (base) => {
+			const ready = hold?.held ?? Promise.resolve();
+			ready
+				.then(() =>
+					Promise.all([
+						fetch(new URL("/api/overview", base)).then(
+							(response) => response.json() as Promise<Overview>,
+						),
+						fetch(new URL("/api/needs-you", base)).then(
+							(response) => response.json() as Promise<NeedsYouItem[]>,
+						),
+					]),
+				)
+				.then(async ([overview, needsYou]) => ({
+					overview,
+					needsYou,
+					tickets: Object.fromEntries(
+						await Promise.all(
+							overview.projects
+								.filter((project) => project.pending !== true)
+								.map(
+									async (project) =>
+										[
+											project.name,
+											await projectTickets(base, project.name),
+										] as const,
+								),
+						),
+					),
+				}))
+				.then(resolve, reject);
+		};
+	});
 	try {
 		const result = await run(
 			["--config", path, "--host", "127.0.0.1", "--port", "0"],

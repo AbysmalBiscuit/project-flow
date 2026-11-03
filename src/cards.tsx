@@ -20,8 +20,8 @@ import { control, textControl } from "./control-styles.ts";
 import type {
 	CrossProjectBlocker,
 	Overview,
+	OverviewCard,
 	PollProgress,
-	ProjectCounts,
 } from "./domain.ts";
 import { OverviewSearch } from "./focus-controls.tsx";
 import { useFocusView } from "./focus.ts";
@@ -142,7 +142,7 @@ function visibleChipCount(row: HTMLElement, items: HTMLElement[]): number {
 	return visible;
 }
 
-function BlockerRow({ project }: { project: ProjectCounts }) {
+function BlockerRow({ project }: { project: OverviewCard }) {
 	const row = useRef<HTMLParagraphElement>(null);
 	const [hidden, setHidden] = useState(0);
 	const chips = project.crossProjectBlockers.length;
@@ -234,7 +234,7 @@ function slug(value: string): string {
 	return cleaned === "" ? "item" : cleaned;
 }
 
-function subtitle(project: ProjectCounts, trackerLabel: TrackerLabel): string {
+function subtitle(project: OverviewCard, trackerLabel: TrackerLabel): string {
 	return `${trackerLabel(project.tracker)}, ${project.displayKey}`;
 }
 
@@ -253,7 +253,7 @@ const legendSegments = [
 	},
 ] as const;
 
-function Legend({ project }: { project: ProjectCounts }) {
+function Legend({ project }: { project: OverviewCard }) {
 	return (
 		<p className={clsx(cards.counts)}>
 			{legendSegments.map((item) =>
@@ -275,8 +275,8 @@ function PinControl({
 	project,
 	onTogglePin,
 }: {
-	project: ProjectCounts;
-	onTogglePin: (project: ProjectCounts) => void;
+	project: OverviewCard;
+	onTogglePin: (project: OverviewCard) => void;
 }) {
 	const pinned = project.pinned === true;
 	return (
@@ -300,8 +300,8 @@ function ProjectCard({
 	project,
 	onTogglePin,
 }: {
-	project: ProjectCounts;
-	onTogglePin: (project: ProjectCounts) => void;
+	project: OverviewCard;
+	onTogglePin: (project: OverviewCard) => void;
 }) {
 	const id = `project-card-${slug(project.name)}`;
 	const total = ticketTotal(project);
@@ -362,8 +362,8 @@ function CardsList({
 	projects,
 	onTogglePin,
 }: {
-	projects: ProjectCounts[];
-	onTogglePin: (project: ProjectCounts) => void;
+	projects: OverviewCard[];
+	onTogglePin: (project: OverviewCard) => void;
 }) {
 	return (
 		<ul className={clsx(cards.list, phoneGutter.cards)}>
@@ -414,7 +414,7 @@ function SortMark({ direction }: { direction: "asc" | "desc" | "none" }) {
 	);
 }
 
-function ProgressCell({ project }: { project: ProjectCounts }) {
+function ProgressCell({ project }: { project: OverviewCard }) {
 	return (
 		<div className={clsx(cards.progressCell)}>
 			<SegmentedBar project={project} variant="cell" />
@@ -429,7 +429,7 @@ function TableView({
 	direction,
 	onSort,
 }: {
-	projects: ProjectCounts[];
+	projects: OverviewCard[];
 	sort: SortKey;
 	direction: SortDirection;
 	onSort: (sort: SortKey, direction: SortDirection) => void;

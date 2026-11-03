@@ -14,7 +14,7 @@ import {
 	unrecorded,
 } from "../support/github.ts";
 import { settledOverview } from "../support/reads.ts";
-import { blockersOf, issue } from "./_support.ts";
+import { blockersOf, issue, overviewWithTickets } from "./_support.ts";
 
 describe("GET /api/overview blockers", () => {
 	test("a later poll drops a blocker the tracker no longer returns", async () => {
@@ -98,7 +98,7 @@ describe("GET /api/overview blockers", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						const first = (await response.json()) as {
+						const first = await overviewWithTickets<{
 							projects: {
 								tickets: {
 									key: string;
@@ -106,7 +106,7 @@ describe("GET /api/overview blockers", () => {
 									blockers: string[];
 								}[];
 							}[];
-						};
+						}>(base, response);
 						expect(blockersOf(first.projects[0]?.tickets ?? [], key)).toEqual({
 							state: "backlog",
 							blockers: [`${githubRepo}#20`],
@@ -117,9 +117,9 @@ describe("GET /api/overview blockers", () => {
 						});
 						expect(refresh.status).toBe(204);
 						const second = await settledOverview(base, async (url) => {
-							return (await (
-								await fetch(new URL("/api/overview", url))
-							).json()) as typeof first & { polling?: true };
+							return await overviewWithTickets<
+								typeof first & { polling?: true }
+							>(url, await fetch(new URL("/api/overview", url)));
 						});
 						expect(listReads).toBeGreaterThan(1);
 						expect(blockersOf(second.projects[0]?.tickets ?? [], key)).toEqual({
@@ -331,7 +331,7 @@ describe("GET /api/overview blockers", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						const overview = (await response.json()) as {
+						const overview = await overviewWithTickets<{
 							projects: {
 								name: string;
 								tickets: {
@@ -340,7 +340,7 @@ describe("GET /api/overview blockers", () => {
 									blockers: string[];
 								}[];
 							}[];
-						};
+						}>(base, response);
 						const project = overview.projects.find(
 							(item) => item.name === board,
 						);
@@ -361,9 +361,10 @@ describe("GET /api/overview blockers", () => {
 							method: "POST",
 						});
 						expect(failed.status).toBe(204);
-						const afterFailure = (await (
-							await fetch(new URL("/api/overview", base))
-						).json()) as typeof overview;
+						const afterFailure = await overviewWithTickets<typeof overview>(
+							base,
+							await fetch(new URL("/api/overview", base)),
+						);
 						const kept = afterFailure.projects.find(
 							(item) => item.name === board,
 						);
@@ -476,7 +477,7 @@ describe("GET /api/overview blockers", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						const overview = (await response.json()) as {
+						const overview = await overviewWithTickets<{
 							projects: {
 								name: string;
 								tickets: {
@@ -485,7 +486,7 @@ describe("GET /api/overview blockers", () => {
 									blockers: string[];
 								}[];
 							}[];
-						};
+						}>(base, response);
 						const card = overview.projects.find(
 							(project) => project.name === githubRepo,
 						);
@@ -602,7 +603,7 @@ describe("GET /api/overview blockers", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						const before = (await response.json()) as {
+						const before = await overviewWithTickets<{
 							projects: {
 								name: string;
 								error: string | null;
@@ -612,7 +613,7 @@ describe("GET /api/overview blockers", () => {
 									blockers: string[];
 								}[];
 							}[];
-						};
+						}>(base, response);
 						expect(
 							blockersOf(before.projects[0]?.tickets ?? [], key).blockers,
 						).toEqual([`${githubRepo}#20`, `${githubRepo}#19`]);
@@ -623,9 +624,11 @@ describe("GET /api/overview blockers", () => {
 						const after = await settledOverview(base, async (url) => {
 							const response = await fetch(new URL("/api/overview", url));
 							expect(response.status).toBe(200);
-							return (await response.json()) as typeof before & {
-								polling?: true;
-							};
+							return await overviewWithTickets<
+								typeof before & {
+									polling?: true;
+								}
+							>(url, response);
 						});
 						const card = after.projects.find(
 							(project) => project.name === githubRepo,
@@ -750,7 +753,7 @@ describe("GET /api/overview blockers", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						const overview = (await response.json()) as {
+						const overview = await overviewWithTickets<{
 							projects: {
 								name: string;
 								tickets: {
@@ -759,7 +762,7 @@ describe("GET /api/overview blockers", () => {
 									blockers: string[];
 								}[];
 							}[];
-						};
+						}>(base, response);
 						const card = overview.projects.find(
 							(project) => project.name === githubRepo,
 						);

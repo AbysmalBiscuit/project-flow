@@ -16,6 +16,7 @@ import {
 	repo as githubRepo,
 	unrecorded,
 } from "../support/github.ts";
+import { projectTickets, type ShownTicket } from "../support/reads.ts";
 import { repoReadFromHandler } from "../support/repo-read.ts";
 
 export const linearSlug = "widget-launch";
@@ -69,15 +70,10 @@ export type OverviewBody = {
 		inProgress?: number;
 		error?: string | null;
 		statusTypes?: Record<string, number>;
-		tickets: {
-			key: string | null;
-			lane?: string;
-			status?: string;
-			statusType?: string;
-			state: string;
-		}[];
 	}[];
 };
+
+export type LaneTicket = ShownTicket & { status?: string };
 
 export const linearTeam = {
 	id: "team-widget",
@@ -383,14 +379,13 @@ function laneNames(report: ProjectBody): Set<string> {
 	return new Set(report.statuses.map((lane) => lane.name));
 }
 
-export function expectLanesHoldTickets(
+export async function expectLanesHoldTickets(
+	base: string,
 	report: ProjectBody,
-	overview: OverviewBody,
 	project: string,
-): void {
+): Promise<void> {
 	const names = laneNames(report);
-	const tickets =
-		overview.projects.find((item) => item.name === project)?.tickets ?? [];
+	const tickets = await projectTickets<LaneTicket>(base, project);
 	for (const item of tickets) {
 		expect(
 			(item.status ?? item.lane) === undefined ||

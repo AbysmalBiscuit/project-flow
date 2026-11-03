@@ -8,7 +8,25 @@ import { run } from "../src/main.ts";
 import { tempConfig, testIo } from "./support/app.ts";
 import { urlOf } from "./support/fetch.ts";
 import { emptyProjectFields, unrecorded } from "./support/github.ts";
-import { readWhere, settledOverview, trackFound } from "./support/reads.ts";
+import {
+	projectTickets,
+	readWhere,
+	settledOverview,
+	trackFound,
+} from "./support/reads.ts";
+
+const localBoardTickets = [
+	{
+		key: "lev/local-board#3",
+		title: "Ship the board",
+		state: "backlog",
+		blockers: [],
+		lane: "Backlog",
+		statusType: "backlog",
+		enteredStateAt: "2026-10-18T12:00:00.000Z",
+		updatedAt: "2026-10-18T12:00:00.000Z",
+	},
+];
 
 const localBoard = {
 	name: "Local board",
@@ -24,18 +42,6 @@ const localBoard = {
 	awaitingMerge: 0,
 	tags: [],
 	unlinkedPrs: [],
-	tickets: [
-		{
-			key: "lev/local-board#3",
-			title: "Ship the board",
-			state: "backlog",
-			blockers: [],
-			lane: "Backlog",
-			statusType: "backlog",
-			enteredStateAt: "2026-10-18T12:00:00.000Z",
-			updatedAt: "2026-10-18T12:00:00.000Z",
-		},
-	],
 	crossProjectBlockers: [],
 	needsYou: 0,
 	progress: 0,
@@ -186,6 +192,9 @@ describe("local projects", () => {
 						fetchedAt: "2026-10-18T12:00:00.000Z",
 						error: null,
 					});
+					expect(await projectTickets(base, localBoard.name)).toMatchObject(
+						localBoardTickets,
+					);
 					expect(
 						requests.filter((body) => body.includes("ViewerProjects")),
 					).toHaveLength(3);

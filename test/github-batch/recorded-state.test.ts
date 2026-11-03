@@ -4,15 +4,12 @@ import { emptyPage, renamed, startCounted } from "./_support.ts";
 
 describe("batched GitHub reads", () => {
 	test("the overview shows the recorded GraphQL review, check and reaction state", async () => {
-		const { overview, needsYou } = await startCounted(
+		const { tickets, needsYou } = await startCounted(
 			JSON.stringify({ tracked: [{ tracker: "github", repo: "acme/widget" }] }),
 			(owner, name) => renamed(owner, name),
 		);
-		const project = overview.projects.find(
-			(item) => item.name === "acme/widget",
-		);
 		expect(
-			(project?.tickets ?? []).flatMap((ticket) =>
+			(tickets["acme/widget"] ?? []).flatMap((ticket) =>
 				ticket.key === null ? [] : [[ticket.key, ticket.state] as const],
 			),
 		).toEqual([
@@ -91,7 +88,7 @@ describe("batched GitHub reads", () => {
 	});
 
 	test("a GraphQL NOT_PLANNED issue sits in Dropped", async () => {
-		const { overview } = await startCounted(
+		const { overview, tickets } = await startCounted(
 			JSON.stringify({ tracked: [{ tracker: "github", repo: "acme/widget" }] }),
 			(owner, name) => {
 				const body = renamed(owner, name);
@@ -113,7 +110,7 @@ describe("batched GitHub reads", () => {
 			(item) => item.name === "acme/widget",
 		);
 		expect(
-			project?.tickets.find((ticket) => ticket.key === "acme/widget#12"),
+			tickets["acme/widget"]?.find((ticket) => ticket.key === "acme/widget#12"),
 		).toEqual(
 			expect.objectContaining({ lane: "Dropped", statusType: "dropped" }),
 		);

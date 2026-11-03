@@ -43,7 +43,7 @@ describe("factory runs", () => {
 				const [planStarted, planCompleted, buildStarted] = hubEvents;
 				feed.send(planStarted);
 				const planning = await overviewEventWhere(
-					stream.events,
+					stream,
 					(seen) => factoryRunOf(seen, 41)?.stage === "plan",
 				);
 				expect(factoryRunOf(planning, 41)).toMatchObject({
@@ -52,12 +52,12 @@ describe("factory runs", () => {
 				});
 				feed.send(planCompleted);
 				await overviewEventWhere(
-					stream.events,
+					stream,
 					(seen) => factoryRunOf(seen, 41)?.stage === undefined,
 				);
 				feed.send(buildStarted);
 				await overviewEventWhere(
-					stream.events,
+					stream,
 					(seen) => factoryRunOf(seen, 41)?.stage === "build",
 				);
 				expect(reportTicket(await reportOf(app.base), 41).run).toEqual({
@@ -95,7 +95,7 @@ describe("factory runs", () => {
 				app.advance(streamRetryMs / 2);
 				// The run poll reads /runs of the hub only once its stream is closed.
 				await overviewEventWhere(
-					stream.events,
+					stream,
 					(seen) => factoryRunOf(seen, 41)?.statusKind === "blocked",
 				);
 				expect(app.runReads()).toBe(reads + 1);
@@ -104,7 +104,7 @@ describe("factory runs", () => {
 				app.advance(streamRetryMs / 2);
 				await feed.connected(2);
 				const changed = await overviewEventWhere(
-					stream.events,
+					stream,
 					(seen) => factoryRunOf(seen, 41)?.statusKind === "running",
 				);
 				expect(factoryRunOf(changed, 41)?.coveredByFeed).toBe(true);
@@ -138,7 +138,7 @@ describe("factory runs", () => {
 				};
 				app.advance(streamedRunPollMs);
 				const changed = await overviewEventWhere(
-					stream.events,
+					stream,
 					(seen) => factoryRunOf(seen, 42) !== undefined,
 				);
 				expect(factoryRunOf(changed, 42)).toMatchObject({
@@ -181,7 +181,7 @@ describe("factory runs", () => {
 				feed.send({ run_id: queued42.id, status: { kind: "running" } });
 				app.advance(streamedRunPollMs);
 				const started = await overviewEventWhere(
-					stream.events,
+					stream,
 					(seen) => factoryRunOf(seen, 42)?.startedAt === startedAt,
 				);
 				expect(factoryRunOf(started, 42)).toMatchObject({
@@ -198,7 +198,7 @@ describe("factory runs", () => {
 				feed.send({ run_id: queued42.id, status: { kind: "succeeded" } });
 				app.advance(streamedRunPollMs);
 				const ended = await overviewEventWhere(
-					stream.events,
+					stream,
 					(seen) => factoryRunOf(seen, 42)?.endedAt === endedAt,
 				);
 				expect(factoryRunOf(ended, 42)).toMatchObject({
@@ -228,7 +228,7 @@ describe("factory runs", () => {
 				app.factories[hubUrl] = hubWith41("blocked");
 				app.advance(runPollMs);
 				await overviewEventWhere(
-					stream.events,
+					stream,
 					(seen) => factoryRunOf(seen, 41)?.statusKind === "blocked",
 				);
 				expect(app.runReads()).toBe(reads + 1);

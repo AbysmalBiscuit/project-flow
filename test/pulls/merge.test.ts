@@ -4,7 +4,7 @@ import { withApp } from "../project-harness.ts";
 import {
 	type ChangeEvent,
 	openEventStream,
-	overviewOf,
+	projectTickets,
 } from "../support/reads.ts";
 import {
 	githubEnv,
@@ -33,9 +33,16 @@ The widget changes its scope.
 </details>
 `;
 
-async function waitForDone(events: AsyncIterable<ChangeEvent>): Promise<void> {
+/** Wait for an overview event after which the project report shows the ticket in Done. */
+async function waitForDone(
+	base: string,
+	events: AsyncIterable<ChangeEvent>,
+): Promise<void> {
 	for await (const event of events) {
-		const shown = overviewOf(event.data).projects[0]?.tickets.find(
+		if (event.event !== "overview") {
+			continue;
+		}
+		const shown = (await projectTickets(base, repo)).find(
 			(ticket) => ticket.key === ticketKey,
 		);
 		if (shown?.state === "done") {
@@ -101,16 +108,11 @@ describe("merge an awaiting PR", () => {
 						body: { merge_method: "squash", sha: "sha-40" },
 					},
 				]);
-				const overview = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as {
-					projects: { tickets: { key: string; state: string }[] }[];
-				};
-				const shown = overview.projects[0]?.tickets.find(
+				const shown = (await projectTickets(base, repo)).find(
 					(ticket) => ticket.key === ticketKey,
 				);
 				expect(shown?.state).toBe("done");
-				await waitForDone(stream.events);
+				await waitForDone(base, stream.events);
 			} finally {
 				stream.close();
 			}

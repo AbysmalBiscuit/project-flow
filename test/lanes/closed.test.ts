@@ -8,8 +8,10 @@ import {
 	unrecorded,
 } from "../support/github.ts";
 import { linearFake } from "../support/linear.ts";
+import { projectTickets } from "../support/reads.ts";
 import {
 	githubIssue,
+	type LaneTicket,
 	linearIssue,
 	linearSlug,
 	linearStates,
@@ -51,9 +53,9 @@ describe("tracker lanes", () => {
 				const project = overview.projects.find(
 					(item) => item.name === githubRepo,
 				);
-				const ticket = project?.tickets.find(
-					(item) => item.key === "acme/widget#4",
-				);
+				const ticket = (
+					await projectTickets<LaneTicket>(base, githubRepo)
+				).find((item) => item.key === "acme/widget#4");
 				expect(ticket?.status ?? ticket?.lane).toBe("Done");
 				expect(ticket?.statusType).toBe("done");
 				expect(project?.statusTypes?.done).toBe(1);
@@ -83,12 +85,9 @@ describe("tracker lanes", () => {
 			},
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
-				const overview = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
-				const ticket = overview.projects
-					.find((item) => item.name === githubRepo)
-					?.tickets.find((item) => item.key === "acme/widget#5");
+				const ticket = (
+					await projectTickets<LaneTicket>(base, githubRepo)
+				).find((item) => item.key === "acme/widget#5");
 				expect(ticket?.status ?? ticket?.lane).toBe("Done");
 				expect(ticket?.statusType).toBe("done");
 			},
@@ -128,12 +127,9 @@ describe("tracker lanes", () => {
 			async (base) => {
 				const report = await projectOf(base, "Widget launch");
 				expect(report.statuses.map((lane) => lane.name)).toContain("Released");
-				const overview = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
-				const ticket = overview.projects
-					.find((item) => item.name === "Widget launch")
-					?.tickets.find((item) => item.key === "WID-20");
+				const ticket = (
+					await projectTickets<LaneTicket>(base, "Widget launch")
+				).find((item) => item.key === "WID-20");
 				expect(ticket?.status ?? ticket?.lane).toBe("Released");
 				expect(ticket?.statusType).toBe("done");
 			},
@@ -190,7 +186,9 @@ describe("tracker lanes", () => {
 					(item) => item.name === plainRepo,
 				);
 				expect(
-					project?.tickets.find((item) => item.key === "acme/plain#12"),
+					(await projectTickets<LaneTicket>(base, plainRepo)).find(
+						(item) => item.key === "acme/plain#12",
+					),
 				).toEqual(
 					expect.objectContaining({ lane: "Dropped", statusType: "dropped" }),
 				);
