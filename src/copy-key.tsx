@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 
 import { textControl } from "./control-styles.ts";
 import { panel } from "./panel-styles.ts";
-import { Toast, toastHideMs } from "./toast.tsx";
+import { actionToastHideMs, Toast } from "./toast.tsx";
 import { clsx } from "./ui.ts";
 
 const copyKeyCopy = {
@@ -56,7 +56,7 @@ export function CopyKey({ ticketKey }: { ticketKey: string }) {
 					key={outcome.id}
 					tone={outcome.tone}
 					message={outcome.message}
-					hideMs={toastHideMs(outcome.tone)}
+					hideMs={actionToastHideMs}
 					onClose={() => setOutcome(null)}
 				/>
 			)}

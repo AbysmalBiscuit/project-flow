@@ -36,9 +36,11 @@ import { shippedStates } from "./state-colours.ts";
 import { navLabel, settingsCopy, settingsSection } from "./terms.ts";
 import { TextInput } from "./text-input.tsx";
 import { pageTheme, watchPageTheme } from "./theme.ts";
-import { Toast, toastHideMs } from "./toast.tsx";
+import { Toast } from "./toast.tsx";
 import { clsx } from "./ui.ts";
 import { viewDefaults } from "./view-settings.ts";
+
+const toastHideMs = 4_000;
 
 function draftOf(settings: Configuration): Configuration {
 	return {
@@ -257,7 +259,7 @@ function Menu({
 							id="settings-toast"
 							message={message}
 							tone={failed ? "error" : "saved"}
-							hideMs={toast === 0 || failed ? undefined : toastHideMs("saved")}
+							hideMs={toast === 0 || failed ? undefined : toastHideMs}
 							onClose={() => {
 								setMessage(null);
 								setToast(0);
