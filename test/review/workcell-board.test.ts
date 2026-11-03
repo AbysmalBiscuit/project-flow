@@ -9,8 +9,8 @@ import { projectBoard } from "../review-board.ts";
 import { tempConfig, testIo } from "../support/app.ts";
 import { urlOf } from "../support/fetch.ts";
 import { repo } from "../support/github.ts";
-import { settledOverview } from "../support/reads.ts";
-import { progress, withReportTickets } from "./_support.ts";
+import { settledOverview, withReportTickets } from "../support/reads.ts";
+import { progress } from "./_support.ts";
 
 describe("review cycle", () => {
 	test("a workcell progress comment on a GitHub project ticket keeps its PR in review", async () => {
@@ -360,7 +360,7 @@ describe("review cycle", () => {
 							const response = await fetch(new URL("/api/overview", url));
 							expect(response.status).toBe(200);
 							return (await response.json()) as {
-								projects: { error: string | null }[];
+								projects: { name: string; error: string | null }[];
 								polling?: true;
 							};
 						});
@@ -382,7 +382,7 @@ describe("review cycle", () => {
 							const response = await fetch(new URL("/api/overview", url));
 							expect(response.status).toBe(200);
 							return (await response.json()) as {
-								projects: { error: string | null }[];
+								projects: { name: string; error: string | null }[];
 								polling?: true;
 							};
 						});
@@ -475,9 +475,9 @@ describe("review cycle", () => {
 						});
 						expect(refresh.status).toBe(204);
 						let second: {
-							projects?: { inReview?: number; polling?: true }[];
+							projects: { name: string; inReview?: number }[];
 							polling?: true;
-						} = {};
+						} = { projects: [] };
 						while (second.projects?.[0]?.inReview !== 1) {
 							const secondResponse = await fetch(
 								new URL("/api/overview", base),

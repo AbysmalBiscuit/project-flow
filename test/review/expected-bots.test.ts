@@ -22,16 +22,13 @@ import {
 	unrecorded,
 } from "../support/github.ts";
 import { linearFake } from "../support/linear.ts";
-import { projectTickets, type ShownTicket } from "../support/reads.ts";
-import { repoReadIssues } from "../support/repo-read.ts";
 import {
-	card,
-	greptile,
-	issue,
-	mergedPull,
-	older,
+	projectTickets,
+	type ShownTicket,
 	withReportTickets,
-} from "./_support.ts";
+} from "../support/reads.ts";
+import { repoReadIssues } from "../support/repo-read.ts";
+import { card, greptile, issue, mergedPull, older } from "./_support.ts";
 
 describe("review cycle", () => {
 	test("expected bots come from recorded merged PRs", async () => {

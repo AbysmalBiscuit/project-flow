@@ -234,23 +234,23 @@ export type ServedOverview = {
 };
 
 /** An overview, with the tickets of each project card from its project report. */
-export type OverviewWithTickets<Ticket extends ShownTicket> = Omit<
-	ServedOverview,
-	"projects"
-> & {
-	projects: { name: string; tickets: Ticket[] }[];
+export type OverviewWithTickets<
+	Ticket extends ShownTicket,
+	Body extends ServedOverview = ServedOverview,
+> = Omit<Body, "projects"> & {
+	projects: (Body["projects"][number] & { tickets: Ticket[] })[];
 };
 
 /** Attach the report tickets of each project card, as the page reads them. A pending card has no report yet. */
-export async function withReportTickets<Ticket extends ShownTicket>(
-	base: string,
-	overview: ServedOverview,
-): Promise<OverviewWithTickets<Ticket>> {
+export async function withReportTickets<
+	Ticket extends ShownTicket = ShownTicket,
+	Body extends ServedOverview = ServedOverview,
+>(base: string, overview: Body): Promise<OverviewWithTickets<Ticket, Body>> {
 	return {
 		...overview,
 		projects: await Promise.all(
 			overview.projects.map(async (card) => ({
-				name: card.name,
+				...card,
 				tickets:
 					card.pending === true
 						? []
@@ -289,18 +289,17 @@ function cardFields({
  * The report adds `run` from progress comments, so the cut leaves `run` out.
  * A test compares whole cards and their tickets with one `toEqual`.
  */
-export async function withCardTickets<Card extends { name: string }>(
+export async function withCardTickets<Body extends ServedOverview>(
 	base: string,
-	overview: { projects: Card[] },
-): Promise<{ projects: (Card & { tickets: ShownTicket[] })[] }> {
+	overview: Body,
+): Promise<OverviewWithTickets<ShownTicket, Body>> {
+	const read = await withReportTickets<ShownTicket, Body>(base, overview);
 	return {
-		...overview,
-		projects: await Promise.all(
-			overview.projects.map(async (card) => ({
-				...card,
-				tickets: (await projectTickets(base, card.name)).map(cardFields),
-			})),
-		),
+		...read,
+		projects: read.projects.map((card) => ({
+			...card,
+			tickets: card.tickets.map(cardFields),
+		})),
 	};
 }
 
