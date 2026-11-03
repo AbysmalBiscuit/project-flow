@@ -12,7 +12,11 @@ import {
 	repo,
 	unrecorded,
 } from "../support/github.ts";
-import type { OverviewBody } from "../support/reads.ts";
+import {
+	type OverviewBody,
+	projectTickets,
+	type ShownTicket,
+} from "../support/reads.ts";
 
 const seenPolls = new WeakMap<string[], Set<string>>();
 
@@ -53,7 +57,6 @@ export function counts(
 	backlog: number,
 	done = 0,
 	tracker: TrackerKind = "github",
-	tickets: OverviewBody["projects"][number]["tickets"] = [],
 	fetchedAt: string | null = goodPoll,
 	error: string | null = null,
 ): OverviewBody["projects"][number] {
@@ -69,7 +72,6 @@ export function counts(
 		awaitingMerge: 0,
 		tags: [],
 		unlinkedPrs: [],
-		tickets,
 		crossProjectBlockers: [],
 		needsYou: 0,
 		progress:
@@ -97,7 +99,7 @@ export function githubTicket(
 	state: "backlog" | "done",
 	enteredStateAt = "2026-04-01T00:00:00Z",
 	updatedAt = "2026-04-01T00:00:00Z",
-): OverviewBody["projects"][number]["tickets"][number] {
+): ShownTicket {
 	return {
 		key: `${repo}#${number}`,
 		title: `Ticket ${number}`,
@@ -108,4 +110,12 @@ export function githubTicket(
 		enteredStateAt,
 		updatedAt,
 	};
+}
+
+/** The tickets of an overview card, as its project report gives them. */
+export async function cardTickets(
+	base: string,
+	card: { name: string } | undefined,
+): Promise<ShownTicket[]> {
+	return card === undefined ? [] : projectTickets(base, card.name);
 }

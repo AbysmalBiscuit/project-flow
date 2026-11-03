@@ -8,7 +8,11 @@ import { run } from "../../src/main.ts";
 import { tempConfig, testIo } from "../support/app.ts";
 import { json } from "../support/fetch.ts";
 import { linearFake } from "../support/linear.ts";
-import { readOverview, settledOverview } from "../support/reads.ts";
+import {
+	projectTickets,
+	readOverview,
+	settledOverview,
+} from "../support/reads.ts";
 import {
 	graphql,
 	type GraphqlRequest,
@@ -136,7 +140,11 @@ describe("batched GitHub reads", () => {
 				(item) => item.name === "Widget launch",
 			);
 			expect(project?.error).toBeNull();
-			expect(project?.tickets.map((ticket) => ticket.key)).toEqual(["WID-1"]);
+			expect(
+				(await projectTickets(base, "Widget launch")).map(
+					(ticket) => ticket.key,
+				),
+			).toEqual(["WID-1"]);
 			const metadata = queries.filter(
 				(request) => !request.query.includes("issues("),
 			);
@@ -208,10 +216,11 @@ describe("batched GitHub reads", () => {
 				(item) => item.name === "acme/widget",
 			);
 			expect(project?.error).toBeNull();
-			expect(project?.tickets.map((ticket) => ticket.key).sort()).toEqual([
-				"acme/widget#101",
-				"acme/widget#102",
-			]);
+			expect(
+				(await projectTickets(base, "acme/widget"))
+					.map((ticket) => ticket.key)
+					.sort(),
+			).toEqual(["acme/widget#101", "acme/widget#102"]);
 			const later = queries.slice(before);
 			expect(later).toHaveLength(1);
 			expect(later[0]?.query.includes("issues(")).toBe(true);

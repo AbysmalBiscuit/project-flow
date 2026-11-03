@@ -13,7 +13,7 @@ import {
 	recordedDiscovery,
 	unrecorded,
 } from "../support/github.ts";
-import { blockersOf, issue } from "./_support.ts";
+import { blockersOf, issue, overviewWithTickets } from "./_support.ts";
 
 describe("GET /api/overview blockers", () => {
 	test("a GitHub project ticket shows its blocker on the project card", async () => {
@@ -251,7 +251,7 @@ describe("GET /api/overview blockers", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						const overview = (await response.json()) as {
+						const overview = await overviewWithTickets<{
 							projects: {
 								name: string;
 								tickets: {
@@ -260,7 +260,7 @@ describe("GET /api/overview blockers", () => {
 									blockers: string[];
 								}[];
 							}[];
-						};
+						}>(base, response);
 						const project = overview.projects.find(
 							(item) => item.name === board,
 						);
@@ -585,7 +585,7 @@ describe("GET /api/overview blockers", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						const first = (await response.json()) as {
+						const first = await overviewWithTickets<{
 							projects: {
 								name: string;
 								tickets: {
@@ -594,7 +594,7 @@ describe("GET /api/overview blockers", () => {
 									blockers: string[];
 								}[];
 							}[];
-						};
+						}>(base, response);
 						const project = first.projects.find((item) => item.name === board);
 						const repoCard = first.projects.find(
 							(item) => item.name === githubRepo,
@@ -641,9 +641,10 @@ describe("GET /api/overview blockers", () => {
 							method: "POST",
 						});
 						expect(refresh.status).toBe(204);
-						const second = (await (
-							await fetch(new URL("/api/overview", base))
-						).json()) as typeof first;
+						const second = await overviewWithTickets<typeof first>(
+							base,
+							await fetch(new URL("/api/overview", base)),
+						);
 						const nextProject = second.projects.find(
 							(item) => item.name === board,
 						);
@@ -790,7 +791,7 @@ describe("GET /api/overview blockers", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						const body = (await response.json()) as {
+						const body = await overviewWithTickets<{
 							projects: {
 								name: string;
 								tickets: {
@@ -799,7 +800,7 @@ describe("GET /api/overview blockers", () => {
 									blockers: string[];
 								}[];
 							}[];
-						};
+						}>(base, response);
 						const project = body.projects.find(
 							(item) => item.name === "Widget board",
 						);

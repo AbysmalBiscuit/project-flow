@@ -1,5 +1,5 @@
 import { board } from "./board-styles.ts";
-import type { ProjectCounts } from "./domain.ts";
+import type { OverviewCard } from "./domain.ts";
 import { PollLoading } from "./loading.tsx";
 import { SegmentedBar, ticketTotal } from "./progress-bar.tsx";
 import { PageFrame } from "./shell.tsx";
@@ -7,7 +7,7 @@ import { needsYouCount } from "./terms.ts";
 import { shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
-function waitingCountLine(project: ProjectCounts): string {
+function waitingCountLine(project: OverviewCard): string {
 	return `${project.done} of ${ticketTotal(project)} done, ${needsYouCount(project.needsYou)}, ${project.blocked} blocked.`;
 }
 
@@ -18,7 +18,7 @@ export function ProjectWaiting({
 	error,
 }: {
 	name: string;
-	counts: ProjectCounts | undefined;
+	counts: OverviewCard | undefined;
 	error: string | null;
 }) {
 	return (

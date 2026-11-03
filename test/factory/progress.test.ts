@@ -478,7 +478,7 @@ describe("factory runs", () => {
 					item: { ...stageStarted?.item, node_path: "report/report" },
 				});
 				await overviewEventWhere(
-					stream.events,
+					stream,
 					(seen) => factoryRunOf(seen, 41)?.stage === "report/report",
 				);
 				const response = await agentsOf(app.base, running41);
@@ -547,7 +547,7 @@ describe("factory runs", () => {
 				};
 				app.advance(runPollMs);
 				await overviewEventWhere(
-					stream.events,
+					stream,
 					(seen) => factoryRunOf(seen, 41)?.statusKind === "succeeded",
 				);
 				await readWhere<{ agents: unknown[] }>(

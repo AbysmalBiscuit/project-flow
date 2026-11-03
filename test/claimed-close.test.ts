@@ -17,7 +17,11 @@ import {
 	recordedDiscovery,
 	unrecorded,
 } from "./support/github.ts";
-import { readOverview, settledOverview } from "./support/reads.ts";
+import {
+	projectTickets,
+	readOverview,
+	settledOverview,
+} from "./support/reads.ts";
 import { githubIssueNode, repoReadIssues } from "./support/repo-read.ts";
 
 const owner = "AbysmalBiscuit";
@@ -178,17 +182,22 @@ function trackerFetch(
 	};
 }
 
-/** Each copy of the ticket that the overview shows, with its project. */
-function copiesOf(body: Overview, number: number) {
-	return body.projects.flatMap((project) =>
-		project.tickets
-			.filter((ticket) => ticket.key === `${repoName}#${number}`)
-			.map((ticket) => ({
-				project: project.name,
-				lane: ticket.lane,
-				blockers: ticket.blockers,
-			})),
+/** Each copy of the ticket that the project reports of the overview cards show, with its project. */
+async function copiesOf(base: string, body: Overview, number: number) {
+	const copies = await Promise.all(
+		body.projects
+			.filter((project) => project.pending !== true)
+			.map(async (project) =>
+				(await projectTickets(base, project.name))
+					.filter((ticket) => ticket.key === `${repoName}#${number}`)
+					.map((ticket) => ({
+						project: project.name,
+						lane: ticket.lane,
+						blockers: ticket.blockers,
+					})),
+			),
 	);
+	return copies.flat();
 }
 
 /** The `since` cursor of each repo read the app sent, in order. */
@@ -316,14 +325,14 @@ describe("a GitHub issue that closes after the app stored it as open", () => {
 				now: new Date(beforeClose),
 			});
 			try {
-				expect(copiesOf(await app.overview(), 205)).toEqual([
+				expect(await copiesOf(app.base, await app.overview(), 205)).toEqual([
 					{ project: repoName, lane: "Backlog", blockers: [] },
 				]);
 				tracker.repo = [closed205];
 				tracker.board = [closed205];
-				expect(copiesOf(await app.refresh(afterClose), 205)).toEqual([
-					{ project: boardTitle, lane: "Done", blockers: [] },
-				]);
+				expect(
+					await copiesOf(app.base, await app.refresh(afterClose), 205),
+				).toEqual([{ project: boardTitle, lane: "Done", blockers: [] }]);
 				expect(repoReadSince(requests)).toEqual([
 					null,
 					githubSince(beforeClose),
@@ -342,15 +351,15 @@ describe("a GitHub issue that closes after the app stored it as open", () => {
 				now: new Date(beforeClose),
 			});
 			try {
-				expect(copiesOf(await app.overview(), 205)).toEqual([
+				expect(await copiesOf(app.base, await app.overview(), 205)).toEqual([
 					{ project: boardTitle, lane: "Backlog", blockers: [] },
 				]);
 				tracker.repo = [closed205];
 				tracker.board = null;
 				const sent = requests.length;
-				expect(copiesOf(await app.refresh(afterClose), 205)).toEqual([
-					{ project: repoName, lane: "Done", blockers: [] },
-				]);
+				expect(
+					await copiesOf(app.base, await app.refresh(afterClose), 205),
+				).toEqual([{ project: repoName, lane: "Done", blockers: [] }]);
 				expect(
 					requests
 						.slice(sent)
@@ -362,7 +371,11 @@ describe("a GitHub issue that closes after the app stored it as open", () => {
 				]);
 				tracker.board = [closed205];
 				expect(
-					copiesOf(await app.refresh("2026-10-21T10:00:00.000Z"), 205),
+					await copiesOf(
+						app.base,
+						await app.refresh("2026-10-21T10:00:00.000Z"),
+						205,
+					),
 				).toEqual([{ project: boardTitle, lane: "Done", blockers: [] }]);
 			} finally {
 				await app.stop();
@@ -382,13 +395,17 @@ describe("a GitHub issue that closes after the app stored it as open", () => {
 					now: new Date("2026-10-23T14:20:00.000Z"),
 				});
 				try {
-					const before = copiesOf(await app.overview(), 391);
+					const before = await copiesOf(app.base, await app.overview(), 391);
 					expect(before).toHaveLength(1);
 					expect(before[0]?.blockers).not.toEqual([]);
 					tracker.repo = [closed380, open391(closedBlockerOf391)];
 					tracker.board = [closed380, open391(closedBlockerOf391)];
 					expect(
-						copiesOf(await app.refresh("2026-10-23T14:28:00.000Z"), 391),
+						await copiesOf(
+							app.base,
+							await app.refresh("2026-10-23T14:28:00.000Z"),
+							391,
+						),
 					).toEqual([{ project: boardTitle, lane: "Backlog", blockers: [] }]);
 					expect(repoReadSince(requests)).toEqual([
 						null,
@@ -476,9 +493,9 @@ describe("a GitHub issue that closes after the app stored it as open", () => {
 			const clock: Clock = { now: new Date(beforeClose) };
 			const first = await startApp(paths, tracker, requests, clock);
 			try {
-				expect(copiesOf(await first.overview(), 205)).toEqual([
-					{ project: repoName, lane: "Backlog", blockers: [] },
-				]);
+				expect(await copiesOf(first.base, await first.overview(), 205)).toEqual(
+					[{ project: repoName, lane: "Backlog", blockers: [] }],
+				);
 			} finally {
 				await first.stop();
 			}
@@ -492,7 +509,7 @@ describe("a GitHub issue that closes after the app stored it as open", () => {
 					await Bun.sleep(20);
 					body = await second.overview();
 				}
-				expect(copiesOf(body, 205)).toEqual([
+				expect(await copiesOf(second.base, body, 205)).toEqual([
 					{ project: boardTitle, lane: "Done", blockers: [] },
 				]);
 				expect(repoReadSince(requests)).toEqual([

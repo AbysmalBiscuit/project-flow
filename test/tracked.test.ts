@@ -10,7 +10,7 @@ import { run } from "../src/main.ts";
 import { tempConfig, testIo } from "./support/app.ts";
 import { json, trackerRequest } from "./support/fetch.ts";
 import { unrecorded } from "./support/github.ts";
-import { settledOverview } from "./support/reads.ts";
+import { projectTickets, settledOverview } from "./support/reads.ts";
 import { emptyRepoRead } from "./support/repo-read.ts";
 
 const repos = Array.from({ length: 5 }, (_, index) => `acme/repo-${index}`);
@@ -422,17 +422,14 @@ describe("tracked projects", () => {
 						retracked: sent
 							.slice(issuesBefore)
 							.filter((request) => request.includes("RepoRead acme/repo-1")),
-						overview: await read<Overview>(base, "/api/overview"),
+						tickets: await projectTickets(base, "acme/repo-1"),
 					};
 				},
 			);
 			expect(checked.retracked).toEqual([
 				"https://api.github.com/graphql RepoRead acme/repo-1",
 			]);
-			const repo = checked.overview.projects.find(
-				(project) => project.name === "acme/repo-1",
-			);
-			expect(repo?.tickets.map((ticket) => ticket.title).sort()).toEqual([
+			expect(checked.tickets.map((ticket) => ticket.title).sort()).toEqual([
 				"Older ticket",
 				"Ticket 1",
 			]);

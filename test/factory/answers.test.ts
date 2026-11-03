@@ -212,7 +212,7 @@ describe("factory questions", () => {
 			await stream.ready;
 			feed.send({ run_id: running41.id, status: { kind: "blocked" } });
 			const blocked = await overviewEventWhere(
-				stream.events,
+				stream,
 				(seen) => factoryRunOf(seen, 41)?.questions !== undefined,
 			);
 			expect(factoryRunOf(blocked, 41)).toMatchObject({
@@ -221,7 +221,7 @@ describe("factory questions", () => {
 			});
 			feed.send({ run_id: running41.id, status: { kind: "running" } });
 			const resumed = await overviewEventWhere(
-				stream.events,
+				stream,
 				(seen) => factoryRunOf(seen, 41)?.statusKind === "running",
 			);
 			expect(factoryRunOf(resumed, 41)?.questions).toBeUndefined();

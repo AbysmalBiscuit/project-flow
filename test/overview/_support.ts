@@ -12,12 +12,30 @@ import {
 	unrecorded,
 } from "../support/github.ts";
 import { linearFake } from "../support/linear.ts";
-import { readOverview } from "../support/reads.ts";
+import {
+	projectTickets,
+	readOverview,
+	type ShownTicket,
+} from "../support/reads.ts";
 import {
 	repoReadFromHandler,
 	repoReadFromLists,
 	repoReadResponse,
 } from "../support/repo-read.ts";
+
+/** The tickets of each card of an overview, from its project report, by project name. */
+export async function cardTickets(
+	base: string,
+	overview: { projects: readonly { name: string; pending?: true | boolean }[] },
+): Promise<Record<string, ShownTicket[]>> {
+	const read = overview.projects
+		.filter((card) => card.pending !== true)
+		.map(
+			async (card) =>
+				[card.name, await projectTickets(base, card.name)] as const,
+		);
+	return Object.fromEntries(await Promise.all(read));
+}
 
 export async function readServedOverview(base: string): Promise<Overview> {
 	const response = await fetch(new URL("/api/overview", base));
@@ -164,68 +182,6 @@ export async function assertCard(base: string): Promise<void> {
 			awaitingMerge: 0,
 			tags: [],
 			unlinkedPrs: [],
-			tickets: [
-				{
-					key: `${repo}#1`,
-					title: "Ticket 1",
-					state: "done",
-					blockers: [],
-					lane: "Done",
-					statusType: "done",
-					enteredStateAt: "2026-10-18T12:00:00.000Z",
-					updatedAt: "2026-10-18T12:00:00.000Z",
-				},
-				{
-					key: `${repo}#2`,
-					title: "Ticket 2",
-					state: "dropped",
-					blockers: [],
-					lane: "Dropped",
-					statusType: "dropped",
-					enteredStateAt: "2026-10-18T12:00:00.000Z",
-					updatedAt: "2026-10-18T12:00:00.000Z",
-				},
-				{
-					key: `${repo}#3`,
-					title: "Ticket 3",
-					state: "dropped",
-					blockers: [],
-					lane: "Dropped",
-					statusType: "dropped",
-					enteredStateAt: "2026-10-18T12:00:00.000Z",
-					updatedAt: "2026-10-18T12:00:00.000Z",
-				},
-				{
-					key: `${repo}#4`,
-					title: "Ticket 4",
-					state: "done",
-					blockers: [],
-					lane: "Done",
-					statusType: "done",
-					enteredStateAt: "2026-10-18T12:00:00.000Z",
-					updatedAt: "2026-10-18T12:00:00.000Z",
-				},
-				{
-					key: `${repo}#5`,
-					title: "Ticket 5",
-					state: "backlog",
-					blockers: [],
-					lane: "Backlog",
-					statusType: "backlog",
-					enteredStateAt: "2026-10-18T12:00:00.000Z",
-					updatedAt: "2026-10-18T12:00:00.000Z",
-				},
-				{
-					key: `${repo}#6`,
-					title: "Ticket 6",
-					state: "backlog",
-					blockers: [],
-					lane: "Backlog",
-					statusType: "backlog",
-					enteredStateAt: "2026-10-18T12:00:00.000Z",
-					updatedAt: "2026-10-18T12:00:00.000Z",
-				},
-			],
 			crossProjectBlockers: [],
 			needsYou: 0,
 			progress: 33,
@@ -239,6 +195,68 @@ export async function assertCard(base: string): Promise<void> {
 				done: 2,
 				dropped: 2,
 			},
+		},
+	]);
+	expect(await projectTickets(base, repo)).toMatchObject([
+		{
+			key: `${repo}#1`,
+			title: "Ticket 1",
+			state: "done",
+			blockers: [],
+			lane: "Done",
+			statusType: "done",
+			enteredStateAt: "2026-10-18T12:00:00.000Z",
+			updatedAt: "2026-10-18T12:00:00.000Z",
+		},
+		{
+			key: `${repo}#2`,
+			title: "Ticket 2",
+			state: "dropped",
+			blockers: [],
+			lane: "Dropped",
+			statusType: "dropped",
+			enteredStateAt: "2026-10-18T12:00:00.000Z",
+			updatedAt: "2026-10-18T12:00:00.000Z",
+		},
+		{
+			key: `${repo}#3`,
+			title: "Ticket 3",
+			state: "dropped",
+			blockers: [],
+			lane: "Dropped",
+			statusType: "dropped",
+			enteredStateAt: "2026-10-18T12:00:00.000Z",
+			updatedAt: "2026-10-18T12:00:00.000Z",
+		},
+		{
+			key: `${repo}#4`,
+			title: "Ticket 4",
+			state: "done",
+			blockers: [],
+			lane: "Done",
+			statusType: "done",
+			enteredStateAt: "2026-10-18T12:00:00.000Z",
+			updatedAt: "2026-10-18T12:00:00.000Z",
+		},
+		{
+			key: `${repo}#5`,
+			title: "Ticket 5",
+			state: "backlog",
+			blockers: [],
+			lane: "Backlog",
+			statusType: "backlog",
+			enteredStateAt: "2026-10-18T12:00:00.000Z",
+			updatedAt: "2026-10-18T12:00:00.000Z",
+		},
+		{
+			key: `${repo}#6`,
+			title: "Ticket 6",
+			state: "backlog",
+			blockers: [],
+			lane: "Backlog",
+			statusType: "backlog",
+			enteredStateAt: "2026-10-18T12:00:00.000Z",
+			updatedAt: "2026-10-18T12:00:00.000Z",
 		},
 	]);
 	expect(body.error).toBeNull();

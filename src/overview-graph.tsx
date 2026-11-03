@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useTrackerLabel } from "./backend-labels.ts";
 import { board } from "./board-styles.ts";
 import { control } from "./control-styles.ts";
-import type { CrossProjectBlocker, ProjectCounts } from "./domain.ts";
+import type { CrossProjectBlocker, OverviewCard } from "./domain.ts";
 import { focusChain } from "./focus-chain.ts";
 import { type FocusView, shownSeeds } from "./focus.ts";
 import { type Anchor, useLaidGraph } from "./graph-laid.tsx";
@@ -38,7 +38,7 @@ function blockerLinkId(blocked: string, blocker: CrossProjectBlocker) {
  * The overview graph: one card per project, and one arrow per ticket that
  * blocks a ticket of another shown project.
  */
-function overviewInput(projects: readonly ProjectCounts[]): LayoutInput {
+function overviewInput(projects: readonly OverviewCard[]): LayoutInput {
 	const shown = new Set(projects.map((project) => project.name));
 	return {
 		cards: projects.map((project) => ({
@@ -68,7 +68,7 @@ function overviewInput(projects: readonly ProjectCounts[]): LayoutInput {
 	};
 }
 
-type ProjectCard = { key: string; project: ProjectCounts };
+type ProjectCard = { key: string; project: OverviewCard };
 
 type BlockerLink = {
 	ticket: string;
@@ -168,7 +168,7 @@ export function OverviewGraph({
 	projects,
 	focus,
 }: {
-	projects: ProjectCounts[];
+	projects: OverviewCard[];
 	focus: FocusView;
 }) {
 	const clearFocus = focus.clear;

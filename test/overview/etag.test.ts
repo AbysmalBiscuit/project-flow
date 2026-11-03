@@ -9,7 +9,7 @@ import { run } from "../../src/main.ts";
 import { tempConfig, testIo } from "../support/app.ts";
 import { urlOf } from "../support/fetch.ts";
 import { page, recordedDiscovery, unrecorded } from "../support/github.ts";
-import { settledOverview } from "../support/reads.ts";
+import { projectTickets, settledOverview } from "../support/reads.ts";
 import { repoReadFromHandler, repoReadResponse } from "../support/repo-read.ts";
 import { emptyList, githubTicket, readServedOverview } from "./_support.ts";
 
@@ -134,7 +134,8 @@ describe("GET /api/overview", () => {
 					expect(before.projects.map((project) => project.name)).toEqual([
 						repoName,
 					]);
-					expect(before.projects[0]?.tickets).toEqual([
+					expect(before.projects[0]?.name).toBe(repoName);
+					expect(await projectTickets(base, repoName)).toMatchObject([
 						{
 							key: `${repoName}#4`,
 							title: "Ticket 4",
@@ -276,7 +277,8 @@ describe("GET /api/overview", () => {
 				void (async () => {
 					const first = await fetch(new URL("/api/overview", base));
 					const before = (await first.json()) as Overview;
-					expect(before.projects[0]?.tickets).toEqual([
+					expect(before.projects[0]?.name).toBe(repoName);
+					expect(await projectTickets(base, repoName)).toMatchObject([
 						{
 							key: `${repoName}#4`,
 							title: "Ticket 4",
@@ -423,7 +425,8 @@ describe("GET /api/overview", () => {
 					const first = await fetch(new URL("/api/overview", base));
 					expect(first.status).toBe(200);
 					const before = (await first.json()) as Overview;
-					expect(before.projects[0]?.tickets).toEqual([
+					expect(before.projects[0]?.name).toBe(repoName);
+					expect(await projectTickets(base, repoName)).toMatchObject([
 						{
 							key: `${repoName}#21`,
 							title: "Ticket 21",
@@ -574,11 +577,12 @@ describe("GET /api/overview", () => {
 				void (async () => {
 					const opened = await fetch(new URL("/api/overview", base));
 					expect(opened.status).toBe(200);
+					const openedTickets = await projectTickets(base, repoName);
 					while (labelReads < 2) {
 						await Bun.sleep(20);
 					}
 					const after = (await opened.json()) as Overview;
-					expect(after.projects[0]?.tickets).toEqual([
+					expect(openedTickets).toMatchObject([
 						{
 							key: `${repoName}#4`,
 							title: "Ticket 4",
@@ -605,9 +609,8 @@ describe("GET /api/overview", () => {
 					expect(again.status).toBe(204);
 					const kept = await fetch(new URL("/api/overview", base));
 					const keptBody = (await kept.json()) as Overview;
-					expect(keptBody.projects[0]?.tickets).toEqual(
-						after.projects[0]?.tickets,
-					);
+					expect(keptBody.projects[0]?.name).toBe(repoName);
+					expect(await projectTickets(base, repoName)).toEqual(openedTickets);
 					const failed = await fetch(new URL("/api/projects/%20", base));
 					expect(failed.status).toBe(404);
 					resolve();

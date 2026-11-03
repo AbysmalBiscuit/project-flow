@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
+import { projectTickets } from "../support/reads.ts";
 import {
+	type LaneTicket,
 	type OverviewBody,
 	projectFetch,
 	projectItem,
@@ -122,12 +124,7 @@ describe("tracker lanes", () => {
 				expect(
 					report.statuses.find((lane) => lane.name === "Dropped")?.added,
 				).toBe(true);
-				const overview = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
-				const tickets =
-					overview.projects.find((item) => item.name === "Widget board")
-						?.tickets ?? [];
+				const tickets = await projectTickets<LaneTicket>(base, "Widget board");
 				const names = new Set(report.statuses.map((lane) => lane.name));
 				expect(tickets.find((item) => item.key === "acme/widget#10")).toEqual(
 					expect.objectContaining({ status: "Shipped", statusType: "done" }),

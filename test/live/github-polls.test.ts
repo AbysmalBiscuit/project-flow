@@ -21,6 +21,7 @@ import {
 	openEventStream,
 	type OverviewBody,
 	overviewOf,
+	projectTickets,
 	readOverview,
 	settledOverview,
 	settledOverviewEvent,
@@ -28,6 +29,7 @@ import {
 } from "../support/reads.ts";
 import { githubIssueNode, repoReadIssues } from "../support/repo-read.ts";
 import {
+	cardTickets,
 	counts,
 	githubTicket,
 	pushListed,
@@ -158,14 +160,10 @@ describe("live updates", () => {
 			expect(refresh.status).toBe(204);
 			const body = await settledOverview(base, readOverview);
 			expect(body.projects).toEqual([
-				counts(
-					repo,
-					1,
-					0,
-					"github",
-					[githubTicket(1, "backlog")],
-					"2026-04-01T12:00:01.000Z",
-				),
+				counts(repo, 1, 0, "github", "2026-04-01T12:00:01.000Z"),
+			]);
+			expect(await projectTickets(base, repo)).toMatchObject([
+				githubTicket(1, "backlog"),
 			]);
 			expect(body.error).toBeNull();
 			const second = new URL(requests[1] ?? "");
@@ -184,15 +182,10 @@ describe("live updates", () => {
 			expect(refresh.status).toBe(204);
 			const body = await settledOverview(base, readOverview);
 			expect(body.projects).toEqual([
-				counts(
-					repo,
-					1,
-					0,
-					"github",
-					[githubTicket(1, "backlog")],
-					goodPoll,
-					body.projects[0]?.error ?? null,
-				),
+				counts(repo, 1, 0, "github", goodPoll, body.projects[0]?.error ?? null),
+			]);
+			expect(await projectTickets(base, repo)).toMatchObject([
+				githubTicket(1, "backlog"),
 			]);
 			expect(body.projects[0]?.error).toContain("HTTP 500");
 			expect(body.projects[0]?.error).toContain(`stale since ${goodPoll}`);
@@ -240,7 +233,9 @@ describe("live updates", () => {
 				const stale = body.projects.find(
 					(project) => project.name === otherRepo,
 				);
-				expect(fresh?.tickets).toEqual([githubTicket(1, "backlog")]);
+				expect(await cardTickets(base, fresh)).toMatchObject([
+					githubTicket(1, "backlog"),
+				]);
 				expect(fresh?.error).toBeNull();
 				expect(stale?.error).toContain("HTTP 500");
 				expect(stale?.error).toContain(otherRepo);
@@ -311,11 +306,14 @@ describe("live updates", () => {
 						0,
 						0,
 						"github",
-						[],
 						null,
 						failedEvent.projects[0]?.error ?? null,
 					),
-					counts(repo, 1, 0, "github", [githubTicket(1, "backlog")]),
+					counts(repo, 1, 0, "github"),
+				]);
+				expect(await projectTickets(base, otherRepo)).toEqual([]);
+				expect(await projectTickets(base, repo)).toMatchObject([
+					githubTicket(1, "backlog"),
 				]);
 				expect(failedEvent.projects[0]?.error).toContain("HTTP 500");
 				expect(failedEvent.projects[0]?.error).toContain(otherRepo);
@@ -351,33 +349,23 @@ describe("live updates", () => {
 					await fetch(new URL("/api/overview", base))
 				).json()) as OverviewBody;
 				expect(body.projects).toEqual([
-					counts(
-						otherRepo,
-						1,
-						0,
-						"github",
-						[
-							{
-								key: `${otherRepo}#1`,
-								title: "Ticket 1",
-								state: "backlog",
-								blockers: [],
-								lane: "Backlog",
-								statusType: "backlog",
-								enteredStateAt: "2026-04-01T00:00:00Z",
-								updatedAt: "2026-04-01T00:00:00Z",
-							},
-						],
-						"2026-04-01T12:00:01.000Z",
-					),
-					counts(
-						repo,
-						1,
-						0,
-						"github",
-						[githubTicket(1, "backlog")],
-						"2026-04-01T12:00:01.000Z",
-					),
+					counts(otherRepo, 1, 0, "github", "2026-04-01T12:00:01.000Z"),
+					counts(repo, 1, 0, "github", "2026-04-01T12:00:01.000Z"),
+				]);
+				expect(await projectTickets(base, otherRepo)).toMatchObject([
+					{
+						key: `${otherRepo}#1`,
+						title: "Ticket 1",
+						state: "backlog",
+						blockers: [],
+						lane: "Backlog",
+						statusType: "backlog",
+						enteredStateAt: "2026-04-01T00:00:00Z",
+						updatedAt: "2026-04-01T00:00:00Z",
+					},
+				]);
+				expect(await projectTickets(base, repo)).toMatchObject([
+					githubTicket(1, "backlog"),
 				]);
 				expect(body.error).toBeNull();
 				expect(body.fetchedAt).toBe("2026-04-01T12:00:01.000Z");
@@ -472,8 +460,9 @@ describe("live updates", () => {
 			await stream.ready;
 			const before = await fetch(new URL("/api/overview", base));
 			const beforeBody = (await before.json()) as OverviewBody;
-			expect(beforeBody.projects).toEqual([
-				counts(repo, 1, 0, "github", [githubTicket(1, "backlog")]),
+			expect(beforeBody.projects).toEqual([counts(repo, 1, 0, "github")]);
+			expect(await projectTickets(base, repo)).toMatchObject([
+				githubTicket(1, "backlog"),
 			]);
 			expect(beforeBody.fetchedAt).toBe(goodPoll);
 			expect(beforeBody.error).toBeNull();
@@ -483,26 +472,15 @@ describe("live updates", () => {
 			expect(refresh.status).toBe(204);
 			const eventBody = await settledOverview(base, readOverview);
 			expect(eventBody.projects).toEqual([
-				counts(
-					repo,
-					1,
-					1,
-					"github",
-					[
-						githubTicket(
-							1,
-							"done",
-							"2026-04-02T00:00:00Z",
-							"2026-04-02T00:00:00Z",
-						),
-						githubTicket(
-							2,
-							"backlog",
-							"2026-04-02T00:00:00Z",
-							"2026-04-02T00:00:00Z",
-						),
-					],
-					"2026-04-01T12:00:01.000Z",
+				counts(repo, 1, 1, "github", "2026-04-01T12:00:01.000Z"),
+			]);
+			expect(await projectTickets(base, repo)).toMatchObject([
+				githubTicket(1, "done", "2026-04-02T00:00:00Z", "2026-04-02T00:00:00Z"),
+				githubTicket(
+					2,
+					"backlog",
+					"2026-04-02T00:00:00Z",
+					"2026-04-02T00:00:00Z",
 				),
 			]);
 			expect(eventBody.fetchedAt).toBe("2026-04-01T12:00:01.000Z");
@@ -584,7 +562,7 @@ describe("live updates", () => {
 					otherRepo,
 					repo,
 				]);
-				expect(body.projects[0]?.tickets).toEqual([]);
+				expect(await cardTickets(base, body.projects[0])).toEqual([]);
 				expect(body.projects[0]?.error).toContain("HTTP 500");
 				expect(body.projects[0]?.error).toContain(otherRepo);
 				expect(body.error).toBeNull();
@@ -723,7 +701,9 @@ describe("live updates", () => {
 				run: { status: "running", stage: "stage 4" },
 			});
 			expect(ticket?.chips ?? []).not.toContain("Run failed");
-			expect(body.projects[0]?.tickets[0]?.state).toBe("inProgress");
+			expect((await cardTickets(base, body.projects[0]))[0]?.state).toBe(
+				"inProgress",
+			);
 			const needsYou = (await (
 				await fetch(new URL("/api/needs-you", base))
 			).json()) as { key: string; reason: string }[];
@@ -796,7 +776,9 @@ describe("live updates", () => {
 			});
 			expect(refresh.status).toBe(204);
 			const body = await settledOverview(base, readOverview);
-			expect(body.projects[0]?.tickets).toEqual([githubTicket(1, "backlog")]);
+			expect(await cardTickets(base, body.projects[0])).toMatchObject([
+				githubTicket(1, "backlog"),
+			]);
 			expect(body.error).toBeNull();
 			expect(requests.filter((url) => /\/issues\/\d+$/.test(url))).toEqual([]);
 		});
@@ -849,9 +831,9 @@ describe("live updates", () => {
 			});
 			expect(refresh.status).toBe(204);
 			const body = await settledOverview(base, readOverview);
-			expect(body.projects[0]?.tickets.map((item) => item.key)).toEqual([
-				`${repo}#1`,
-			]);
+			expect(
+				(await cardTickets(base, body.projects[0])).map((item) => item.key),
+			).toEqual([`${repo}#1`]);
 			expect(body.error).toBeNull();
 			expect(
 				requests.filter((url) => listUrl(url) !== null).length,

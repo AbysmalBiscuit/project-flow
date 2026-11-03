@@ -14,8 +14,8 @@ import {
 	repo,
 	unrecorded,
 } from "../support/github.ts";
-import { trackFound } from "../support/reads.ts";
-import { emptyList, githubTicket } from "./_support.ts";
+import { type ShownTicket, trackFound } from "../support/reads.ts";
+import { cardTickets, emptyList, githubTicket } from "./_support.ts";
 
 describe("GET /api/overview", () => {
 	test("two GitHub projects with the same title both appear", async () => {
@@ -335,7 +335,10 @@ describe("GET /api/overview", () => {
 			startChecks = (base: string) => {
 				trackFound(base)
 					.then(() => fetch(new URL("/api/overview", base)))
-					.then(async (response) => resolve(await response.json()))
+					.then(async (response) => {
+						const body = (await response.json()) as Overview;
+						resolve({ body, tickets: await cardTickets(base, body) });
+					})
 					.catch(reject);
 			};
 		});
@@ -357,7 +360,10 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			const body = (await checks) as Overview;
+			const { body, tickets } = (await checks) as {
+				body: Overview;
+				tickets: Record<string, ShownTicket[]>;
+			};
 			expect(body).toEqual({
 				projects: [
 					{
@@ -376,18 +382,6 @@ describe("GET /api/overview", () => {
 						crossProjectBlockers: [],
 						needsYou: 0,
 						progress: 0,
-						tickets: [
-							{
-								key: `${repo}#4`,
-								title: "Ticket 4",
-								state: "backlog",
-								blockers: [],
-								lane: "Backlog",
-								statusType: "backlog",
-								enteredStateAt: "2026-10-18T12:00:00.000Z",
-								updatedAt: "2026-10-18T12:00:00.000Z",
-							},
-						],
 						unlinkedPrs: [],
 						fetchedAt: body.projects[0]?.fetchedAt ?? null,
 						error: null,
@@ -416,26 +410,6 @@ describe("GET /api/overview", () => {
 						crossProjectBlockers: [],
 						needsYou: 0,
 						progress: 50,
-						tickets: [
-							{
-								key: "acme/widget#9",
-								title: "",
-								state: "backlog",
-								blockers: [],
-								lane: "Backlog",
-								statusType: "backlog",
-								enteredStateAt: "",
-							},
-							{
-								key: "acme/widget#8",
-								title: "",
-								state: "done",
-								blockers: [],
-								lane: "Done",
-								statusType: "done",
-								enteredStateAt: "",
-							},
-						],
 						unlinkedPrs: [],
 						fetchedAt: body.projects[1]?.fetchedAt ?? null,
 						error: null,
@@ -452,6 +426,38 @@ describe("GET /api/overview", () => {
 				fetchedAt: body.fetchedAt,
 				error: null,
 			});
+			expect(tickets[repo]).toMatchObject([
+				{
+					key: `${repo}#4`,
+					title: "Ticket 4",
+					state: "backlog",
+					blockers: [],
+					lane: "Backlog",
+					statusType: "backlog",
+					enteredStateAt: "2026-10-18T12:00:00.000Z",
+					updatedAt: "2026-10-18T12:00:00.000Z",
+				},
+			]);
+			expect(tickets["Widget board"]).toMatchObject([
+				{
+					key: "acme/widget#9",
+					title: "",
+					state: "backlog",
+					blockers: [],
+					lane: "Backlog",
+					statusType: "backlog",
+					enteredStateAt: "",
+				},
+				{
+					key: "acme/widget#8",
+					title: "",
+					state: "done",
+					blockers: [],
+					lane: "Done",
+					statusType: "done",
+					enteredStateAt: "",
+				},
+			]);
 			expect(requests.some((sent) => sent.includes(`node(id: $id)`))).toBe(
 				true,
 			);

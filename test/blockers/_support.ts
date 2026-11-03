@@ -6,6 +6,7 @@ import {
 	recordedDiscovery,
 	unrecorded,
 } from "../support/github.ts";
+import { projectTickets } from "../support/reads.ts";
 import { repoReadFromLists } from "../support/repo-read.ts";
 
 export const repo = "AbysmalBiscuit/devkit";
@@ -102,8 +103,26 @@ export function recordedFetch(): Fetch {
 	};
 }
 
+/** Read an overview response, and give each card the tickets of its project report. */
+export async function overviewWithTickets<Body extends { projects: object[] }>(
+	base: string,
+	response: Response,
+): Promise<Body> {
+	const body = (await response.json()) as {
+		projects: { name: string; pending?: true }[];
+	};
+	const projects = await Promise.all(
+		body.projects.map(async (card) => ({
+			...card,
+			tickets:
+				card.pending === true ? [] : await projectTickets(base, card.name),
+		})),
+	);
+	return { ...body, projects } as unknown as Body;
+}
+
 export function blockersOf(
-	tickets: { key: string; state: string; blockers: string[] }[],
+	tickets: { key: string | null; state: string; blockers: string[] }[],
 	key: string,
 ): { state: string; blockers: string[] } {
 	const ticket = tickets.find((item) => item.key === key);

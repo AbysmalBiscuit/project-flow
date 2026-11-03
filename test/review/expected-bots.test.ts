@@ -22,6 +22,11 @@ import {
 	unrecorded,
 } from "../support/github.ts";
 import { linearFake } from "../support/linear.ts";
+import {
+	projectTickets,
+	type ShownTicket,
+	withReportTickets,
+} from "../support/reads.ts";
 import { repoReadIssues } from "../support/repo-read.ts";
 import { card, greptile, issue, mergedPull, older } from "./_support.ts";
 
@@ -306,7 +311,7 @@ describe("review cycle", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						resolve(await response.json());
+						resolve(await withReportTickets(base, await response.json()));
 					})
 					.catch(reject);
 			};
@@ -463,16 +468,21 @@ describe("review cycle", () => {
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		let startChecks: (base: string) => void = () => {};
-		const checks = new Promise<unknown>((resolve, reject) => {
-			startChecks = (base: string) => {
-				fetch(new URL("/api/overview", base))
-					.then(async (response) => {
-						expect(response.status).toBe(200);
-						resolve(await response.json());
-					})
-					.catch(reject);
-			};
-		});
+		const checks = new Promise<{ body: unknown; tickets: ShownTicket[] }>(
+			(resolve, reject) => {
+				startChecks = (base: string) => {
+					fetch(new URL("/api/overview", base))
+						.then(async (response) => {
+							expect(response.status).toBe(200);
+							resolve({
+								body: await response.json(),
+								tickets: await projectTickets(base, "Widget launch"),
+							});
+						})
+						.catch(reject);
+				};
+			},
+		);
 		const fetchImpl: Fetch = linearFake({
 			project: {
 				id: "project-1",
@@ -582,7 +592,20 @@ describe("review cycle", () => {
 			if (result.exitCode !== 0) {
 				throw new Error(result.stderr);
 			}
-			expect(await checks).toEqual({
+			const { body, tickets } = await checks;
+			expect(tickets).toMatchObject([
+				{
+					key: "WID-8",
+					title: "Linear ticket 8",
+					state: "awaitingMerge",
+					blockers: [],
+					lane: "Awaiting merge",
+					statusType: "awaitingMerge",
+					enteredStateAt: "2026-10-01T00:00:00.000Z",
+					updatedAt: "2026-10-01T00:00:00.000Z",
+				},
+			]);
+			expect(body).toEqual({
 				projects: [
 					{
 						name: "Widget launch",
@@ -610,18 +633,6 @@ describe("review cycle", () => {
 						},
 						tags: [],
 						unlinkedPrs: [],
-						tickets: [
-							{
-								key: "WID-8",
-								title: "Linear ticket 8",
-								state: "awaitingMerge",
-								blockers: [],
-								lane: "Awaiting merge",
-								statusType: "awaitingMerge",
-								enteredStateAt: "2026-10-01T00:00:00.000Z",
-								updatedAt: "2026-10-01T00:00:00.000Z",
-							},
-						],
 						crossProjectBlockers: [],
 					},
 				],

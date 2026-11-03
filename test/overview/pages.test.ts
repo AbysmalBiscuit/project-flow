@@ -10,6 +10,7 @@ import { urlOf } from "../support/fetch.ts";
 import { repo } from "../support/github.ts";
 import { repoReadFromLists } from "../support/repo-read.ts";
 import {
+	cardTickets,
 	embeddedForRoute,
 	embeddedStored,
 	githubFetch,
@@ -124,9 +125,9 @@ describe("page responses", () => {
 						void (async () => {
 							const base = line;
 							const overview = await readServedOverview(base);
-							const titles = overview.projects.flatMap((project) =>
-								project.tickets.map((item) => item.title),
-							);
+							const titles = Object.values(await cardTickets(base, overview))
+								.flat()
+								.map((item) => item.title);
 							expect(titles).toContain(hostile);
 							const pageResponse = await fetch(new URL("/", base));
 							expect(pageResponse.status).toBe(200);

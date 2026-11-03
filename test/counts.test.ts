@@ -3,7 +3,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { Overview, ProjectReport, StatusType } from "../src/domain.ts";
+import type {
+	Overview,
+	OverviewCard,
+	ProjectReport,
+	StatusType,
+} from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { doneTicketsForLane } from "../src/lanes.ts";
 import { run } from "../src/main.ts";
@@ -17,6 +22,7 @@ import {
 	unrecorded,
 } from "./support/github.ts";
 import { linearFake } from "./support/linear.ts";
+import { projectTickets } from "./support/reads.ts";
 import { defaultStates } from "./support/states.ts";
 
 const now = "2026-08-18T12:00:00.000Z";
@@ -29,6 +35,10 @@ const statusTypes = [
 	"done",
 	"dropped",
 ] as const satisfies readonly StatusType[];
+
+function cardTotal(card: OverviewCard): number {
+	return statusTypes.reduce((sum, type) => sum + card.statusTypes[type], 0);
+}
 
 function issue(
 	number: number,
@@ -285,10 +295,11 @@ describe("done counts", () => {
 				if (card === undefined) {
 					return;
 				}
+				const tickets = await projectTickets(base, repo);
 				const byType = Object.fromEntries(
 					statusTypes.map((type) => [
 						type,
-						card.tickets
+						tickets
 							.filter((ticket) => ticket.statusType === type)
 							.map((ticket) => ticket.key),
 					]),
@@ -307,7 +318,7 @@ describe("done counts", () => {
 					0,
 				);
 				expect(card.done).toBe(done);
-				expect(card.tickets).toHaveLength(total);
+				expect(tickets).toHaveLength(total);
 				expect(card.progress).toBe(Math.round((done / total) * 100));
 				expect(done).toBeGreaterThan(0);
 				expect(total).toBeGreaterThan(done);
@@ -337,7 +348,7 @@ describe("done counts", () => {
 					(ticket) => ticket.statusType === "done",
 				).length;
 				expect(report.done).toBe(card.done);
-				expect(report.total).toBe(card.tickets.length);
+				expect(report.total).toBe(cardTotal(card));
 				expect(done).toBe(1);
 				expect(card.done).toBe(doneIssues.length);
 				const summary = report.sections.find(
@@ -636,7 +647,7 @@ describe("done counts", () => {
 					dropped: 1,
 				});
 				expect(card?.done).toBe(4);
-				expect(card?.tickets).toHaveLength(9);
+				expect(await projectTickets(base, project)).toHaveLength(9);
 				expect(card?.progress).toBe(Math.round((4 / 9) * 100));
 				const filtered = (await (
 					await fetch(
@@ -679,7 +690,7 @@ describe("done counts", () => {
 					return;
 				}
 				expect(filtered.done).toBe(card.done);
-				expect(filtered.total).toBe(card.tickets.length);
+				expect(filtered.total).toBe(cardTotal(card));
 				const board = (await (
 					await fetch(
 						new URL(

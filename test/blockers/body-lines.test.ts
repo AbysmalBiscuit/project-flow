@@ -20,6 +20,7 @@ import {
 	issue,
 	linearIssue,
 	linearProject,
+	overviewWithTickets,
 	recordedFetch,
 	repo,
 } from "./_support.ts";
@@ -37,7 +38,7 @@ describe("GET /api/overview blockers", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						const overview = (await response.json()) as {
+						const overview = await overviewWithTickets<{
 							projects: {
 								name: string;
 								blocked: number;
@@ -47,7 +48,7 @@ describe("GET /api/overview blockers", () => {
 									blockers: string[];
 								}[];
 							}[];
-						};
+						}>(base, response);
 						const project = overview.projects[0];
 						expect(project?.name).toBe(repo);
 						const tickets = project?.tickets ?? [];
@@ -206,7 +207,7 @@ describe("GET /api/overview blockers", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						const overview = (await response.json()) as {
+						const overview = await overviewWithTickets<{
 							projects: {
 								name: string;
 								blocked: number;
@@ -216,7 +217,7 @@ describe("GET /api/overview blockers", () => {
 									blockers: string[];
 								}[];
 							}[];
-						};
+						}>(base, response);
 						const tickets = overview.projects[0]?.tickets ?? [];
 						const key = (number: number) => `${repo}#${number}`;
 						expect(blockersOf(tickets, key(70))).toEqual({
@@ -376,7 +377,7 @@ describe("GET /api/overview blockers", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						const overview = (await response.json()) as {
+						const overview = await overviewWithTickets<{
 							projects: {
 								name: string;
 								tickets: {
@@ -385,7 +386,7 @@ describe("GET /api/overview blockers", () => {
 									blockers: string[];
 								}[];
 							}[];
-						};
+						}>(base, response);
 						const github = overview.projects.find(
 							(item) => item.name === githubRepo,
 						);
@@ -516,7 +517,7 @@ describe("GET /api/overview blockers", () => {
 			startChecks = (base: string) => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
-						const overview = (await response.json()) as {
+						const overview = await overviewWithTickets<{
 							projects: {
 								blocked: number;
 								tickets: {
@@ -525,7 +526,7 @@ describe("GET /api/overview blockers", () => {
 									blockers: string[];
 								}[];
 							}[];
-						};
+						}>(base, response);
 						const tickets = overview.projects[0]?.tickets ?? [];
 						const key = (number: number) => `${githubRepo}#${number}`;
 						expect(blockersOf(tickets, key(1)).blockers).toEqual([]);

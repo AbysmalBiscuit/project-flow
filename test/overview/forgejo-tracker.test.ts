@@ -17,7 +17,7 @@ import {
 	type Sent,
 	tokenEnv,
 } from "../support/forgejo.ts";
-import { readWhere } from "../support/reads.ts";
+import { projectTickets, readWhere } from "../support/reads.ts";
 import {
 	forgejoCard,
 	forgejoPin as pin,
@@ -56,7 +56,9 @@ describe("a tracked Forgejo repo", () => {
 				expect(card?.name).toBe(`${host}/${scratch}`);
 				expect(
 					Object.fromEntries(
-						(card?.tickets ?? []).map(({ key, state }) => [key, state]),
+						(await projectTickets(base, `${host}/${scratch}`)).map(
+							({ key, state }) => [key, state],
+						),
 					),
 				).toEqual({
 					[keyOf(1)]: "backlog",
@@ -91,7 +93,9 @@ describe("a tracked Forgejo repo", () => {
 			async (base) => {
 				const card = await forgejoCard(base);
 				expect(card?.name).toBe(`${host}/${scratch}`);
-				expect(card?.tickets.length).toBeGreaterThan(0);
+				expect(
+					(await projectTickets(base, `${host}/${scratch}`)).length,
+				).toBeGreaterThan(0);
 			},
 		);
 	});

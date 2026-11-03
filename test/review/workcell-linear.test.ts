@@ -17,6 +17,7 @@ import {
 	unrecorded,
 } from "../support/github.ts";
 import { linearFake } from "../support/linear.ts";
+import { withReportTickets } from "../support/reads.ts";
 import { grok, progress } from "./_support.ts";
 
 describe("review cycle", () => {
@@ -129,7 +130,7 @@ describe("review cycle", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						resolve(await response.json());
+						resolve(await withReportTickets(base, await response.json()));
 					})
 					.catch(reject);
 			};
@@ -302,7 +303,7 @@ describe("review cycle", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						resolve(await response.json());
+						resolve(await withReportTickets(base, await response.json()));
 					})
 					.catch(reject);
 			};
@@ -492,7 +493,7 @@ describe("review cycle", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						resolve(await response.json());
+						resolve(await withReportTickets(base, await response.json()));
 					})
 					.catch(reject);
 			};
@@ -614,7 +615,7 @@ describe("review cycle", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						resolve(await response.json());
+						resolve(await withReportTickets(base, await response.json()));
 					})
 					.catch(reject);
 			};
@@ -885,7 +886,7 @@ describe("review cycle", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						resolve(await response.json());
+						resolve(await withReportTickets(base, await response.json()));
 					})
 					.catch(reject);
 			};

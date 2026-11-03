@@ -1,11 +1,11 @@
 import * as stylex from "@stylexjs/stylex";
 
-import type { ProjectCounts } from "./domain.ts";
+import type { OverviewCard } from "./domain.ts";
 import { stateTones } from "./state-tone.ts";
 import { cards } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
-export function ticketTotal(project: ProjectCounts): number {
+export function ticketTotal(project: OverviewCard): number {
 	return (
 		project.done +
 		project.dropped +
@@ -31,7 +31,7 @@ export function SegmentedBar({
 	project,
 	variant = "card",
 }: {
-	project: ProjectCounts;
+	project: OverviewCard;
 	variant?: keyof typeof barTrack;
 }) {
 	const total = ticketTotal(project);

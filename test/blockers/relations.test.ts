@@ -10,7 +10,13 @@ import { urlOf } from "../support/fetch.ts";
 import { emptyProjectFields, page, unrecorded } from "../support/github.ts";
 import { linearFake } from "../support/linear.ts";
 import { githubIssueNode, repoReadIssues } from "../support/repo-read.ts";
-import { blockersOf, issue, linearIssue, linearProject } from "./_support.ts";
+import {
+	blockersOf,
+	issue,
+	linearIssue,
+	linearProject,
+	overviewWithTickets,
+} from "./_support.ts";
 
 describe("GET /api/overview blockers", () => {
 	test("a blocker line links a Linear ticket to a GitHub ticket", async () => {
@@ -93,7 +99,7 @@ describe("GET /api/overview blockers", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						const overview = (await response.json()) as {
+						const overview = await overviewWithTickets<{
 							projects: {
 								name: string;
 								blocked: number;
@@ -109,7 +115,7 @@ describe("GET /api/overview blockers", () => {
 									title: string;
 								}[];
 							}[];
-						};
+						}>(base, response);
 						const github = overview.projects.find(
 							(project) => project.name === githubRepo,
 						);
@@ -353,7 +359,7 @@ describe("GET /api/overview blockers", () => {
 			startChecks = (base: string) => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
-						const overview = (await response.json()) as {
+						const overview = await overviewWithTickets<{
 							projects: {
 								name: string;
 								tickets: {
@@ -362,7 +368,7 @@ describe("GET /api/overview blockers", () => {
 									blockers: string[];
 								}[];
 							}[];
-						};
+						}>(base, response);
 						const github = overview.projects.find(
 							(project) => project.name === githubRepo,
 						);

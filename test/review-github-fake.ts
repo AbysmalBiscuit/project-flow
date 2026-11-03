@@ -14,6 +14,7 @@ import {
 	repo,
 	unrecorded,
 } from "./support/github.ts";
+import { withCardTickets } from "./support/reads.ts";
 import {
 	githubIssueNode,
 	repoReadIssues,
@@ -273,7 +274,10 @@ export async function overview(
 						throw new Error("overview response was missing");
 					}
 					expect(overviewPage.status).toBe(200);
-					const body: unknown = await overviewPage.json();
+					const body = await withCardTickets(
+						base,
+						(await overviewPage.json()) as { projects: { name: string }[] },
+					);
 					if (!listed) {
 						resolve(body);
 						return;

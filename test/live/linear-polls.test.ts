@@ -10,12 +10,13 @@ import {
 } from "../support/github.ts";
 import {
 	type OverviewBody,
+	projectTickets,
 	readOverview,
 	settledOverview,
 	type ShownTicket,
 } from "../support/reads.ts";
 import { repoReadIssues } from "../support/repo-read.ts";
-import { counts } from "./_support.ts";
+import { cardTickets, counts } from "./_support.ts";
 
 const linearProject = "widget-launch";
 
@@ -211,10 +212,11 @@ describe("live updates", () => {
 				const first = (await (
 					await fetch(new URL("/api/overview", base))
 				).json()) as OverviewBody;
-				expect(first.projects[0]?.tickets.map((ticket) => ticket.key)).toEqual([
-					"WID-1",
-					"WID-2",
-				]);
+				expect(
+					(await cardTickets(base, first.projects[0])).map(
+						(ticket) => ticket.key,
+					),
+				).toEqual(["WID-1", "WID-2"]);
 				advance(10 * 60 * 1000);
 				const again = await fetch(new URL("/api/refresh", base), {
 					method: "POST",
@@ -227,9 +229,11 @@ describe("live updates", () => {
 					.map(linearIssueFilter)
 					.filter((filter) => filter !== null);
 				expect(filters[1]?.updatedAt).toBeUndefined();
-				expect(body.projects[0]?.tickets.map((ticket) => ticket.key)).toEqual([
-					"WID-2",
-				]);
+				expect(
+					(await cardTickets(base, body.projects[0])).map(
+						(ticket) => ticket.key,
+					),
+				).toEqual(["WID-2"]);
 				expect(body.error).toBeNull();
 			},
 			[{ tracker: "linear", project: linearProject }],
@@ -249,7 +253,10 @@ describe("live updates", () => {
 				const first = await fetch(new URL("/api/overview", base));
 				const firstBody = (await first.json()) as OverviewBody;
 				expect(firstBody.projects).toEqual([
-					counts(linearProject, 1, 0, "linear", [linearTicket(1)]),
+					counts(linearProject, 1, 0, "linear"),
+				]);
+				expect(await projectTickets(base, linearProject)).toMatchObject([
+					linearTicket(1),
 				]);
 				expect(firstBody.error).toBeNull();
 				const again = await fetch(new URL("/api/refresh", base), {
@@ -297,10 +304,12 @@ describe("live updates", () => {
 						1,
 						0,
 						"linear",
-						[linearTicket(1)],
 						goodPoll,
 						failedBody.projects[0]?.error ?? null,
 					),
+				]);
+				expect(await projectTickets(base, linearProject)).toMatchObject([
+					linearTicket(1),
 				]);
 				expect(failedBody.projects[0]?.error).toContain("HTTP 500");
 				expect(failedBody.error).toBeNull();
@@ -313,14 +322,10 @@ describe("live updates", () => {
 				const lists = requests.map(linearListSince);
 				expect(lists).toEqual([null, goodPoll, goodPoll]);
 				expect(body.projects).toEqual([
-					counts(
-						linearProject,
-						1,
-						0,
-						"linear",
-						[linearTicket(1)],
-						"2026-04-01T12:00:02.000Z",
-					),
+					counts(linearProject, 1, 0, "linear", "2026-04-01T12:00:02.000Z"),
+				]);
+				expect(await projectTickets(base, linearProject)).toMatchObject([
+					linearTicket(1),
 				]);
 				expect(body.error).toBeNull();
 				expect(body.fetchedAt).toBe("2026-04-01T12:00:02.000Z");
@@ -424,9 +429,11 @@ describe("live updates", () => {
 					"Widget launch",
 				]);
 				expect(first.projects[0]?.tracker).toBe("linear");
-				expect(first.projects[0]?.tickets.map((ticket) => ticket.key)).toEqual([
-					"WID-1",
-				]);
+				expect(
+					(await cardTickets(base, first.projects[0])).map(
+						(ticket) => ticket.key,
+					),
+				).toEqual(["WID-1"]);
 				expect(first.error).toBeNull();
 				const refresh = await fetch(new URL("/api/refresh", base), {
 					method: "POST",
@@ -437,9 +444,11 @@ describe("live updates", () => {
 				expect(body.projects.map((project) => project.name)).toEqual([
 					"Widget launch",
 				]);
-				expect(body.projects[0]?.tickets.map((ticket) => ticket.key)).toEqual([
-					"WID-1",
-				]);
+				expect(
+					(await cardTickets(base, body.projects[0])).map(
+						(ticket) => ticket.key,
+					),
+				).toEqual(["WID-1"]);
 				expect(body.error).toBeNull();
 			},
 			[{ tracker: "linear", project: linearProject }],
@@ -574,7 +583,9 @@ describe("live updates", () => {
 					run: { status: "running", stage: "stage 4" },
 				});
 				expect(ticket?.chips ?? []).not.toContain("Run failed");
-				expect(body.projects[0]?.tickets[0]?.state).toBe("inProgress");
+				expect((await cardTickets(base, body.projects[0]))[0]?.state).toBe(
+					"inProgress",
+				);
 				const needsYou = (await (
 					await fetch(new URL("/api/needs-you", base))
 				).json()) as { key: string; reason: string }[];
@@ -747,20 +758,25 @@ describe("live updates", () => {
 					await fetch(new URL("/api/overview", base))
 				).json()) as OverviewBody;
 				expect(
-					first.projects[0]?.tickets.map((ticket) => ticket.state),
+					(await cardTickets(base, first.projects[0])).map(
+						(ticket) => ticket.state,
+					),
 				).toEqual(["inProgress", "backlog"]);
 				const refresh = await fetch(new URL("/api/refresh", base), {
 					method: "POST",
 				});
 				expect(refresh.status).toBe(204);
 				const body = await settledOverview(base, readOverview);
-				expect(body.projects[0]?.tickets.map((ticket) => ticket.key)).toEqual([
-					"WID-1",
-					"WID-2",
-				]);
-				expect(body.projects[0]?.tickets.map((ticket) => ticket.state)).toEqual(
-					["inProgress", "backlog"],
-				);
+				expect(
+					(await cardTickets(base, body.projects[0])).map(
+						(ticket) => ticket.key,
+					),
+				).toEqual(["WID-1", "WID-2"]);
+				expect(
+					(await cardTickets(base, body.projects[0])).map(
+						(ticket) => ticket.state,
+					),
+				).toEqual(["inProgress", "backlog"]);
 				expect(requests.filter((url) => url.includes("/pulls/7"))).toHaveLength(
 					1,
 				);

@@ -8,7 +8,13 @@ import { tempConfig, testIo } from "../support/app.ts";
 import { urlOf } from "../support/fetch.ts";
 import { emptyProjectFields, page, unrecorded } from "../support/github.ts";
 import { linearFake } from "../support/linear.ts";
-import { blockersOf, issue, linearIssue, linearProject } from "./_support.ts";
+import {
+	blockersOf,
+	issue,
+	linearIssue,
+	linearProject,
+	overviewWithTickets,
+} from "./_support.ts";
 
 describe("GET /api/overview blockers", () => {
 	test("a pasted GitHub or Linear ticket URL resolves as a blocker", async () => {
@@ -86,13 +92,13 @@ describe("GET /api/overview blockers", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						const overview = (await response.json()) as {
+						const overview = await overviewWithTickets<{
 							projects: {
 								name: string;
 								tickets: { key: string; state: string; blockers: string[] }[];
 								crossProjectBlockers: { tracker: string; key: string }[];
 							}[];
-						};
+						}>(base, response);
 						const github = overview.projects.find(
 							(project) => project.name === githubRepo,
 						);

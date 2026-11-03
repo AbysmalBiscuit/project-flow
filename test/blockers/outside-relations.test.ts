@@ -15,7 +15,13 @@ import {
 	unrecorded,
 } from "../support/github.ts";
 import { linearFake } from "../support/linear.ts";
-import { blockersOf, issue, linearIssue, linearProject } from "./_support.ts";
+import {
+	blockersOf,
+	issue,
+	linearIssue,
+	linearProject,
+	overviewWithTickets,
+} from "./_support.ts";
 
 describe("GET /api/overview blockers", () => {
 	test("an open GitHub dependency in an unloaded repo stays a blocker", async () => {
@@ -84,7 +90,7 @@ describe("GET /api/overview blockers", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						const overview = (await response.json()) as {
+						const overview = await overviewWithTickets<{
 							projects: {
 								name: string;
 								blocked: number;
@@ -100,7 +106,7 @@ describe("GET /api/overview blockers", () => {
 									title: string;
 								}[];
 							}[];
-						};
+						}>(base, response);
 						const project = overview.projects.find(
 							(item) => item.name === githubRepo,
 						);
@@ -189,7 +195,7 @@ describe("GET /api/overview blockers", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						const overview = (await response.json()) as {
+						const overview = await overviewWithTickets<{
 							projects: {
 								name: string;
 								blocked: number;
@@ -205,7 +211,7 @@ describe("GET /api/overview blockers", () => {
 									title: string;
 								}[];
 							}[];
-						};
+						}>(base, response);
 						const project = overview.projects.find(
 							(item) => item.name === linearProject,
 						);

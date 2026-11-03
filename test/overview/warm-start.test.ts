@@ -10,6 +10,7 @@ import { run } from "../../src/main.ts";
 import { tempConfig, testIo } from "../support/app.ts";
 import { urlOf } from "../support/fetch.ts";
 import { page, recordedDiscovery, unrecorded } from "../support/github.ts";
+import { projectTickets } from "../support/reads.ts";
 import { repoReadFromHandler } from "../support/repo-read.ts";
 import { emptyList } from "./_support.ts";
 
@@ -119,7 +120,9 @@ describe("GET /api/overview", () => {
 			const opened = await fetch(new URL("/api/overview", base));
 			expect(opened.status).toBe(200);
 			const before = (await opened.json()) as Overview;
-			expect(before.projects[0]?.tickets[0]?.key).toBe(`${repoName}#4`);
+			expect(before.projects[0]?.name).toBe(repoName);
+			const [stored] = await projectTickets(base, repoName);
+			expect(stored?.key).toBe(`${repoName}#4`);
 			const started = Date.now();
 			stopRun();
 			const ended = await first;
@@ -137,7 +140,7 @@ describe("GET /api/overview", () => {
 						const body = (await response.json()) as Overview;
 						expect(body.error).toBeNull();
 						expect(body.projects[0]?.error).toBeNull();
-						expect(body.projects[0]?.tickets).toEqual([
+						expect(await projectTickets(line, repoName)).toMatchObject([
 							{
 								key: `${repoName}#4`,
 								title: "Ticket 4",
@@ -445,7 +448,8 @@ describe("GET /api/overview", () => {
 					const after = await fetch(new URL("/api/overview", base));
 					expect(after.status).toBe(200);
 					const kept = (await after.json()) as Overview;
-					expect(kept.projects[0]?.tickets).toEqual([
+					expect(kept.projects[0]?.name).toBe(repoName);
+					expect(await projectTickets(base, repoName)).toMatchObject([
 						{
 							key: `${repoName}#4`,
 							title: "Ticket 4",

@@ -1,6 +1,6 @@
 import type { Configuration, ProjectPin } from "./configuration.ts";
 import type {
-	ProjectCounts,
+	OverviewCard,
 	SettingsProject,
 	SettingsSnapshot,
 	TrackerKind,
@@ -63,7 +63,7 @@ export function displayName(project: CatalogueProject): string {
 function pendingCard(
 	project: CatalogueProject,
 	tracked: readonly ProjectPin[],
-): ProjectCounts {
+): OverviewCard {
 	const ref = refForFound(project, tracked);
 	return {
 		name: project.name ?? project.key,
@@ -78,7 +78,6 @@ function pendingCard(
 		inReview: 0,
 		awaitingMerge: 0,
 		unlinkedPrs: [],
-		tickets: [],
 		crossProjectBlockers: [],
 		needsYou: 0,
 		progress: 0,
@@ -94,9 +93,9 @@ function pendingCard(
 export function pendingProjects(
 	catalogue: readonly CatalogueProject[],
 	tracked: readonly ProjectPin[],
-	counted: readonly ProjectCounts[],
+	counted: readonly OverviewCard[],
 	polledIds: ReadonlySet<string>,
-): ProjectCounts[] {
+): OverviewCard[] {
 	return catalogue.flatMap((project) => {
 		const pin = tracked.find((ref) => matchesRef(project, ref));
 		if (pin === undefined || polledIds.has(projectId(listedRef(project)))) {
