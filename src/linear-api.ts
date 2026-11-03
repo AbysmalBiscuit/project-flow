@@ -7,6 +7,7 @@ import {
 	type GraphqlRequest,
 	responseBody,
 } from "./graphql.ts";
+import { linearReactions } from "./reactions.ts";
 
 const linearEndpoint = "https://api.linear.app/graphql";
 
@@ -29,7 +30,7 @@ export const linearCommentNode = z.object({
 		})
 		.nullable()
 		.optional(),
-	reactions: z.array(z.object({ id: z.string() })).optional(),
+	reactions: linearReactions.optional(),
 });
 
 export function commentAuthor(

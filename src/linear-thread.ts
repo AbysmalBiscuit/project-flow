@@ -16,6 +16,7 @@ import {
 	linearPageInfo,
 } from "./linear-api.ts";
 import { TrackerError } from "./ports.ts";
+import { emojiReactions, linearReactionSelection } from "./reactions.ts";
 
 const pageInfo = linearPageInfo;
 
@@ -32,6 +33,7 @@ const threadQuery = `query IssueThread($id: String!, $after: String) {
 				url
 				parent { id }
 				user { name displayName }
+				${linearReactionSelection}
 			}
 			pageInfo { hasNextPage endCursor }
 		}
@@ -123,6 +125,7 @@ export async function fetchLinearThread(
 			url: comment.url ?? "",
 			parentId: comment.parent?.id ?? null,
 			kind: "comment" as const,
+			reactions: emojiReactions(comment.reactions),
 			children: [],
 		}))
 		.sort((left, right) => {

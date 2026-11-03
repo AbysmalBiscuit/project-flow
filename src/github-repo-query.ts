@@ -19,6 +19,11 @@ import {
 import { graphqlData, type GraphqlQuery } from "./graphql.ts";
 import { TrackerError } from "./ports.ts";
 import { repoParts } from "./project-ref.ts";
+import {
+	githubReactionContent,
+	githubReactionGroups,
+	reactionGroupSelection,
+} from "./reactions.ts";
 import { sameRepo } from "./repo-key.ts";
 
 const mergedPageBound = 10;
@@ -108,9 +113,9 @@ function repoReadQuery(include: RepoIncludes, size: number): string {
 }`;
 }
 
-export const issueCommentSelection = `nodes { databaseId body createdAt updatedAt author { login } reactions { totalCount } } ${connectionPage}`;
+export const issueCommentSelection = `nodes { databaseId body createdAt updatedAt author { login } ${reactionGroupSelection} } ${connectionPage}`;
 
-export const pullCommentSelection = `nodes { author { login } body createdAt reactions { totalCount } } ${connectionPage}`;
+export const pullCommentSelection = `nodes { author { login } body createdAt ${reactionGroupSelection} } ${connectionPage}`;
 
 export const reviewSelection = `nodes { author { login } commit { oid } state } ${connectionPage}`;
 
@@ -187,17 +192,6 @@ const reviewStateGraphql = z.enum([
 	"PENDING",
 ]);
 
-const reactionContent = z.enum([
-	"CONFUSED",
-	"EYES",
-	"HEART",
-	"HOORAY",
-	"LAUGH",
-	"ROCKET",
-	"THUMBS_DOWN",
-	"THUMBS_UP",
-]);
-
 export const graphqlPullNode = z.object({
 	id: z.string(),
 	number: z.number(),
@@ -234,12 +228,12 @@ export const graphqlPullComment = z.object({
 	author: graphqlActor.optional(),
 	body: z.string().nullable().optional(),
 	createdAt: z.string().optional(),
-	reactions: z.object({ totalCount: z.number() }).optional(),
+	reactionGroups: githubReactionGroups.optional(),
 });
 
 export const graphqlReaction = z.object({
 	user: graphqlActor.optional(),
-	content: reactionContent,
+	content: githubReactionContent,
 	createdAt: z.string().optional(),
 });
 

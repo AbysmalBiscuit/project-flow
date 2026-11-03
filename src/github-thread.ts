@@ -5,13 +5,21 @@ import type {
 	PostedReply,
 	ReplyRequest,
 	ThreadComment,
+	ThreadReaction,
 } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
-import { githubGraphql } from "./github-graphql.ts";
+import { type GithubConnection, githubGraphql } from "./github-graphql.ts";
 import { fetchWithSignal, githubHeaders, pages } from "./github-pages.ts";
 import { TrackerBodyError } from "./graphql.ts";
 import { TrackerError } from "./ports.ts";
 import { repoParts } from "./project-ref.ts";
+import {
+	githubReactionGroups,
+	githubRestReactions,
+	groupReactions,
+	reactionGroupSelection,
+	restReactions,
+} from "./reactions.ts";
 import { numberedKeyParts } from "./ticket-key.ts";
 
 const githubThreadComment = z.object({
@@ -21,10 +29,12 @@ const githubThreadComment = z.object({
 	created_at: z.string().optional(),
 	user: z.object({ login: z.string() }).nullable().optional(),
 	in_reply_to_id: z.number().nullable().optional(),
+	reactions: githubRestReactions.optional(),
 });
 
 const githubReview = z.object({
 	id: z.number(),
+	node_id: z.string().optional(),
 	body: z.string().nullable().optional(),
 	html_url: z.string().optional(),
 	submitted_at: z.string().nullable().optional(),
@@ -34,6 +44,7 @@ const githubReview = z.object({
 /** A review with a body, as a top-level comment: a reply to it goes to the ticket. */
 function reviewComment(
 	review: z.infer<typeof githubReview>,
+	reactions: ThreadReaction[],
 ): Omit<ThreadComment, "html"> {
 	return {
 		id: `review-${review.id}`,
@@ -43,6 +54,7 @@ function reviewComment(
 		url: review.html_url ?? "",
 		parentId: null,
 		kind: "comment",
+		reactions,
 		children: [],
 	};
 }
@@ -69,8 +81,48 @@ function toThreadComment(
 				? null
 				: String(comment.in_reply_to_id),
 		kind,
+		reactions: restReactions(comment.reactions),
 		children: [],
 	};
+}
+
+const reviewReactionsQuery = `query ReviewReactions($ids: [ID!]!) {
+	nodes(ids: $ids) {
+		... on PullRequestReview { id ${reactionGroupSelection} }
+	}
+}`;
+
+const reviewReactionNodes = z.object({
+	nodes: z.array(
+		z
+			.object({ id: z.string(), reactionGroups: githubReactionGroups })
+			.nullable()
+			.catch(null),
+	),
+});
+
+/** GitHub REST gives a review no reactions, so GraphQL reads them by node id. */
+async function reviewReactions(
+	connection: GithubConnection,
+	ids: string[],
+	subject: string,
+): Promise<Map<string, ThreadReaction[]>> {
+	const byId = new Map<string, ThreadReaction[]>();
+	for (let start = 0; start < ids.length; start += 100) {
+		const read = await githubGraphql(connection, {
+			query: reviewReactionsQuery,
+			variables: { ids: ids.slice(start, start + 100) },
+			data: reviewReactionNodes,
+			label: "fetch review reactions",
+			subject,
+		});
+		for (const node of read.nodes) {
+			if (node !== null) {
+				byId.set(node.id, groupReactions(node.reactionGroups));
+			}
+		}
+	}
+	return byId;
 }
 
 const linkedPullsQuery = `query LinkedPulls($owner: String!, $name: String!, $number: Int!) {
@@ -185,13 +237,31 @@ export async function fetchGithubThread(
 				.map((comment) => toThreadComment(comment, "review")),
 		),
 	);
-	const reviews = reviewPages.flatMap((listed) =>
+	const bodiedReviews = reviewPages.flatMap((listed) =>
 		listed.flatMap((item) =>
 			z
 				.array(githubReview)
 				.parse(item)
-				.filter((entry) => (entry.body ?? "").trim() !== "")
-				.map(reviewComment),
+				.filter((entry) => (entry.body ?? "").trim() !== ""),
+		),
+	);
+	const reviewNodeIds = bodiedReviews.flatMap((entry) =>
+		entry.node_id === undefined ? [] : [entry.node_id],
+	);
+	const reactionsByReview =
+		reviewNodeIds.length === 0
+			? new Map<string, ThreadReaction[]>()
+			: await reviewReactions(
+					{ token, fetchImpl, ...(signal === undefined ? {} : { signal }) },
+					reviewNodeIds,
+					repo,
+				);
+	const reviews = bodiedReviews.map((entry) =>
+		reviewComment(
+			entry,
+			(entry.node_id === undefined
+				? undefined
+				: reactionsByReview.get(entry.node_id)) ?? [],
 		),
 	);
 	return {

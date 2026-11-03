@@ -164,7 +164,7 @@ describe("batched GitHub reads", () => {
 												createdAt: "2026-04-01T10:04:00.000Z",
 												updatedAt: "2026-04-01T10:04:00.000Z",
 												author: { login: "ada" },
-												reactions: { totalCount: 0 },
+												reactionGroups: [],
 											},
 										]
 									: [],
@@ -184,7 +184,7 @@ describe("batched GitHub reads", () => {
 													createdAt: "2026-04-01T10:04:00.000Z",
 													updatedAt: "2026-04-01T12:05:10.000Z",
 													author: { login: "ada" },
-													reactions: { totalCount: 0 },
+													reactionGroups: [],
 												},
 											],
 											pageInfo: emptyPage.pageInfo,

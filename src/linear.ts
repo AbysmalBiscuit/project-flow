@@ -21,6 +21,11 @@ import {
 	showLinearState,
 } from "./linear-thread.ts";
 import { type FoundProject, type Tracker, TrackerError } from "./ports.ts";
+import {
+	emojiReactions,
+	linearReactionSelection,
+	reactionTotal,
+} from "./reactions.ts";
 
 export const missingLinearKey =
 	"LINEAR_API_KEY is missing: set LINEAR_API_KEY to list Linear projects.";
@@ -96,7 +101,7 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 				nodes { url title }
 			}
 			comments(first: 50) {
-				nodes { id body createdAt updatedAt parent { id } user { name displayName } reactions { id } }
+				nodes { id body createdAt updatedAt parent { id } user { name displayName } ${linearReactionSelection} }
 				pageInfo { hasNextPage endCursor }
 			}
 			history(first: 50) {
@@ -573,7 +578,7 @@ const commentPage = z.object({
 const commentsQuery = `query IssueComments($id: String!, $after: String) {
 	issue(id: $id) {
 		comments(first: 50, after: $after) {
-			nodes { id body createdAt updatedAt parent { id } user { name displayName } reactions { id } }
+			nodes { id body createdAt updatedAt parent { id } user { name displayName } ${linearReactionSelection} }
 			pageInfo { hasNextPage endCursor }
 		}
 	}
@@ -598,7 +603,7 @@ function listedComment(
 		...(node.parent?.id === undefined ? {} : { parentId: node.parent.id }),
 		...(node.reactions === undefined
 			? {}
-			: { reactions: node.reactions.length }),
+			: { reactions: reactionTotal(emojiReactions(node.reactions)) }),
 	};
 }
 

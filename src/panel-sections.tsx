@@ -70,6 +70,16 @@ export function CommentTree({
 						<span>{commentTime(comment.createdAt)}</span>
 					</p>
 					<CommentMarkdown html={comment.html} />
+					{comment.reactions.length === 0 ? null : (
+						<ul className={clsx(panel.reactions)}>
+							{comment.reactions.map(({ emoji, count }) => (
+								<li key={emoji} className={clsx(panel.reaction)}>
+									<span>{emoji}</span>
+									<span>{count}</span>
+								</li>
+							))}
+						</ul>
+					)}
 					{nested || comment.kind === "review" ? (
 						<Button
 							label="Answer"

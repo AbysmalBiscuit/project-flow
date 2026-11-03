@@ -10,6 +10,11 @@ import type {
 import { reviewStateValue } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { githubHeaders, pages } from "./github-pages.ts";
+import {
+	githubRestReactions,
+	reactionTotal,
+	restReactions,
+} from "./reactions.ts";
 import { numberedKey } from "./ticket-key.ts";
 
 export const githubPull = z.object({
@@ -159,7 +164,7 @@ function fetchComments(
 		loginRow.extend({
 			body: z.string().nullable(),
 			created_at: z.string().optional(),
-			reactions: z.object({ total_count: z.number().optional() }).optional(),
+			reactions: githubRestReactions.optional(),
 		}),
 		(comment) =>
 			comment.user === null
@@ -168,7 +173,7 @@ function fetchComments(
 						login: comment.user.login,
 						body: comment.body ?? "",
 						createdAt: comment.created_at ?? null,
-						reactions: comment.reactions?.total_count ?? 0,
+						reactions: reactionTotal(restReactions(comment.reactions)),
 					},
 	);
 }
