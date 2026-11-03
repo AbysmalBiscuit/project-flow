@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.1.1](https://github.com/AbysmalBiscuit/project-flow/compare/v0.1.0...v0.1.1) (2026-11-03)
+
+
+### Features
+
+* **board:** show tracker labels as pills on cards ([5da7084](https://github.com/AbysmalBiscuit/project-flow/commit/5da7084482e5881bce55941a15c2a38c93a5281c))
+* **filters:** show Linear assignee names ([9b6f446](https://github.com/AbysmalBiscuit/project-flow/commit/9b6f4466f6e4b1c537c52729469fa357c256e121))
+* **overview:** pin and unpin a project from its card ([3a869e0](https://github.com/AbysmalBiscuit/project-flow/commit/3a869e0ff32444d89a09abb1171e1ad5707b2825))
+* **overview:** pin projects to the top ([ca33a48](https://github.com/AbysmalBiscuit/project-flow/commit/ca33a48892aeb22acf510bc2b2040e17719e1d1b))
+* **panel:** copy the ticket key from the panel head ([0592618](https://github.com/AbysmalBiscuit/project-flow/commit/0592618fe64482ea4f71b7c8deb4fcc35dedd1fe))
+* **thread:** show comment reactions in the thread ([41ed294](https://github.com/AbysmalBiscuit/project-flow/commit/41ed294d498ba70a9fb28624a552f736772e59a8))
+
+
+### Bug Fixes
+
+* **needs-you:** settle an ask by thread reply or answered by ([79ccc40](https://github.com/AbysmalBiscuit/project-flow/commit/79ccc40e04476cf2bca6b6e641382d0c5f0f9eff)), closes [#828](https://github.com/AbysmalBiscuit/project-flow/issues/828)
+* **overview:** show the full poll error and hide +0 more ([e701014](https://github.com/AbysmalBiscuit/project-flow/commit/e70101458f912a44c9eed74b7df69d42a348d5ff)), closes [#834](https://github.com/AbysmalBiscuit/project-flow/issues/834)
+
+
+### Performance Improvements
+
+* **factory:** index runs by ticket key ([9171dfe](https://github.com/AbysmalBiscuit/project-flow/commit/9171dfeff92a9bcf7194062d6ba39b4af6153d91))
+* **github:** read Linear-linked PRs in GraphQL batches ([e1da631](https://github.com/AbysmalBiscuit/project-flow/commit/e1da631d50e34a68c04f781777578bb16bf0e247))
+* **overview:** build the factory run list once ([eb41b78](https://github.com/AbysmalBiscuit/project-flow/commit/eb41b786fc93cf290b1ad67dc36d5f3dfdc210fb))
+* **overview:** send overview cards without tickets ([c007856](https://github.com/AbysmalBiscuit/project-flow/commit/c0078568256ced49e44c76a6c2e0e48086f9c940))
+
 ## 0.1.0 (2026-11-01)
 
 
