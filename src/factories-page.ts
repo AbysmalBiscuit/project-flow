@@ -35,7 +35,7 @@ export type RunningRun = Pick<
 	costUsd?: number;
 };
 
-/** A run that needs Lev: a failed run that nothing resumed or restarted, or an open ask. */
+/** A run in "Needs attention": a failed run that nothing resumed or restarted, or an open ask. */
 export type AttentionItem = {
 	kind: "failed" | "ask";
 	runId: string;
