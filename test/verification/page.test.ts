@@ -294,7 +294,7 @@ test("the records of several runs give the tiles, the check pass rates and the r
 				1,
 				2,
 				[false, true],
-				"VERIFY-HEAD: failed check 0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c 1",
+				"VERIFY-HEAD: failed check 0f1e2d3 1",
 			],
 			["ci", "check", 1, 2, [false, true], "failed"],
 			["ci", "test-isolated", 1, 1, [true], null],

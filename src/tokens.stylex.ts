@@ -408,6 +408,7 @@ export const measure = stylex.defineVars({
 	resultDot: "0.55rem",
 	underline: "2px",
 	failureMin: "12rem",
+	failureMax: "20rem",
 });
 
 export const stack = stylex.defineVars({

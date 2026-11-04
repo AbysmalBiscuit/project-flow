@@ -161,6 +161,11 @@ function reasonOf(raw: string): { text: string; key: string } {
 	return { text, key: text.toLowerCase().replace(/[.,;:!?]+$/, "") };
 }
 
+const fullSha = /\b([0-9a-f]{7})[0-9a-f]{33}\b/g;
+
+/** The failure text with each full sha cut to its first 7 characters, as the gates list shows a head. */
+const failureText = (text: string): string => text.replace(fullSha, "$1");
+
 /** The most common value, and the newest one of a tie. */
 function mostCommon(values: readonly string[]): string | null {
 	const counts = new Map<string, number>();
@@ -360,7 +365,7 @@ function checkRows(runs: readonly RecordedRun[]): CheckRow[] {
 			last: results.slice(-lastResults).map((result) => result.passed),
 			topFailure: mostCommon(
 				results.flatMap((result) =>
-					result.failure === null ? [] : [result.failure],
+					result.failure === null ? [] : [failureText(result.failure)],
 				),
 			),
 		}))

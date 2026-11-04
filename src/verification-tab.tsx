@@ -8,6 +8,7 @@ import type { RunResult } from "./kinds.ts";
 import { pageQuery } from "./queries.ts";
 import { PageFrame } from "./shell.tsx";
 import { navLabel, runResultLabel, verificationCopy } from "./terms.ts";
+import { ticketLabel } from "./ticket-key.ts";
 import {
 	colours,
 	font,
@@ -187,9 +188,12 @@ const styles = stylex.create({
 	},
 	failure: {
 		minWidth: measure.failureMin,
+		maxWidth: measure.failureMax,
+		overflow: "hidden",
 		color: colours.inkSoft,
 		fontSize: type.meter,
-		overflowWrap: "anywhere",
+		textOverflow: "ellipsis",
+		whiteSpace: "nowrap",
 	},
 	strip: {
 		display: "flex",
@@ -234,12 +238,15 @@ const styles = stylex.create({
 		fontSize: type.meta,
 	},
 	where: {
+		flexShrink: 0,
+		maxWidth: "50%",
 		marginLeft: "auto",
 		paddingLeft: space.sm,
 		color: colours.inkSoft,
 		fontFamily: font.mono,
 		fontSize: type.lane,
-		whiteSpace: "nowrap",
+		overflowWrap: "anywhere",
+		textAlign: "right",
 	},
 	dot: {
 		flexShrink: 0,
@@ -465,6 +472,7 @@ function ChecksTable({ checks }: { checks: CheckRow[] }) {
 										styles.failure,
 										last && styles.lastRow,
 									)}
+									title={check.topFailure ?? undefined}
 								>
 									{check.topFailure ?? verificationCopy.noFailure}
 								</td>
@@ -617,7 +625,9 @@ function RunRecord({
 			title={
 				<>
 					{verificationCopy.run}{" "}
-					<span className={clsx(styles.mono)}>{run.ticket ?? run.id}</span>
+					<span className={clsx(styles.mono)}>
+						{run.ticket === null ? run.id : ticketLabel(run.ticket)}
+					</span>
 				</>
 			}
 			head={
@@ -636,7 +646,7 @@ function RunRecord({
 						>
 							{runs.map((item) => (
 								<option key={item.id} value={item.id}>
-									{item.ticket}
+									{ticketLabel(item.ticket)}
 									{item.result === null
 										? ""
 										: `, ${runResultLabel[item.result]}`}
