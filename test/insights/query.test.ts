@@ -125,6 +125,7 @@ describe("the Insights route", () => {
 				"submitted_at",
 				"started_at",
 				"ended_at",
+				"archived_at",
 				"input_tokens",
 				"output_tokens",
 				"cost_usd",

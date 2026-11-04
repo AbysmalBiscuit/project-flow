@@ -37,6 +37,7 @@ const runColumns = {
 	submitted_at: (row) => row.submittedAt,
 	started_at: (row) => row.startedAt,
 	ended_at: (row) => row.endedAt,
+	archived_at: (row) => row.archivedAt ?? null,
 	input_tokens: (row) => row.usageTotals?.inputTokens ?? null,
 	output_tokens: (row) => row.usageTotals?.outputTokens ?? null,
 	cost_usd: (row) => row.usageTotals?.costUsd ?? null,
