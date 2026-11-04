@@ -325,7 +325,7 @@ _Avoid_: Daemon feed, live feed
 ### Attention
 
 **Needs you**:
-A ticket or PR that only Lev can move. Reasons include an open ask to Lev, awaiting merge, decide, or a failed or stalled workcell run. A need-human or need-engineer label with Lev as assignee also counts.
+A ticket or PR that only Lev can move. Reasons include an open ask to Lev, awaiting merge, decide, or a Run failed. A need-human or need-engineer label with Lev as assignee also counts.
 _Avoid_: Waits on you, waits on Lev, needs Lev
 
 **Decide**:
