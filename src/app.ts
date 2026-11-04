@@ -699,7 +699,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				...projectRoutes(pollOptions, () => configuration),
 				...pullRoutes(pollOptions, () => configuration),
 				...inboxRoutes(opened.store, clock),
-				...insightRoutes(opened.history, recordRuns),
+				...insightRoutes(opened.history, opened.saved, recordRuns, clock),
 				...factoriesRoutes({
 					factories,
 					history: opened.history,
