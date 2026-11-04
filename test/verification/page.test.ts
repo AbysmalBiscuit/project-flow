@@ -366,3 +366,24 @@ test("Insights queries the verdicts of each stored record", async () => {
 		await app.stop();
 	}
 });
+
+test("a factory that serves the route after a 404 answers the record of an older run", async () => {
+	let served = false;
+	const app = await serveHub({
+		...hub,
+		[`/runs/${succeededRun.id}/verification`]: () =>
+			served ? twoRounds : null,
+	});
+	try {
+		await pageWhere(app.base, (page) => page.notServed.length > 0);
+		served = true;
+		const run = await readJson<RunVerification>(
+			app.base,
+			`/api/verification/runs/${succeededRun.id}`,
+		);
+		expect(run.notServed).toBe(false);
+		expect(run.rounds.map((round) => round.round)).toEqual([1, 2]);
+	} finally {
+		await app.stop();
+	}
+});

@@ -21,7 +21,8 @@ export type VerificationRouteOptions = {
 
 /**
  * The routes of the Verification tab: the records of the last 30 days across runs,
- * and the record of one run. A run with no stored record reads its factory.
+ * and the record of one run. A run with no stored record reads its factory, so a factory that
+ * serves the route after an update answers for its older runs too.
  */
 export function verificationRoutes(options: VerificationRouteOptions) {
 	return routeTable({
@@ -40,13 +41,19 @@ export function verificationRoutes(options: VerificationRouteOptions) {
 		"/api/verification/runs/:id": {
 			GET: async (request) => {
 				const id = request.params.id;
-				const row = options.runList().find((run) => run.id === id);
+				const listed = options.runList().find((run) => run.id === id);
+				const row =
+					listed === undefined
+						? options.history.runOf(id)
+						: { ticket: listed.key, result: listed.result ?? null };
 				const stored = options.history.verificationOf(id);
 				const record =
-					stored === null ? await options.factories.verification(id) : stored;
+					stored === null || stored === "not served"
+						? await options.factories.verification(id)
+						: stored;
 				const answer: RunVerification = {
 					id,
-					ticket: row?.key ?? null,
+					ticket: row?.ticket ?? null,
 					result: row?.result ?? null,
 					rounds:
 						record === null || record === "not served"

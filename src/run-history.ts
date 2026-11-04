@@ -314,7 +314,7 @@ export function runHistory(db: Database, path: string) {
 		},
 		/**
 		 * The reads that an ended run still needs: its event log while it has no
-		 * stage rows, and its turns. Each read runs once for each end of the run,
+		 * stage rows, its turns and its verification record. Each read runs once for each end of the run,
 		 * so a resumed run that ends again gets its turns read again.
 		 */
 		unread(runId: string, endedAt: string | null): HistoryRead[] {
@@ -385,6 +385,17 @@ export function runHistory(db: Database, path: string) {
 					result: storedResult.parse(row.result),
 					record: verificationRecord.parse(JSON.parse(row.record)),
 				}));
+		},
+		/** The ticket and result of a run in the history, or null for a run it does not hold. */
+		runOf(runId: string): Pick<RecordedRun, "ticket" | "result"> | null {
+			const row = db
+				.query<{ ticket: string; result: string | null }, [string]>(
+					"select ticket, result from run_history where id = ?",
+				)
+				.get(runId);
+			return row === null
+				? null
+				: { ticket: row.ticket, result: storedResult.parse(row.result) };
 		},
 		/** The factories whose newest record read found no verification route. */
 		verificationNotServed(): string[] {
