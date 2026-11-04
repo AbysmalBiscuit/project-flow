@@ -37,7 +37,8 @@ export function FitLayout({
 	layout: unknown;
 	held: boolean;
 	refit: number;
-	fit: () => FitViewOptions;
+	/** The fit options of the view, or the exact view to open on. */
+	fit: () => FitViewOptions | Viewport;
 }) {
 	const flow = useReactFlow();
 	const fitted = useRef<Viewport | null>(null);
@@ -55,7 +56,10 @@ export function FitLayout({
 		}
 		const frame = requestAnimationFrame(() => {
 			asked.current = refit;
-			void flow.fitView(fit()).then(() => {
+			const wanted = fit();
+			void (
+				"zoom" in wanted ? flow.setViewport(wanted) : flow.fitView(wanted)
+			).then(() => {
 				fitted.current = flow.getViewport();
 			});
 		});

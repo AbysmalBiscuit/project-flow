@@ -169,6 +169,8 @@ export type FactoryReader = {
 	check: () => Promise<void>;
 	/** Wait for the running check, and check a factory that has none. */
 	settled: () => Promise<void>;
+	/** True while a factory runs its first PR reads after a start, so merge results are not known yet. */
+	firstPullsRun: () => boolean;
 	/** Each listed factory with what its last check found. */
 	entries: () => FactoryEntry[];
 	/** The Linear sources of each listed hub, from its last good `GET /sources`. */

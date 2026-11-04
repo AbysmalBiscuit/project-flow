@@ -3,6 +3,7 @@ import { Database, type SQLQueryBindings } from "bun:sqlite";
 import { z } from "zod";
 
 import type { RunAsks } from "./factory-run-rows.ts";
+import type { RunResult, RunStatusKind } from "./kinds.ts";
 import {
 	type RetroRecord,
 	retroRecord,
@@ -106,10 +107,49 @@ const stageData = z
 	})
 	.catch({});
 
-/** The factory reads that fill the run history of an ended run once. */
+/**
+ * The factory reads that fill the run history of an ended run once. The
+ * `events` read also stores a `package` mark, so the package sha is read once.
+ */
 export type HistoryRead = "events" | "turns" | "verification" | "retro";
 
-/** The views that an insight query can read. Later run history tables add theirs. */
+/** The `workflow.started` data of an entry graph gives the sha of the workflow package. */
+const workflowStart = z.object({
+	package: z.object({ sha256: z.string() }),
+});
+
+/** A started run of a workflow package, with the package sha when the run history knows it. */
+export type PackageRun = {
+	id: string;
+	key: string;
+	package: string;
+	sha: string | null;
+	status: RunStatusKind;
+	result: RunResult | null;
+	factory: string;
+	startedAt: string;
+	endedAt: string | null;
+	costUsd: number | null;
+};
+
+/** One `stage.completed` or `stage.failed` row of a run. */
+export type StageVisit = {
+	runId: string;
+	stage: string;
+	event: string;
+	at: string;
+	durationS: number | null;
+};
+
+/** The tokens and cost of the turns of one stage of a run. */
+export type StageUsage = {
+	runId: string;
+	stage: string;
+	tokens: number;
+	costUsd: number;
+};
+
+/** The views that an insight query can read. */
 const queryableViews = [
 	"runs",
 	"stages",
@@ -177,6 +217,9 @@ export function runHistory(db: Database, path: string) {
 		"create view if not exists asks as select run_id, id, stage, text, answer, sender, answered_at from run_asks",
 	);
 	db.run(
+		"create table if not exists run_packages (run_id text primary key, sha text not null)",
+	);
+	db.run(
 		"create table if not exists run_verifications (run_id text primary key, record text)",
 	);
 	// The view is derived, so a store from an older launch gets the current columns.
@@ -229,13 +272,26 @@ export function runHistory(db: Database, path: string) {
 	const markRead = db.query<unknown, SQLQueryBindings[]>(
 		"insert into run_history_reads (run_id, read, ended_at) values (?, ?, ?) on conflict(run_id, read) do update set ended_at = excluded.ended_at",
 	);
-	const readsOf = db.query<{ read: HistoryRead }, [string, string | null]>(
+	const insertPackage = db.query<unknown, SQLQueryBindings[]>(
+		"insert or ignore into run_packages (run_id, sha) values (?, ?)",
+	);
+	const readsOf = db.query<{ read: string }, [string, string | null]>(
 		"select read from run_history_reads where run_id = ? and ended_at is ?",
 	);
 	const hasStages = db.query<unknown, [string]>(
 		"select 1 from run_stages where run_id = ? limit 1",
 	);
+	const hasPackage = db.query<unknown, [string]>(
+		"select 1 from run_packages where run_id = ?",
+	);
 	const addStage = (runId: string, event: StageEvent) => {
+		if (event.event === "workflow.started") {
+			const started = workflowStart.safeParse(event.data);
+			if (started.success) {
+				insertPackage.run(runId, started.data.package.sha256);
+			}
+			return;
+		}
 		if (!stageEvents.has(event.event)) {
 			return;
 		}
@@ -285,6 +341,7 @@ export function runHistory(db: Database, path: string) {
 					"run_stages",
 					"run_turns",
 					"run_asks",
+					"run_packages",
 					"run_verifications",
 					"run_retros",
 					"run_history_reads",
@@ -293,10 +350,10 @@ export function runHistory(db: Database, path: string) {
 				}
 			})();
 		},
-		/** Keep the stage row of one event of the factory feed. Other events give no row. */
+		/** Keep the stage row or the package sha of one event of the factory feed. Other events give no row. */
 		recordStage: addStage,
 		/**
-		 * Keep the stage rows of an ended run's event log, and remember the read
+		 * Keep the stage rows and the package sha of an ended run's event log, and remember the read
 		 * with the run's end time. Null events mean the factory does not serve the log.
 		 */
 		recordEventLog(
@@ -309,6 +366,7 @@ export function runHistory(db: Database, path: string) {
 					addStage(runId, event);
 				}
 				markRead.run(runId, "events", endedAt);
+				markRead.run(runId, "package", endedAt);
 			})();
 		},
 		/** Keep the turn rows of an ended run, and remember the read with the run's end time. */
@@ -363,13 +421,17 @@ export function runHistory(db: Database, path: string) {
 		},
 		/**
 		 * The reads that an ended run still needs: its event log while it has no
-		 * stage rows, its turns and its verification record. Each read runs once for each end of the run,
-		 * so a resumed run that ends again gets its turns read again.
+		 * stage rows or no package sha, its turns, its verification record and its retro.
+		 * Each read runs once for each end of the run, so a resumed run that ends again
+		 * gets its turns read again.
 		 */
 		unread(runId: string, endedAt: string | null): HistoryRead[] {
 			const done = new Set(readsOf.all(runId, endedAt).map((row) => row.read));
 			const reads: HistoryRead[] = [];
-			if (!done.has("events") && hasStages.get(runId) === null) {
+			if (
+				(!done.has("events") && hasStages.get(runId) === null) ||
+				(!done.has("package") && hasPackage.get(runId) === null)
+			) {
 				reads.push("events");
 			}
 			if (!done.has("turns")) {
@@ -544,6 +606,39 @@ export function runHistory(db: Database, path: string) {
 					"select result, reason, cost_usd as costUsd, ended_at as endedAt from run_history where julianday(ended_at) >= julianday(?)",
 				)
 				.all(since.toISOString());
+		},
+		/** Each started run of a workflow package, newest first. */
+		packageRuns(): PackageRun[] {
+			return db
+				.query<PackageRun, []>(
+					`select r.id, r.ticket as key, r.package, p.sha, r.status, r.result, r.factory,
+					r.started_at as startedAt, r.ended_at as endedAt, r.cost_usd as costUsd
+					from run_history r left join run_packages p on p.run_id = r.id
+					where r.package is not null and r.started_at is not null
+					order by julianday(r.started_at) desc`,
+				)
+				.all();
+		},
+		/** The `stage.completed` and `stage.failed` rows of the runs, in time order. */
+		stageVisits(runIds: readonly string[]): StageVisit[] {
+			return db
+				.query<StageVisit, [string]>(
+					`select run_id as runId, stage, event, at, duration_s as durationS from run_stages
+					where run_id in (select value from json_each(?)) and event in ('stage.completed', 'stage.failed')
+					order by julianday(at)`,
+				)
+				.all(JSON.stringify(runIds));
+		},
+		/** The tokens and cost of the turns of each stage of each of the runs. */
+		stageUsage(runIds: readonly string[]): StageUsage[] {
+			return db
+				.query<StageUsage, [string]>(
+					`select run_id as runId, stage,
+					sum(coalesce(input_tokens, 0) + coalesce(output_tokens, 0)) as tokens,
+					sum(coalesce(cost_usd, 0)) as costUsd
+					from run_turns where run_id in (select value from json_each(?)) group by run_id, stage`,
+				)
+				.all(JSON.stringify(runIds));
 		},
 		/** The stage events at or after `since`. */
 		stageSamples(since: Date): StageSample[] {

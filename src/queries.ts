@@ -48,6 +48,7 @@ import type { StateSource } from "./settings-write.ts";
 import { pendingStatus } from "./stale-reads.ts";
 import { storedObject } from "./stored-page.ts";
 import type { RunVerification, VerificationPage } from "./verification-page.ts";
+import type { WorkflowDetail, WorkflowsPage } from "./workflows-page.ts";
 
 type SettingsPage = {
 	settings: Configuration;
@@ -122,6 +123,20 @@ export const pageQuery = {
 		refetchInterval: factoryCheckMs,
 		placeholderData: (previous: FactoriesPage | undefined) => previous,
 	}),
+	workflows: queryOptions({
+		queryKey: ["workflows"],
+		queryFn: () => fetchJson<WorkflowsPage>("/api/workflows"),
+		placeholderData: (previous: WorkflowsPage | undefined) => previous,
+	}),
+	workflow: (name: string, sha: string | null) =>
+		queryOptions({
+			queryKey: ["workflow", name, sha],
+			queryFn: () =>
+				fetchJson<WorkflowDetail>(
+					`/api/workflows/${encodeURIComponent(name)}${sha === null ? "" : `?sha=${encodeURIComponent(sha)}`}`,
+				),
+			placeholderData: (previous: WorkflowDetail | undefined) => previous,
+		}),
 	/** A change in the factory feed reads the Verification tab again. */
 	verification: queryOptions({
 		queryKey: ["verification"],
@@ -953,6 +968,8 @@ function applyOverviewEvent(body: Overview): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["runSettings"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
 	void pageQueryClient.invalidateQueries(pageQuery.factories);
+	void pageQueryClient.invalidateQueries(pageQuery.workflows);
+	void pageQueryClient.invalidateQueries({ queryKey: ["workflow"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["verification"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["retros"] });
 }
@@ -976,6 +993,8 @@ function invalidatePageQueries(): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["runSettings"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
 	void pageQueryClient.invalidateQueries(pageQuery.factories);
+	void pageQueryClient.invalidateQueries(pageQuery.workflows);
+	void pageQueryClient.invalidateQueries({ queryKey: ["workflow"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["verification"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["retros"] });
 }

@@ -39,6 +39,8 @@ export function runPullReader(
 	>(changed);
 	/** The factories whose PR reads run now. */
 	const readingPulls = new Set<string>();
+	/** The factories that ended at least one pass of PR reads. */
+	const passedPulls = new Set<string>();
 	const readPull = async (read: Read, run: ReadRun["run"]): Promise<void> => {
 		try {
 			const { pr, outputs } = await body(
@@ -88,8 +90,14 @@ export function runPullReader(
 			}
 		})().finally(() => {
 			readingPulls.delete(url);
+			if (!passedPulls.has(url)) {
+				passedPulls.add(url);
+				changed();
+			}
 		});
 	};
 	const pullOf = (runId: string): RunPull | undefined => pulls.get(runId)?.pull;
-	return { readPullsOf, pullOf };
+	const firstPullsRun = (): boolean =>
+		[...readingPulls].some((url) => !passedPulls.has(url));
+	return { readPullsOf, pullOf, firstPullsRun };
 }
