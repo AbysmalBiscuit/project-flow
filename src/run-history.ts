@@ -90,9 +90,9 @@ const stageData = z
  */
 export type HistoryRead = "events" | "turns";
 
-/** The `workflow.started` data of an entry graph names the workflow package and its sha. */
+/** The `workflow.started` data of an entry graph gives the sha of the workflow package. */
 const workflowStart = z.object({
-	package: z.object({ name: z.string(), sha256: z.string() }),
+	package: z.object({ sha256: z.string() }),
 });
 
 /** A started run of a workflow package, with the package sha when the run history knows it. */
@@ -187,7 +187,7 @@ export function runHistory(db: Database, path: string) {
 		"create view if not exists asks as select run_id, id, stage, text, answer, sender, answered_at from run_asks",
 	);
 	db.run(
-		"create table if not exists run_packages (run_id text primary key, name text not null, sha text not null)",
+		"create table if not exists run_packages (run_id text primary key, sha text not null)",
 	);
 	db.run(
 		"create table if not exists run_history_reads (run_id text not null, read text not null, ended_at text, primary key (run_id, read))",
@@ -208,7 +208,7 @@ export function runHistory(db: Database, path: string) {
 		"insert into run_history_reads (run_id, read, ended_at) values (?, ?, ?) on conflict(run_id, read) do update set ended_at = excluded.ended_at",
 	);
 	const insertPackage = db.query<unknown, SQLQueryBindings[]>(
-		"insert or ignore into run_packages (run_id, name, sha) values (?, ?, ?)",
+		"insert or ignore into run_packages (run_id, sha) values (?, ?)",
 	);
 	const readsOf = db.query<{ read: string }, [string, string | null]>(
 		"select read from run_history_reads where run_id = ? and ended_at is ?",
@@ -223,11 +223,7 @@ export function runHistory(db: Database, path: string) {
 		if (event.event === "workflow.started") {
 			const started = workflowStart.safeParse(event.data);
 			if (started.success) {
-				insertPackage.run(
-					runId,
-					started.data.package.name,
-					started.data.package.sha256,
-				);
+				insertPackage.run(runId, started.data.package.sha256);
 			}
 			return;
 		}
