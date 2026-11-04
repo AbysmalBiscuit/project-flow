@@ -307,6 +307,39 @@ describe("the Factories tab", () => {
 		}
 	});
 
+	test("a hub whose holds read fails, with a queue entry that does not parse, still gives its queue", async () => {
+		const [first, ...rest] = queueSources.sources;
+		const app = await serveFactories({
+			"/daemon": hubAbout,
+			"/sources": {
+				sources: [
+					{ ...first, queue: [{ ticket: 45 }, ...(first?.queue ?? [])] },
+					...rest,
+				],
+			},
+			"/holds": new Response("boom", { status: 500 }),
+			"/runs": { runs: [] },
+		});
+		try {
+			const page = await factoriesWhere(
+				app.base,
+				(seen) => seen.queue.length === 4,
+			);
+			expect(page.queue.map((item) => item.key)).toEqual([
+				"acme/widget#46",
+				"acme/widget#47",
+				"acme/widget#48",
+				"PF-12",
+			]);
+			expect(page.queue[0]).not.toHaveProperty("hold");
+			expect(
+				app.requests.some((request) => request.url.endsWith("/holds")),
+			).toBe(true);
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a factory that does not answer is marked, and the other factory's data stays", async () => {
 		const app = await serveFactories(hubAnswers, "down");
 		try {

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import type { LinearSource } from "./domain.ts";
-import { body, NotServed, type Read } from "./factory-http.ts";
+import { body, type Read, Unreachable } from "./factory-http.ts";
 
 const linearShown = z.object({
 	state: z.string(),
@@ -24,7 +24,16 @@ const sourceConfigs = z.object({
 			tracker: z.string().nullish(),
 			repo: z.string().nullish(),
 			team: z.string().nullish(),
-			queue: z.array(queueEntry).nullish(),
+			// One entry that does not parse drops only itself, so the Linear sources still refresh.
+			queue: z
+				.array(z.unknown())
+				.nullish()
+				.transform((entries) =>
+					(entries ?? []).flatMap((entry) => {
+						const parsed = queueEntry.safeParse(entry);
+						return parsed.success ? [parsed.data] : [];
+					}),
+				),
 			linear_states: z.record(z.string(), linearShown).nullish(),
 			rules: z
 				.array(
@@ -70,7 +79,7 @@ export type SourceQueue = {
 /** What one `GET /sources` of a hub gives: its Linear sources and its queue. */
 export type HubSources = { linear: LinearSource[]; queues: SourceQueue[] };
 
-/** The holds by source and ticket. A hub that does not serve `GET /holds` gives none. */
+/** The holds by source and ticket. A hub that does not serve or answer `GET /holds` gives none. */
 async function holdsOf(read: Read): Promise<Map<string, SourceHold>> {
 	try {
 		const { holds } = await body(await read("/holds"), holdList);
@@ -81,7 +90,7 @@ async function holdsOf(read: Read): Promise<Map<string, SourceHold>> {
 			]),
 		);
 	} catch (error) {
-		if (error instanceof NotServed) {
+		if (error instanceof Unreachable) {
 			return new Map();
 		}
 		throw error;
@@ -94,7 +103,7 @@ export async function hubSourcesOf(
 	factory: string,
 ): Promise<HubSources> {
 	const { sources } = await body(await read("/sources"), sourceConfigs);
-	const waiting = sources.some((source) => (source.queue ?? []).length > 0);
+	const waiting = sources.some((source) => source.queue.length > 0);
 	const holds = waiting ? await holdsOf(read) : new Map<string, SourceHold>();
 	return {
 		linear: sources.flatMap(({ tracker, team, linear_states, rules }) =>
@@ -116,7 +125,7 @@ export async function hubSourcesOf(
 							source: name,
 							tracker: tracker ?? null,
 							repo: repo ?? null,
-							tickets: (queue ?? []).map((entry) => {
+							tickets: queue.map((entry) => {
 								const hold = holds.get(JSON.stringify([name, entry.ticket]));
 								return {
 									ticket: entry.ticket,
