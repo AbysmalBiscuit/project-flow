@@ -287,7 +287,7 @@ The list of the Factories tab that holds each run that failed in the last 24 hou
 _Avoid_: Alerts
 
 **Stalled run**:
-A live run whose time in its current stage passes the p95 of that stage over the last 30 days of the run history. The p95 comes from the completed visits of the stage. A stage with fewer than 5 completed visits has no stall rule. "Running now" marks a stalled run "past p95", and Needs attention lists it.
+A live run whose time in its current stage passes the p95 of that stage over the last 30 days of the run history, and is at least 10 minutes. The p95 comes from the completed visits of the stage. A stage that fewer than 10 runs completed in those 30 days has no stall rule. "Running now" marks a stalled run "past p95", and Needs attention lists it.
 _Avoid_: Stuck run, timed-out run
 
 **Heartbeat age**:

@@ -968,7 +968,7 @@ export const factoriesCopy = {
 	hostSource: `needs workcell#${hostHealthTicket}`,
 	running: "Running now",
 	runningNote:
-		"Amber: the current stage runs past its p95 over the last 30 days. Longest-running first. The times count up in the page.",
+		"Amber: the current stage runs past its p95 over the last 30 days, and for at least 10 minutes. Longest-running first. The times count up in the page.",
 	pastP95: "past p95",
 	noRunning: "No run runs now.",
 	columns: {

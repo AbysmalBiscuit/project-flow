@@ -13,8 +13,11 @@ export const outcomeDays = 14;
 /** The days of run history that the stage durations and the stall rule cover. */
 export const stageDays = 30;
 
-/** The fewest completed stages that give a stage its stall rule. */
-export const stallSamples = 5;
+/** The fewest ended runs of a stage, in the last `stageDays` days, that give the stage its stall rule. */
+export const stallRuns = 10;
+
+/** The shortest time in a stage that can stall a run, so a stage with a tiny p95 does not flag each wait. */
+export const stallFloorMs = 10 * 60 * 1_000;
 
 /** How often an open Factories tab checks each factory again, which also reads each hub queue. */
 export const factoryCheckMs = 15_000;
@@ -183,21 +186,24 @@ function percentile(sorted: number[], share: number): number {
 	return sorted[Math.max(0, Math.ceil(share * sorted.length) - 1)] ?? 0;
 }
 
+/** A stage duration, with the runs that completed the stage, which decide its stall rule. */
+type StageStats = StageDuration & { endedRuns: number };
+
 function stageDurations(
 	samples: StageSample[],
 	costs: StageCost[],
-): StageDuration[] {
+): StageStats[] {
 	const byStage = Map.groupBy(samples, (sample) => sample.stage);
 	const costsByStage = Map.groupBy(costs, (cost) => cost.stage);
 	return [...byStage]
-		.map(([stage, events]): StageDuration => {
+		.map(([stage, events]): StageStats => {
 			const runs = new Set(events.map((event) => event.runId)).size;
-			const durations = events
-				.flatMap((event) =>
-					event.event === "stage.completed" && event.durationS !== null
-						? [event.durationS]
-						: [],
-				)
+			const completions = events.filter(
+				(event) =>
+					event.event === "stage.completed" && event.durationS !== null,
+			);
+			const durations = completions
+				.flatMap((event) => (event.durationS === null ? [] : [event.durationS]))
 				.toSorted((left, right) => left - right);
 			const retries = events.filter(
 				(event) => event.event === "stage.retrying",
@@ -207,6 +213,7 @@ function stageDurations(
 				stage,
 				role: stageCosts.length === 0 ? "tool" : "agent",
 				runs,
+				endedRuns: new Set(completions.map((event) => event.runId)).size,
 				samples: durations.length,
 				p50S: percentile(durations, 0.5),
 				p95S: percentile(durations, 0.95),
@@ -225,16 +232,9 @@ function stageDurations(
 		);
 }
 
-/** The time that a run in `stage` since `since` passes the p95 of the stage, when it has a stall rule. */
-function stallAt(
-	stage: StageDuration | undefined,
-	since: string | undefined,
-): number | null {
-	return stage === undefined ||
-		since === undefined ||
-		stage.samples < stallSamples
-		? null
-		: Date.parse(since) + stage.p95S * 1_000;
+/** The time that a run in a stage since `since` stalls: past the stage p95, and past the stall floor. */
+function stallAt(since: string, p95S: number): number {
+	return Date.parse(since) + Math.max(p95S * 1_000, stallFloorMs);
 }
 
 const dayOf = (time: number) => new Date(time).toISOString().slice(0, 10);
@@ -266,7 +266,7 @@ function runningRuns(
 	runs: FactoryRun[],
 	keys: Map<string, RunListRow>,
 	floor: FactoryFloor,
-	stages: Map<string, StageDuration>,
+	stages: Map<string, StageStats>,
 	now: number,
 ): RunningRun[] {
 	return runs
@@ -275,7 +275,12 @@ function runningRuns(
 			const row = keys.get(run.id);
 			const since = floor.stageSince.get(run.id);
 			const stage = run.stage === undefined ? undefined : stages.get(run.stage);
-			const stalled = stallAt(stage, since);
+			const stalled =
+				stage === undefined ||
+				since === undefined ||
+				stage.endedRuns < stallRuns
+					? null
+					: stallAt(since, stage.p95S);
 			return {
 				id: run.id,
 				key: row?.key ?? run.key,
@@ -365,7 +370,7 @@ function attentionItems(
 						factory: run.factory,
 						reason: run.stage,
 						since: new Date(
-							Date.parse(run.stageSince) + run.stall.p95S * 1_000,
+							stallAt(run.stageSince, run.stall.p95S),
 						).toISOString(),
 						p95S: run.stall.p95S,
 					},
@@ -521,7 +526,9 @@ export function factoriesPage(input: {
 		attention,
 		queue,
 		notServed,
-		stages: stages.filter((stage) => !stage.stage.includes("/")),
+		stages: stages.flatMap(({ endedRuns: _, ...stage }) =>
+			stage.stage.includes("/") ? [] : [stage],
+		),
 		outcomes: outcomesOf(input.ended, now),
 	};
 }
