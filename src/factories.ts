@@ -151,7 +151,11 @@ export function factoryReader(
 	};
 	const found = new WatchedMap<string, Found>(runsChanged);
 	const readRuns = new WatchedMap<string, ReadRun[]>(runsChanged);
-	const { readPullsOf, pullOf } = runPullReader(fetchImpl, signal, runsChanged);
+	const { readPullsOf, pullOf, firstPullsRun } = runPullReader(
+		fetchImpl,
+		signal,
+		runsChanged,
+	);
 	/**
 	 * The thread of each run, by run id. The factory gives the open and answered asks,
 	 * but the hub replays no older events, so the steers are what this launch saw.
@@ -679,6 +683,7 @@ export function factoryReader(
 	return {
 		check,
 		settled,
+		firstPullsRun,
 		entries,
 		linearSources: () =>
 			listed().flatMap((factory) => linearSources.get(factory.url) ?? []),

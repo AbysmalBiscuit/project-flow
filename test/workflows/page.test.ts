@@ -195,11 +195,11 @@ const answers: Answers = {
 	"/runs/run-38/turns": { turns: [turn("implement", 3_000, 300, 1)] },
 };
 
-async function serveHub() {
+async function serveHub(hubAnswers: Answers = answers) {
 	return serve(
 		[],
 		{ factories: [{ name: "work hub", url: hubUrl }] },
-		factoryFetch({ [hubUrl]: answers }, []),
+		factoryFetch({ [hubUrl]: hubAnswers }, []),
 		{ env: { GITHUB_TOKEN: "recorded-token" } },
 	);
 }
@@ -265,6 +265,40 @@ describe("the Workflows tab", () => {
 				},
 			]);
 		} finally {
+			await app.stop();
+		}
+	});
+
+	test("until the first poll after a start ends, each card shows no merge rate and says that it reads the runs", async () => {
+		const pull40 = Promise.withResolvers<void>();
+		const app = await serveHub({
+			...answers,
+			"/runs/run-40": async () => {
+				await pull40.promise;
+				return answers["/runs/run-40"];
+			},
+		});
+		try {
+			const reading = await readWhere<WorkflowsPage>(
+				app.base,
+				"/api/workflows",
+				(seen) => seen.cards.filter((card) => card.sha !== null).length === 2,
+			);
+			expect(reading.reading).toBe(true);
+			expect(reading.cards.map((card) => card.mergeRate)).toEqual([
+				null,
+				null,
+				null,
+			]);
+			pull40.resolve();
+			const read = await readWhere<WorkflowsPage>(
+				app.base,
+				"/api/workflows",
+				(seen) => !seen.reading,
+			);
+			expect(read.cards.map((card) => card.mergeRate)).toEqual([0.5, 0, 0]);
+		} finally {
+			pull40.resolve();
 			await app.stop();
 		}
 	});

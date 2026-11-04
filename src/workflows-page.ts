@@ -17,7 +17,11 @@ export type WorkflowCard = {
 	lastRunAt: string;
 };
 
-export type WorkflowsPage = { cards: WorkflowCard[] };
+export type WorkflowsPage = {
+	cards: WorkflowCard[];
+	/** True while the first PR reads after a start run, so each merge rate is null. */
+	reading: boolean;
+};
 
 export type WorkflowStage = {
 	stage: string;
@@ -88,9 +92,13 @@ function durationS(run: PackageRun): number | null {
 }
 
 /** One card for each package version, the version with the latest run first, and the runs with no sha last. */
-export function workflowsPage(runs: readonly PackageRun[]): WorkflowsPage {
+export function workflowsPage(
+	runs: readonly PackageRun[],
+	reading: boolean,
+): WorkflowsPage {
 	const versions = Map.groupBy(runs, versionKey);
 	return {
+		reading,
 		cards: [...versions.values()]
 			.flatMap((group) => {
 				const [latest] = group;
@@ -104,7 +112,7 @@ export function workflowsPage(runs: readonly PackageRun[]): WorkflowsPage {
 						sha: latest.sha,
 						runs: group.length,
 						mergeRate:
-							ended.length === 0
+							reading || ended.length === 0
 								? null
 								: ended.filter((run) => run.result === "merged").length /
 									ended.length,

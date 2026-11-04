@@ -1011,6 +1011,7 @@ export const workflowsCopy = {
 	stats: {
 		runs: "runs",
 		merged: "merged",
+		mergedReading: "merged, reading runs",
 		median: "median",
 		perRun: "per run",
 	},

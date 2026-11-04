@@ -13,7 +13,7 @@ import {
 const graphTries = 3;
 
 export type WorkflowsRouteOptions = {
-	factories: Pick<FactoryReader, "workflowGraph">;
+	factories: Pick<FactoryReader, "workflowGraph" | "firstPullsRun">;
 	history: RunHistory;
 	runList: () => RunListRow[];
 	/** Bring the run history up to date with the run list. */
@@ -39,7 +39,12 @@ export function workflowsRoutes(options: WorkflowsRouteOptions) {
 		"/api/workflows": {
 			GET: () => {
 				options.recordRuns();
-				return Response.json(workflowsPage(options.history.packageRuns()));
+				return Response.json(
+					workflowsPage(
+						options.history.packageRuns(),
+						options.factories.firstPullsRun(),
+					),
+				);
 			},
 		},
 		"/api/workflows/:package": {

@@ -300,11 +300,13 @@ function Stat({ value, label }: { value: string; label: string }) {
 
 function Card({
 	card,
+	reading,
 	picked,
 	now,
 	onPick,
 }: {
 	card: WorkflowCard;
+	reading: boolean;
 	picked: boolean;
 	now: number;
 	onPick: () => void;
@@ -332,7 +334,7 @@ function Card({
 							? workflowsCopy.none
 							: workflowsCopy.share(card.mergeRate)
 					}
-					label={stats.merged}
+					label={reading ? stats.mergedReading : stats.merged}
 				/>
 				<Stat value={seconds(card.medianS)} label={stats.median} />
 				<Stat value={cost(card.costPerRun)} label={stats.perRun} />
@@ -547,7 +549,8 @@ function Detail({ card }: { card: WorkflowCard }) {
 }
 
 export function Page() {
-	const cards = useQuery(pageQuery.workflows).data?.cards;
+	const page = useQuery(pageQuery.workflows).data;
+	const cards = page?.cards;
 	const now = useNow();
 	const [picked, setPicked] = useState<string | null>(null);
 	const [older, setOlder] = useState(false);
@@ -564,6 +567,7 @@ export function Page() {
 							<Card
 								key={versionKey(item)}
 								card={item}
+								reading={page?.reading ?? false}
 								picked={
 									card !== undefined && versionKey(card) === versionKey(item)
 								}
