@@ -400,7 +400,6 @@ export const measure = stylex.defineVars({
 	meterBar: "0.55rem",
 	boxEdge: "4px",
 	step: "1.1rem",
-	stepper: "10.5rem",
 	stepHeight: "0.45rem",
 	stepGap: "2px",
 });

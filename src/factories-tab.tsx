@@ -13,7 +13,7 @@ import type {
 } from "./factories-page.ts";
 import { runPagePath } from "./page-links.ts";
 import { pageQuery } from "./queries.ts";
-import type { RunGraphNodeState } from "./run-domain.ts";
+import type { RunGraph, RunGraphNodeState } from "./run-domain.ts";
 import { PageFrame } from "./shell.tsx";
 import { costLabel, factoriesCopy, navLabel, spanText } from "./terms.ts";
 import {
@@ -231,6 +231,12 @@ const styles = stylex.create({
 	wrap: {
 		overflowWrap: "anywhere",
 	},
+	wide: {
+		display: {
+			default: null,
+			[media.projectBar]: "none",
+		},
+	},
 	agent: {
 		color: colours.inkMuted,
 		fontSize: type.small,
@@ -248,12 +254,11 @@ const styles = stylex.create({
 	},
 	steps: {
 		display: "flex",
-		width: measure.stepper,
 		gap: measure.stepGap,
 	},
 	step: {
-		flex: "1 1 0",
-		maxWidth: measure.step,
+		flexShrink: 0,
+		width: measure.step,
 		height: measure.stepHeight,
 		borderRadius: radius.sm,
 		backgroundColor: colours.surfaceMuted,
@@ -314,7 +319,7 @@ function useNow(): number {
 	return now;
 }
 
-/** A ticket key without its repo owner, such as `widget#41`, and a Linear key alone, such as `SWE-12`. */
+/** A ticket key without its repo owner, such as `widget#41`, and a Linear key alone, such as `PF-12`. */
 function ticketLabel(key: string): string {
 	const hash = key.lastIndexOf("#");
 	const tail = key.slice(hash + 1);
@@ -517,7 +522,49 @@ const stepStyle: Record<RunGraphNodeState, stylex.StyleXStyles | false> = {
 const checkpointRetries = 20;
 const checkpointRetryMs = 500;
 
-/** One mark for each top stage of the run's graph, from its checkpoint. */
+const agentKind = "codergen";
+const exitKind = "exit";
+
+/**
+ * The agent stages of a run, one each: the done stages in the order of their first
+ * visit, the current stage, then the stages ahead on the default path.
+ */
+function stepsOf(graph: RunGraph, completedStages: string[]) {
+	const top = new Map(
+		graph.nodes
+			.filter((node) => !node.id.includes("/"))
+			.map((node) => [node.id, node]),
+	);
+	const isAgent = (id: string) => top.get(id)?.kind === agentKind;
+	const done = [...new Set(completedStages)].filter(
+		(id) => isAgent(id) && top.get(id)?.state === "completed",
+	);
+	const current = [...top.values()].find(
+		(node) => node.state === "current" || node.state === "failed",
+	);
+	const ahead: string[] = [];
+	const seen = new Set<string>();
+	let at = current?.id;
+	while (at !== undefined && !seen.has(at) && top.get(at)?.kind !== exitKind) {
+		seen.add(at);
+		const from = at;
+		const out = graph.edges.filter((edge) => edge.from === from);
+		at = (out.find((edge) => edge.condition === undefined) ?? out[0])?.to;
+		if (at !== undefined && isAgent(at) && top.get(at)?.state === "ahead") {
+			ahead.push(at);
+		}
+	}
+	return [
+		...done,
+		...(current === undefined || done.includes(current.id) ? [] : [current.id]),
+		...ahead,
+	].flatMap((id) => {
+		const node = top.get(id);
+		return node === undefined ? [] : [node];
+	});
+}
+
+/** One block for each agent stage of the run, from its checkpoint. */
 function Stepper({ run }: { run: RunningRun }) {
 	// The first read of a checkpoint answers pending while the factory read runs.
 	const checkpoint = useQuery({
@@ -527,14 +574,15 @@ function Stepper({ run }: { run: RunningRun }) {
 	});
 	const read = checkpoint.data;
 	const nodes =
-		read === undefined || typeof read === "string"
+		read === undefined || typeof read === "string" || read.graph === null
 			? []
-			: (read.graph?.nodes ?? []).filter((node) => !node.id.includes("/"));
+			: stepsOf(read.graph, read.completedStages);
 	return (
-		<span className={clsx(styles.steps)} aria-hidden="true">
+		<span className={clsx(styles.steps)}>
 			{nodes.map((node) => (
 				<span
 					key={node.id}
+					title={node.label}
 					className={clsx(styles.step, stepStyle[node.state])}
 				/>
 			))}
@@ -676,7 +724,7 @@ function QueueTable({ items, now }: { items: QueueItem[]; now: number }) {
 					<tr>
 						<th className={clsx(styles.th)}>{columns.rank}</th>
 						<th className={clsx(styles.th)}>{columns.ticket}</th>
-						<th className={clsx(styles.th)}>{columns.source}</th>
+						<th className={clsx(styles.th, styles.wide)}>{columns.source}</th>
 						<th className={clsx(styles.th, styles.number)}>
 							{columns.waiting}
 						</th>
@@ -694,8 +742,23 @@ function QueueTable({ items, now }: { items: QueueItem[]; now: number }) {
 								className={clsx(styles.row)}
 							>
 								<td className={cell()}>{item.rank}</td>
-								<td className={cell(styles.nowrap)}>{ticketLabel(item.key)}</td>
-								<td className={cell()}>{`${item.factory}: ${item.source}`}</td>
+								<td className={cell(styles.nowrap)}>
+									{item.url === undefined ? (
+										ticketLabel(item.key)
+									) : (
+										<a
+											href={item.url}
+											target="_blank"
+											rel="noreferrer"
+											className={clsx(styles.link, ...textControl)}
+										>
+											{ticketLabel(item.key)}
+										</a>
+									)}
+								</td>
+								<td className={cell(styles.wide)}>
+									{`${item.factory}: ${item.source}`}
+								</td>
 								<td className={cell(styles.number, styles.nowrap)}>
 									{since(item.since, now)}
 								</td>
