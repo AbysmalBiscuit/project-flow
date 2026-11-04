@@ -282,7 +282,7 @@ function endTiles(ended: RunHistoryEnd[], now: number) {
 	};
 }
 
-/** The Factories tab: what each factory runs now, what needs Lev, and the queue. */
+/** The Factories tab: what each factory runs now, what needs attention, and the queue. */
 export function factoriesPage(input: {
 	entries: FactoryEntry[];
 	floor: FactoryFloor;
