@@ -15,6 +15,7 @@ import {
 	spanText,
 	workflowsCopy,
 } from "./terms.ts";
+import { ticketLabel } from "./ticket-key.ts";
 import {
 	colours,
 	font,
@@ -466,7 +467,7 @@ function RunsTable({ runs }: { runs: WorkflowRun[] }) {
 							href={runPagePath(run.id)}
 							className={clsx(styles.link, ...textControl)}
 						>
-							{run.key}
+							{ticketLabel(run.key)}
 						</a>
 					),
 					factory: run.factory,
