@@ -9,11 +9,13 @@ import {
 	ListFilter,
 	type LucideIcon,
 	Map as MapIcon,
+	Pencil,
 	Pin,
 	PinOff,
 	Search,
 	Shrink,
 	SlidersHorizontal,
+	Trash2,
 	X,
 } from "lucide-react";
 import type { ComponentPropsWithoutRef } from "react";
@@ -31,11 +33,13 @@ const icons = {
 	filter: ListFilter,
 	"funnel-x": FunnelX,
 	map: MapIcon,
+	pencil: Pencil,
 	pin: Pin,
 	"pin-off": PinOff,
 	search: Search,
 	shrink: Shrink,
 	sliders: SlidersHorizontal,
+	trash: Trash2,
 	x: X,
 } satisfies Record<string, LucideIcon>;
 
