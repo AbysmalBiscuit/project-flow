@@ -231,6 +231,54 @@ describe("starting insights", () => {
 		});
 	});
 
+	test("a starting insight that still holds its earlier SQL gets the new SQL on open, and an edited one keeps its SQL", async () => {
+		const earlierSlowest = `WITH timed AS (
+  SELECT stage, duration_s / 60.0 AS minutes,
+         row_number() OVER (PARTITION BY stage ORDER BY duration_s) AS position,
+         count(*) OVER (PARTITION BY stage) AS total
+  FROM stages
+  WHERE event IN ('stage.completed', 'stage.failed') AND duration_s IS NOT NULL
+)
+SELECT stage, round(min(minutes), 1) AS p95_minutes
+FROM timed
+WHERE position >= 0.95 * total
+GROUP BY stage
+ORDER BY p95_minutes DESC;`;
+		const edited =
+			"select stage, count(*) as visits from stages group by stage";
+		await withStore(async (databasePath) => {
+			const first = await serveHub(hub, databasePath);
+			const current = (await savedList(first.base)).find(
+				(query) => query.name === "Slowest stages by p95",
+			)?.sql;
+			await first.stop();
+			const db = new Database(databasePath);
+			db.run(
+				"update saved_queries set sql = ? where starting = 'slowest-stages-by-p95'",
+				[earlierSlowest],
+			);
+			db.run(
+				"update saved_queries set sql = ? where starting = 'retries-by-stage-30-days'",
+				[edited],
+			);
+			db.close();
+			const second = await serveHub(hub, databasePath);
+			try {
+				const queries = await savedList(second.base);
+				expect(
+					queries.find((query) => query.name === "Slowest stages by p95")?.sql,
+				).toBe(current);
+				expect(current).not.toBe(earlierSlowest);
+				expect(
+					queries.find((query) => query.name === "Retries by stage, 30 days")
+						?.sql,
+				).toBe(edited);
+			} finally {
+				await second.stop();
+			}
+		});
+	});
+
 	test("a deleted or changed starting insight stays so after a restart", async () => {
 		await withStore(async (databasePath) => {
 			const first = await serveHub(hub, databasePath);

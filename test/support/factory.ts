@@ -92,6 +92,27 @@ export class EventFeed {
 	}
 }
 
+/** A `GET /runs/{id}/events` answer of an ended run: each event, then the end of the stream. */
+export function eventLog(
+	runId: string,
+	items: { event: string; stage: string; at: string; data: unknown }[],
+): Response {
+	return new Response(
+		items
+			.map(
+				(item, index) =>
+					`id: ${runId}-${index}\ndata: ${JSON.stringify({
+						run_id: runId,
+						id: `${runId}-${index}`,
+						recorded_at: item.at,
+						item: { event: item.event, node_path: item.stage, data: item.data },
+					})}\n\n`,
+			)
+			.join(""),
+		{ headers: { "content-type": "text/event-stream" } },
+	);
+}
+
 export const hub: Answers = {
 	"/daemon": daemonAbout,
 	"/sources": hubSources,
