@@ -155,13 +155,22 @@ export function runHistory(db: Database, path: string) {
 	db.run(
 		"create table if not exists run_verifications (run_id text primary key, record text)",
 	);
+	// The view is derived, so a store from an older launch gets the current columns.
+	db.run("drop view if exists verdicts");
+	// `final` is 1 for the verdicts of the last stage of a round that gave verdicts: the
+	// judged verdicts that the Verification tab counts. `WHERE final = 1` gives its counts.
 	db.run(`
-		create view if not exists verdicts as
-		select v.run_id, s.value ->> 'round' as round, s.value ->> 'stage' as stage,
-			s.value ->> 'node_path' as node_path, d.value ->> 'number' as number,
-			d.value ->> 'verdict' as verdict, d.value ->> 'reason' as reason, d.value ->> 'text' as text
-		from run_verifications v, json_each(v.record, '$.stages') s, json_each(s.value, '$.verdicts') d
-		where d.type = 'object'
+		create view verdicts as
+		with given as (
+			select v.run_id, s.key as position, s.value ->> 'round' as round, s.value ->> 'stage' as stage,
+				s.value ->> 'node_path' as node_path, d.value ->> 'number' as number,
+				d.value ->> 'verdict' as verdict, d.value ->> 'reason' as reason, d.value ->> 'text' as text
+			from run_verifications v, json_each(v.record, '$.stages') s, json_each(s.value, '$.verdicts') d
+			where d.type = 'object'
+		)
+		select run_id, round, stage, node_path, number, verdict, reason, text,
+			position = max(position) over (partition by run_id, round) as final
+		from given
 	`);
 	db.run(
 		"create table if not exists run_history_reads (run_id text not null, read text not null, ended_at text, primary key (run_id, read))",

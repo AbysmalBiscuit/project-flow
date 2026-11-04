@@ -279,7 +279,7 @@ One read-only SQL statement over the run history, which Lev runs on the Insights
 _Avoid_: SQL query (when the Insights page is meant)
 
 **Verification record**:
-What a run proved before its merge, as its factory serves it: the Done-when verdicts, the review check lines, the gate outcomes and checks, and the CI proof of each round. The run history stores the record of each ended run once. The Verification tab shows the record of one run and the check rates across runs.
+What a run proved before its merge, as its factory serves it: the Done-when verdicts, the review check lines, the gate outcomes and checks, and the CI proof of each round. The run history stores the record of each ended run once. The Verification tab shows the record of one run and the check rates across runs. The `verdicts` view holds each verdict of each stage. Its `final` column is 1 for the last verdicts of a round, so `WHERE final = 1` gives the counts of the tab.
 _Avoid_: Verdict file, proof record
 
 **Factories tab**:

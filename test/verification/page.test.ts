@@ -387,3 +387,23 @@ test("a factory that serves the route after a 404 answers the record of an older
 		await app.stop();
 	}
 });
+
+test("an Insights query of the final verdicts gives the rejected count of the tile", async () => {
+	const app = await serveHub(recorded);
+	try {
+		const page = await pageWhere(app.base, (found) => found.runs.length === 2);
+		const response = await fetch(new URL("/api/insights/query", app.base), {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({
+				sql: "select count(*) as rejected from verdicts where final = 1 and verdict = 'rejected'",
+			}),
+		});
+		expect(response.status).toBe(200);
+		const answer = (await response.json()) as { rows: unknown[][] };
+		expect(answer.rows).toEqual([[page.tiles.rejected.items]]);
+		expect(page.tiles.rejected.items).toBe(2);
+	} finally {
+		await app.stop();
+	}
+});
