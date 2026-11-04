@@ -1,6 +1,7 @@
 import type { RunResult, RunStatusKind } from "./kinds.ts";
 import type { PackageRun, StageUsage, StageVisit } from "./run-history.ts";
 import type { RunListRow } from "./run-list.ts";
+import { percentile } from "./stats.ts";
 import type { WorkflowGraph } from "./workflow-dot.ts";
 
 /** One workflow package at one version, from the started runs of the run history. */
@@ -80,12 +81,6 @@ function median(values: readonly number[]): number | null {
 	}
 	const low = sorted[middle - 1];
 	return sorted.length % 2 === 0 && low !== undefined ? (low + high) / 2 : high;
-}
-
-/** The nearest-rank percentile `share` of the values. */
-function percentile(values: readonly number[], share: number): number | null {
-	const sorted = values.toSorted((a, b) => a - b);
-	return sorted[Math.max(0, Math.ceil(share * sorted.length) - 1)] ?? null;
 }
 
 function durationS(run: PackageRun): number | null {

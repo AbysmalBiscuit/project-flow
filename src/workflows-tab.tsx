@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { textControl } from "./control-styles.ts";
 import type { RunResult } from "./kinds.ts";
@@ -25,6 +25,7 @@ import {
 	type,
 } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
+import { useNow } from "./use-now.ts";
 import type {
 	WorkflowCard,
 	WorkflowDetail,
@@ -288,16 +289,6 @@ const seconds = (value: number | null) =>
 
 const cost = (value: number | null) =>
 	value === null ? workflowsCopy.none : costLabel(value);
-
-/** The clock time, once a minute, so the "last run" ages stay current. */
-function useNow(): number {
-	const [now, setNow] = useState(() => Date.now());
-	useEffect(() => {
-		const timer = setInterval(() => setNow(Date.now()), 60_000);
-		return () => clearInterval(timer);
-	}, []);
-	return now;
-}
 
 function Sha({
 	sha,
@@ -622,7 +613,7 @@ function Detail({ card }: { card: WorkflowCard }) {
 export function Page() {
 	const page = useQuery(pageQuery.workflows).data;
 	const cards = page?.cards;
-	const now = useNow();
+	const now = useNow(60_000);
 	const [picked, setPicked] = useState<string | null>(null);
 	const [older, setOlder] = useState(false);
 	const card = cards?.find((item) => versionKey(item) === picked) ?? cards?.[0];

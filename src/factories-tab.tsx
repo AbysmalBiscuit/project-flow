@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Button } from "./button.tsx";
 import { textControl } from "./control-styles.ts";
@@ -30,6 +30,7 @@ import {
 	type,
 } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
+import { useNow } from "./use-now.ts";
 
 const styles = stylex.create({
 	grid: {
@@ -407,16 +408,6 @@ const styles = stylex.create({
 		fontSize: type.small,
 	},
 });
-
-/** The clock time, once a second, so the elapsed times count up between reads. */
-function useNow(): number {
-	const [now, setNow] = useState(() => Date.now());
-	useEffect(() => {
-		const timer = setInterval(() => setNow(Date.now()), 1_000);
-		return () => clearInterval(timer);
-	}, []);
-	return now;
-}
 
 const since = (time: string | null | undefined, now: number): string | null =>
 	time === null || time === undefined ? null : spanText(now - Date.parse(time));
@@ -1079,7 +1070,7 @@ function StageTable({ stages }: { stages: StageDuration[] }) {
 
 export function Page() {
 	const query = useQuery(pageQuery.factories);
-	const now = useNow();
+	const now = useNow(1_000);
 	const page = query.data;
 	const updated =
 		query.dataUpdatedAt > 0
