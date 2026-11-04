@@ -5,7 +5,7 @@ import { useState } from "react";
 import { textControl } from "./control-styles.ts";
 import type { RunDetail } from "./domain.ts";
 import { Loading } from "./loading.tsx";
-import { runPagePath } from "./page-links.ts";
+import { runPagePath, verificationPagePath } from "./page-links.ts";
 import { commentTime, elapsed, RunFact, runTime } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
@@ -121,6 +121,14 @@ function RunFacts({ run }: { run: RunDetail }) {
 				<RunFact label={runFactLabel.stage}>{run.stage}</RunFact>
 			)}
 			<RunFact label={runFactLabel.ticket}>{run.key}</RunFact>
+			<RunFact label={runFactLabel.verification}>
+				<a
+					className={clsx(panel.factLink, ...textControl)}
+					href={verificationPagePath(run.id)}
+				>
+					{runFactLabel.openVerification}
+				</a>
+			</RunFact>
 			{run.repo === undefined ? null : (
 				<RunFact label={runFactLabel.project}>{run.repo}</RunFact>
 			)}

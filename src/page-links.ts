@@ -68,3 +68,8 @@ export const runsPath = "/runs";
 export function runPagePath(id: string): string {
 	return `${runsPath}/${encodeURIComponent(id)}`;
 }
+
+/** The Verification tab with the record of one run. */
+export function verificationPagePath(id: string): string {
+	return `/verification?${new URLSearchParams({ run: id })}`;
+}

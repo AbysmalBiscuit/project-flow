@@ -1,0 +1,315 @@
+{
+	"stages": [
+		{
+			"round": 1,
+			"verdicts": [
+				{
+					"number": 1,
+					"text": "The Verification tab shows the tiles, the checks table and the record of one run.",
+					"verdict": "verified",
+					"reason": ""
+				},
+				{
+					"number": 2,
+					"text": "A factory with no verification route shows the not served note.",
+					"verdict": "rejected",
+					"reason": "The proof does not show the behaviour (#860)."
+				},
+				{
+					"number": 3,
+					"text": "The run page links to the verification of the run.",
+					"verdict": "verified",
+					"reason": ""
+				},
+				{
+					"number": 4,
+					"text": "GLOSSARY.md defines verification record.",
+					"verdict": "verified",
+					"reason": ""
+				}
+			],
+			"review_check": null,
+			"gate": null,
+			"gate_checks": [
+				{
+					"name": "pr repro",
+					"result": "passed",
+					"output": ""
+				},
+				{
+					"name": "pr weakened-tests",
+					"result": "passed",
+					"output": "no weakened tests between 2ef79fed3a1b and 57a273ae309d"
+				}
+			],
+			"ci": null,
+			"node_path": "verify",
+			"visit": 1,
+			"attempt": 1,
+			"stage": "verify@v1.a1"
+		},
+		{
+			"round": 1,
+			"verdicts": [
+				{
+					"number": 1,
+					"text": "The Verification tab shows the tiles, the checks table and the record of one run.",
+					"verdict": "verified",
+					"reason": ""
+				},
+				{
+					"number": 2,
+					"text": "A factory with no verification route shows the not served note.",
+					"verdict": "rejected",
+					"reason": "The proof does not show the behaviour (#860)."
+				},
+				{
+					"number": 3,
+					"text": "The run page links to the verification of the run.",
+					"verdict": "verified",
+					"reason": ""
+				},
+				{
+					"number": 4,
+					"text": "GLOSSARY.md defines verification record.",
+					"verdict": "verified",
+					"reason": ""
+				}
+			],
+			"review_check": [
+				{
+					"kind": "FAIL",
+					"severity": "medium",
+					"path": "src/verification-page.ts",
+					"line": 397,
+					"text": "The pass rate counts a skipped check as a failure."
+				},
+				{
+					"kind": "KEPT",
+					"severity": "low",
+					"path": "src/run-history.ts",
+					"line": 173,
+					"text": "The verdicts view repeats the round of each stage."
+				}
+			],
+			"gate": null,
+			"gate_checks": null,
+			"ci": null,
+			"node_path": "check",
+			"visit": 1,
+			"attempt": 1,
+			"stage": "check@v1.a1"
+		},
+		{
+			"round": 1,
+			"verdicts": null,
+			"review_check": null,
+			"gate": {
+				"status": "success",
+				"label": "below",
+				"reason": ""
+			},
+			"gate_checks": null,
+			"ci": null,
+			"node_path": "gate",
+			"visit": 1,
+			"attempt": 1,
+			"stage": "gate@v1.a1"
+		},
+		{
+			"round": 2,
+			"verdicts": [
+				{
+					"number": 1,
+					"text": "The Verification tab shows the tiles, the checks table and the record of one run.",
+					"verdict": "verified",
+					"reason": ""
+				},
+				{
+					"number": 2,
+					"text": "A factory with no verification route shows the not served note.",
+					"verdict": "verified",
+					"reason": ""
+				},
+				{
+					"number": 3,
+					"text": "The run page links to the verification of the run.",
+					"verdict": "verified",
+					"reason": ""
+				},
+				{
+					"number": 4,
+					"text": "GLOSSARY.md defines verification record.",
+					"verdict": "verified",
+					"reason": ""
+				}
+			],
+			"review_check": null,
+			"gate": null,
+			"gate_checks": [
+				{
+					"name": "pr repro",
+					"result": "passed",
+					"output": ""
+				},
+				{
+					"name": "pr weakened-tests",
+					"result": "passed",
+					"output": "no weakened tests between 2ef79fed3a1b and 57a273ae309d"
+				}
+			],
+			"ci": null,
+			"node_path": "verify",
+			"visit": 2,
+			"attempt": 1,
+			"stage": "verify@v2.a1"
+		},
+		{
+			"round": 2,
+			"verdicts": [
+				{
+					"number": 1,
+					"text": "The Verification tab shows the tiles, the checks table and the record of one run.",
+					"verdict": "verified",
+					"reason": ""
+				},
+				{
+					"number": 2,
+					"text": "A factory with no verification route shows the not served note.",
+					"verdict": "verified",
+					"reason": ""
+				},
+				{
+					"number": 3,
+					"text": "The run page links to the verification of the run.",
+					"verdict": "verified",
+					"reason": ""
+				},
+				{
+					"number": 4,
+					"text": "GLOSSARY.md defines verification record.",
+					"verdict": "verified",
+					"reason": ""
+				}
+			],
+			"review_check": [
+				{
+					"kind": "KEPT",
+					"severity": "low",
+					"path": "README.md",
+					"line": 776,
+					"text": "The record read has no retry limit."
+				},
+				{
+					"kind": "KEPT",
+					"severity": "low",
+					"path": "src/run-history.ts",
+					"line": 165,
+					"text": "The verdicts view repeats the round of each stage."
+				}
+			],
+			"gate": null,
+			"gate_checks": null,
+			"ci": null,
+			"node_path": "check",
+			"visit": 2,
+			"attempt": 1,
+			"stage": "check@v2.a1"
+		},
+		{
+			"round": 2,
+			"verdicts": [
+				{
+					"number": 1,
+					"text": "The Verification tab shows the tiles, the checks table and the record of one run.",
+					"verdict": "verified",
+					"reason": ""
+				},
+				{
+					"number": 2,
+					"text": "A factory with no verification route shows the not served note.",
+					"verdict": "verified",
+					"reason": ""
+				},
+				{
+					"number": 3,
+					"text": "The run page links to the verification of the run.",
+					"verdict": "verified",
+					"reason": ""
+				},
+				{
+					"number": 4,
+					"text": "GLOSSARY.md defines verification record.",
+					"verdict": "verified",
+					"reason": ""
+				}
+			],
+			"review_check": [
+				{
+					"kind": "KEPT",
+					"severity": "low",
+					"path": "README.md",
+					"line": 776,
+					"text": "The record read has no retry limit."
+				},
+				{
+					"kind": "KEPT",
+					"severity": "low",
+					"path": "src/run-history.ts",
+					"line": 165,
+					"text": "The verdicts view repeats the round of each stage."
+				}
+			],
+			"gate": null,
+			"gate_checks": null,
+			"ci": null,
+			"node_path": "final_check",
+			"visit": 1,
+			"attempt": 1,
+			"stage": "final_check@v1.a1"
+		},
+		{
+			"round": 2,
+			"verdicts": null,
+			"review_check": null,
+			"gate": {
+				"status": "success",
+				"label": "passed",
+				"reason": ""
+			},
+			"gate_checks": null,
+			"ci": null,
+			"node_path": "post_pr/gate",
+			"visit": 1,
+			"attempt": 1,
+			"stage": "post_pr@v1.a1/child/gate@v1.a1"
+		},
+		{
+			"round": 2,
+			"verdicts": null,
+			"review_check": null,
+			"gate": null,
+			"gate_checks": null,
+			"ci": {
+				"head": "57a273ae309d7bea17a1710cc7334017f6d369ed",
+				"verdict": "passed",
+				"line": "VERIFY-HEAD: passed check,test-isolated 57a273ae309d7bea17a1710cc7334017f6d369ed 0",
+				"tasks": [
+					{
+						"name": "check",
+						"result": "passed"
+					},
+					{
+						"name": "test-isolated",
+						"result": "passed"
+					}
+				],
+				"checks": []
+			},
+			"node_path": "post_pr/verify",
+			"visit": 1,
+			"attempt": 1,
+			"stage": "post_pr@v1.a1/child/verify@v1.a1"
+		}
+	]
+}

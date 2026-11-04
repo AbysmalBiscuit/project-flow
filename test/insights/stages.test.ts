@@ -258,7 +258,7 @@ test("the answered asks of a run give ask rows", async () => {
 	}
 });
 
-test("Insights lists the stages, turns and asks tables", async () => {
+test("Insights lists the stages, turns, asks and verdicts tables", async () => {
 	const app = await serveHub();
 	try {
 		const { tables } = await insightTables(app.base);
@@ -267,6 +267,7 @@ test("Insights lists the stages, turns and asks tables", async () => {
 			"stages",
 			"turns",
 			"asks",
+			"verdicts",
 		]);
 	} finally {
 		await app.stop();
