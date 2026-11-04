@@ -78,3 +78,66 @@ test("a restart with an empty store fills the run history again from the factori
 		await rm(root, { recursive: true, force: true });
 	}
 });
+
+const ended = hubRuns.runs.find((run) => run.ticket === "40");
+if (ended === undefined) {
+	throw new Error("the hub runs fixture lost the run of ticket 40");
+}
+const endedRun = ended;
+
+/** The hub runs, less the run of ticket 40 once the hub takes `action` on it. */
+function hubTaking(action: "delete" | "archive") {
+	let taken = false;
+	const archived = { ...endedRun, archived_at: "2026-10-25T15:00:00+00:00" };
+	return {
+		...hub,
+		"/runs": () => ({
+			runs: hubRuns.runs.flatMap((run) => {
+				if (run.id !== endedRun.id || !taken) {
+					return [run];
+				}
+				return action === "delete" ? [] : [archived];
+			}),
+		}),
+		[`/runs/${endedRun.id}/${action}`]: () => {
+			taken = true;
+			return endedRun;
+		},
+	};
+}
+
+function take(base: string, action: "delete" | "archive") {
+	return fetch(new URL(`/api/factory-runs/${endedRun.id}/${action}`, base), {
+		method: "POST",
+	});
+}
+
+const endedSql = `select id, archived_at from runs where id = '${endedRun.id}'`;
+
+test("a delete of a run drops it from the run history", async () => {
+	const app = await serveHub(hubTaking("delete"));
+	try {
+		await answerWhere(app.base, endedSql, (count) => count === 1);
+		const response = await take(app.base, "delete");
+		expect(response.status).toBe(200);
+		const after = await answerWhere(app.base, endedSql, () => true);
+		expect(after.rows).toEqual([]);
+		const rest = await answerWhere(app.base, idsSql, () => true);
+		expect(rest.rows).toEqual(hubIds.filter(([id]) => id !== endedRun.id));
+	} finally {
+		await app.stop();
+	}
+});
+
+test("an archive of a run keeps it in the run history with its archive time", async () => {
+	const app = await serveHub(hubTaking("archive"));
+	try {
+		await answerWhere(app.base, endedSql, (count) => count === 1);
+		const response = await take(app.base, "archive");
+		expect(response.status).toBe(200);
+		const after = await answerWhere(app.base, endedSql, () => true);
+		expect(after.rows).toEqual([[endedRun.id, "2026-10-25T15:00:00+00:00"]]);
+	} finally {
+		await app.stop();
+	}
+});

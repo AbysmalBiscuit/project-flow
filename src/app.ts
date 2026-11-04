@@ -715,6 +715,7 @@ export async function start(options: StartOptions): Promise<Running> {
 					readKey,
 					readFactories,
 					publishOverview,
+					forgetRun: (runId) => opened.history.forget(runId),
 				}),
 			},
 			options.hostname,

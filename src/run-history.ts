@@ -102,6 +102,10 @@ export function runHistory(db: Database, path: string) {
 			})();
 			recorded = text;
 		},
+		/** Drop the row of a run that Lev deleted, so the `runs` view drops it too. */
+		forget(runId: string): void {
+			db.query("delete from run_history where id = ?").run(runId);
+		},
 		tables(): InsightTables {
 			return {
 				tables: queryableViews.map((name) => ({
