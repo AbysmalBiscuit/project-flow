@@ -309,3 +309,25 @@ test("a factory with no retro route gets the not served note", async () => {
 		await app.stop();
 	}
 });
+
+test("a factory that serves the route after a 404 stores the retro that the run's read gets", async () => {
+	let served = false;
+	const app = await serveAt({
+		...hub,
+		[`/runs/${succeededRun.id}/retro`]: () => (served ? roughRetro : null),
+	});
+	try {
+		await pageWhere(app.base, (found) => found.notServed.length > 0);
+		served = true;
+		const run = await readJson<RunRetro>(
+			app.base,
+			`/api/retros/runs/${succeededRun.id}`,
+		);
+		expect(run.retro?.smoothness).toBe("rough");
+		const page = await readJson<RetrosPage>(app.base, "/api/retros");
+		expect(page.runs.map((row) => row.id)).toEqual([succeededRun.id]);
+		expect(page.notServed).toEqual([]);
+	} finally {
+		await app.stop();
+	}
+});

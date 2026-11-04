@@ -17,7 +17,13 @@ import type {
 } from "./retros-page.ts";
 import { Segment } from "./segment.tsx";
 import { PageFrame } from "./shell.tsx";
-import { costLabel, navLabel, retrosCopy, spanText } from "./terms.ts";
+import {
+	costLabel,
+	factoriesCopy,
+	navLabel,
+	retrosCopy,
+	spanText,
+} from "./terms.ts";
 import { ticketLabel } from "./ticket-key.ts";
 import {
 	colours,
@@ -589,7 +595,7 @@ function RunRetroCard({ runId }: { runId: string }) {
 function NotServed({ page }: { page: RetrosPage }) {
 	return page.notServed.map((factory) => (
 		<p key={factory} className={clsx(styles.note)}>
-			{retrosCopy.notServed(factory)}
+			{factoriesCopy.notServed(factory, retrosCopy.sources.route)}
 		</p>
 	));
 }

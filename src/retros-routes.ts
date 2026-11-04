@@ -1,3 +1,4 @@
+import { endedRunStatusKinds } from "./kinds.ts";
 import type { Clock, FactoryReader } from "./ports.ts";
 import {
 	retroDetail,
@@ -10,6 +11,8 @@ import type { RunHistory } from "./run-history.ts";
 import type { RunListRow } from "./run-list.ts";
 
 const thirtyDaysMs = 30 * 24 * 60 * 60 * 1_000;
+
+const ended: ReadonlySet<string> = new Set(endedRunStatusKinds);
 
 export type RetrosRouteOptions = {
 	factories: Pick<FactoryReader, "retro">;
@@ -49,13 +52,22 @@ export function retrosRoutes(options: RetrosRouteOptions) {
 					listed === undefined
 						? options.history.runOf(id)
 						: { ticket: listed.key, result: listed.result ?? null };
-				// A run with no stored retro reads its factory, so a factory that serves
-				// the route after an update answers for its older runs too.
+				// A run with no stored retro reads its factory. An ended run keeps the answer,
+				// so a factory that serves the route after an update fills the list run by run.
 				const stored = options.history.retroOf(id);
 				const retro =
 					stored === null || stored === "not served"
 						? await options.factories.retro(id)
 						: stored;
+				if (
+					stored !== retro &&
+					retro !== null &&
+					retro !== "not served" &&
+					listed !== undefined &&
+					ended.has(listed.statusKind)
+				) {
+					options.history.recordRetro(id, listed.endedAt, retro);
+				}
 				const answer: RunRetro = {
 					id,
 					ticket: row?.ticket ?? null,

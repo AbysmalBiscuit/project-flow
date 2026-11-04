@@ -1142,7 +1142,5 @@ export const retrosCopy = {
 	noStages: "The run has no stage.",
 	noPoints: "The run had no friction point.",
 	noRetro: "The factory has no retro of this run yet.",
-	notServed: (factory: string): string =>
-		`${factory} does not serve GET /runs/{id}/retro.`,
 	runNotServed: "The factory of this run does not serve GET /runs/{id}/retro.",
 } as const;
