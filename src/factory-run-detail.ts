@@ -83,6 +83,7 @@ const workflowGraph = z.object({
 					label: z.string().optional(),
 					shape: z.string().optional(),
 					prompt_file: z.string().optional(),
+					class: z.string().optional(),
 				})
 				.default({}),
 			handler: z.string().optional(),
@@ -204,10 +205,7 @@ function runGraph(
 		nodes: graph.nodes.map((node) => {
 			const calls = callers.has(node.id);
 			return {
-				id: node.id,
-				label: node.attrs.label ?? node.id,
-				shape: node.attrs.shape ?? "box",
-				kind: node.handler ?? "codergen",
+				...nodeOf(node),
 				state:
 					node.id === current
 						? failed
@@ -221,14 +219,43 @@ function runGraph(
 				...(calls ? { child: children.get(node.id) ?? [] } : {}),
 			};
 		}),
-		edges: graph.edges.map((edge) => ({
-			from: edge.from,
-			to: edge.to,
-			...(edge.attrs.label === undefined ? {} : { label: edge.attrs.label }),
-			...(edge.attrs.condition === undefined
-				? {}
-				: { condition: edge.attrs.condition }),
+		edges: edgesOf(graph),
+	};
+}
+
+type WorkflowNode = z.infer<typeof workflowGraph>["nodes"][number];
+
+function nodeOf(node: WorkflowNode) {
+	return {
+		id: node.id,
+		label: node.attrs.label ?? node.id,
+		shape: node.attrs.shape ?? "box",
+		kind: node.handler ?? "codergen",
+		...(node.attrs.class === undefined ? {} : { role: node.attrs.class }),
+	};
+}
+
+function edgesOf(graph: z.infer<typeof workflowGraph>): RunGraph["edges"] {
+	return graph.edges.map((edge) => ({
+		from: edge.from,
+		to: edge.to,
+		...(edge.attrs.label === undefined ? {} : { label: edge.attrs.label }),
+		...(edge.attrs.condition === undefined
+			? {}
+			: { condition: edge.attrs.condition }),
+	}));
+}
+
+/** The graph of a workflow with no run state: each stage ahead and not yet visited. */
+function plainGraph(graph: z.infer<typeof workflowGraph>): RunGraph {
+	return {
+		nodes: graph.nodes.map((node) => ({
+			...nodeOf(node),
+			state: "ahead",
+			visits: 0,
+			retries: 0,
 		})),
+		edges: edgesOf(graph),
 	};
 }
 
@@ -384,6 +411,21 @@ export function runDetailReader(deps: {
 			readingWorkflows.delete(runId);
 		}
 	};
+	const runWorkflowGraph = async (runId: string): Promise<RunGraph | null> => {
+		const { row } = statusRowOf(runId);
+		if (row === undefined) {
+			return null;
+		}
+		try {
+			const graph = await graphOf(reader(fetchImpl, row.url, signal), runId);
+			return graph === null ? null : plainGraph(graph);
+		} catch (error) {
+			if (!(error instanceof NotServed)) {
+				throw error;
+			}
+			return null;
+		}
+	};
 	const runAgents = async (runId: string): Promise<RunAgent[] | null> => {
 		const { row } = statusRowOf(runId);
 		if (row === undefined) {
@@ -418,6 +460,7 @@ export function runDetailReader(deps: {
 		checkpoint: runCheckpoint,
 		run: runDetail,
 		readWorkflow,
+		workflowGraph: runWorkflowGraph,
 		agents: runAgents,
 	};
 }

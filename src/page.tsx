@@ -27,6 +27,7 @@ const pages = [
 	{ path: "/inbox", load: () => import("./inbox.tsx") },
 	{ path: "/runs", load: () => import("./runs.tsx") },
 	{ path: "/factories", load: () => import("./factories-tab.tsx") },
+	{ path: "/workflows", load: () => import("./workflows-tab.tsx") },
 	{ path: "/insights", load: () => import("./insights.tsx") },
 	{ path: "/settings", load: () => import("./settings.tsx") },
 ] as const;

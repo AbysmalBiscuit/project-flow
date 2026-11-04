@@ -376,6 +376,8 @@ export type RunGraphNode = RunStage & {
 	shape: string;
 	/** The workcell handler that the node runs, such as `codergen` or `wait.human`. */
 	kind: string;
+	/** The agent role of the node, such as `implementer`, from its `class` attribute. */
+	role?: string;
 	/**
 	 * The child graph that the stage calls. The factory serves only the entry
 	 * graph, so the stages are those that the checkpoint records over all the

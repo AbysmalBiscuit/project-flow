@@ -122,6 +122,7 @@ export const navLabel = {
 	inbox: "Inbox",
 	runs: "Runs",
 	factories: "Factories",
+	workflows: "Workflows",
 	insights: "Insights",
 	refreshing: "Refreshing",
 	settings: "Settings",
@@ -989,4 +990,54 @@ export const factoriesCopy = {
 		`held after ${plural(failures, "failure", "failures")}`,
 	notServed: (factory: string, route: string): string =>
 		`${factory} does not serve ${route}.`,
+} as const;
+
+/** The workcell ticket that adds the package list and the graphs of packages without a run. */
+const packageRoutesTicket = 1781;
+
+export const workflowsCopy = {
+	subtitle:
+		"The workflow packages each factory runs, their graphs, and how their stages perform.",
+	empty: "No run of a workflow package is in the run history yet.",
+	noSha: "no sha",
+	showOlder: (count: number): string =>
+		`Show ${plural(count, "older version", "older versions")}`,
+	hideOlder: "Hide older versions",
+	sha: (sha: string): string => `sha ${sha}`,
+	tokens: (count: number): string => compactCount.format(Math.round(count)),
+	share: (share: number): string => `${Math.round(share * 100)}%`,
+	visits: (perRun: number): string => perRun.toFixed(1),
+	lastRun: (span: string): string => `last run ${span} ago`,
+	stats: {
+		runs: "runs",
+		merged: "merged",
+		median: "median",
+		perRun: "per run",
+	},
+	source: "project-flow",
+	needsPackages: `needs workcell#${packageRoutesTicket} for graphs without a run`,
+	tabs: { diagram: "Diagram", stages: "Stages", runs: "Runs" },
+	tabsLabel: "Package detail",
+	diagramNote:
+		"Border colour = role. Edge label = condition. The entry graph of the latest run.",
+	noGraph: "No factory serves the graph of a run of this version.",
+	noStages: "No run of this version has stage rows yet.",
+	noRuns: "No run of this version.",
+	columns: {
+		stage: "Stage",
+		visits: "Visits / run",
+		failRate: "Fail rate",
+		p50: "p50",
+		p95: "p95",
+		tokens: "Tokens / run",
+		cost: "Cost / run",
+		result: "Result",
+		ticket: "Ticket",
+		factory: "Factory",
+		duration: "Duration",
+		rounds: "Rounds",
+		pr: "PR",
+		runCost: "Cost",
+	},
+	none: "-",
 } as const;

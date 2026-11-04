@@ -282,6 +282,14 @@ _Avoid_: SQL query (when the Insights page is meant)
 The page that shows what each factory does now: the summary tiles, one card for each factory with its slots and heartbeat age, the live runs, the runs that need attention, and the hub queue. Each panel names its data source. A factory that does not answer shows as such, and the other panels keep working.
 _Avoid_: Fleet page, dashboard
 
+**Package version**:
+One workflow package at one content hash. The `workflow.started` event of a run gives the hash as `package.sha256`. Two runs of one package that loaded different graphs have different package versions.
+_Avoid_: Package release, workflow version
+
+**Workflows tab**:
+The page that shows one card for each package version, with its run count, merge rate, median duration, cost per run and last run. A picked card opens the diagram, the stage statistics and the runs of that package version. The run history gives all its numbers. The diagram is the entry graph of the latest run, with the border colour of each stage from its agent role.
+_Avoid_: Packages page, workflow list
+
 **Needs attention**:
 The list of the Factories tab that holds each run that failed in the last 24 hours with no restart or later run, and each open ask of a live run. It lists runs, and Needs you lists tickets and PRs.
 _Avoid_: Alerts

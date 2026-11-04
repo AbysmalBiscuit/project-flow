@@ -13,6 +13,7 @@ import type {
 	RunAgent,
 	RunArtifactContent,
 	RunDetail,
+	RunGraph,
 	Snapshot,
 	Ticket,
 	WorkcellRun,
@@ -205,6 +206,8 @@ export type FactoryReader = {
 	 * True when the read finds a workflow name that `run` did not give.
 	 */
 	readWorkflow: (runId: string) => Promise<boolean>;
+	/** The entry graph of the run's workflow from `GET /runs/{id}/graph`, with no run state. Null when no factory gives it. */
+	workflowGraph: (runId: string) => Promise<RunGraph | null>;
 	/**
 	 * `GET /runs/{id}/checkpoint` and `GET /runs/{id}/turns` of the factory whose row gives the run its status.
 	 * "missing" when no factory reported the run or the factory gave no checkpoint,
