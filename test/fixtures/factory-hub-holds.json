@@ -1,0 +1,16 @@
+{
+	"holds": [
+		{
+			"source": "acme-github",
+			"ticket": "46",
+			"failures": 3,
+			"held_at": "2026-10-25T14:00:13.795148+00:00"
+		},
+		{
+			"source": "acme-github",
+			"ticket": "30",
+			"failures": 1,
+			"held_at": "2026-10-24T08:54:48.132407+00:00"
+		}
+	]
+}

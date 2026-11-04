@@ -44,6 +44,8 @@ export const lightValues = {
 	warn: "#b86e1a",
 	warnWash: "#f8efe4",
 	warnInk: "#8a5a12",
+	okWash: "#e7f6ef",
+	dangerWash: "#fdecec",
 	needs: "#18181b",
 	needsInk: "#ffffff",
 	needsPill: "#ffffff",
@@ -96,6 +98,8 @@ export const darkValues = {
 	warn: "#e0a15a",
 	warnWash: "#2a2218",
 	warnInk: "#e8c49a",
+	okWash: "#14291f",
+	dangerWash: "#3a1a1c",
 	needs: "#ededef",
 	needsInk: "#0e0e10",
 	needsPill: "#ffffff",
@@ -160,6 +164,11 @@ export const colours = stylex.defineVars({
 	warn: { default: lightValues.warn, [dark]: darkValues.warn },
 	warnWash: { default: lightValues.warnWash, [dark]: darkValues.warnWash },
 	warnInk: { default: lightValues.warnInk, [dark]: darkValues.warnInk },
+	okWash: { default: lightValues.okWash, [dark]: darkValues.okWash },
+	dangerWash: {
+		default: lightValues.dangerWash,
+		[dark]: darkValues.dangerWash,
+	},
 	needs: { default: lightValues.needs, [dark]: darkValues.needs },
 	needsInk: { default: lightValues.needsInk, [dark]: darkValues.needsInk },
 	needsPill: {
@@ -294,6 +303,9 @@ export const type = stylex.defineVars({
 	nav: "0.875rem",
 	tag: "0.7rem",
 	headTrack: "0.04em",
+	tileValue: "1.6rem",
+	pill: "0.75rem",
+	meter: "0.82rem",
 });
 
 export const scheme = stylex.defineVars({
@@ -381,6 +393,15 @@ export const measure = stylex.defineVars({
 	insightSide: "15rem",
 	insightChart: "12.5rem",
 	insightEditor: "9rem",
+	tileMin: "150px",
+	boxCardMin: "340px",
+	meterLabel: "7.5rem",
+	meterValue: "8rem",
+	meterBar: "0.55rem",
+	boxEdge: "4px",
+	step: "1.1rem",
+	stepHeight: "0.45rem",
+	stepGap: "2px",
 });
 
 export const stack = stylex.defineVars({

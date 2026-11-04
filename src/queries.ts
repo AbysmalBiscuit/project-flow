@@ -29,6 +29,7 @@ import type {
 	TrackerKind,
 } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
+import { type FactoriesPage, factoryCheckMs } from "./factories-page.ts";
 import type { FactoryEntry } from "./factories.ts";
 import type { ArtifactsRead } from "./factory-run-artifacts.ts";
 import type { CheckpointRead } from "./factory-run-detail.ts";
@@ -110,6 +111,13 @@ export const pageQuery = {
 	insightTables: queryOptions({
 		queryKey: ["insight-tables"],
 		queryFn: () => fetchJson<InsightTables>("/api/insights"),
+	}),
+	/** A change in the factory feed reads the Factories tab again, and so does the factory check interval. */
+	factories: queryOptions({
+		queryKey: ["factories"],
+		queryFn: () => fetchJson<FactoriesPage>("/api/factories"),
+		refetchInterval: factoryCheckMs,
+		placeholderData: (previous: FactoriesPage | undefined) => previous,
 	}),
 	/** A change in the factory feed reads the Runs list again. */
 	runs: queryOptions({
@@ -907,6 +915,7 @@ function applyOverviewEvent(body: Overview): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["transcript"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["runSettings"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
+	void pageQueryClient.invalidateQueries(pageQuery.factories);
 }
 
 function invalidatePageQueries(): void {
@@ -927,6 +936,7 @@ function invalidatePageQueries(): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["transcript"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["runSettings"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
+	void pageQueryClient.invalidateQueries(pageQuery.factories);
 }
 
 export function wirePageQueryEvents(): void {

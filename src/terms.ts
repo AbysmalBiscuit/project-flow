@@ -121,6 +121,7 @@ export const navLabel = {
 	needsYou: "Needs you",
 	inbox: "Inbox",
 	runs: "Runs",
+	factories: "Factories",
 	insights: "Insights",
 	refreshing: "Refreshing",
 	settings: "Settings",
@@ -878,4 +879,101 @@ export const insightsCopy = {
 		`${rows.toLocaleString("en")} ${rows === 1 ? "row" : "rows"}, ${ms} ms`,
 	cut: (limit: number): string =>
 		`The result had more rows. It shows the first ${limit.toLocaleString("en")}.`,
+} as const;
+
+const minuteMs = 60_000;
+const hourMs = 60 * minuteMs;
+const dayMs = 24 * hourMs;
+
+/** A span of time as the Factories tab shows it, such as `14m`, `3h 23m` or `2d 4h`. */
+export function spanText(ms: number): string {
+	const span = Math.max(0, ms);
+	if (span < minuteMs) {
+		return `${Math.floor(span / 1_000)}s`;
+	}
+	if (span < hourMs) {
+		return `${Math.floor(span / minuteMs)}m`;
+	}
+	if (span < dayMs) {
+		const minutes = Math.floor((span % hourMs) / minuteMs);
+		return `${Math.floor(span / hourMs)}h ${String(minutes).padStart(2, "0")}m`;
+	}
+	return `${Math.floor(span / dayMs)}d ${Math.floor((span % dayMs) / hourMs)}h`;
+}
+
+/** The workcell ticket that adds the host health route. */
+const hostHealthTicket = 1779;
+
+const plural = (count: number, one: string, many: string): string =>
+	`${count} ${count === 1 ? one : many}`;
+
+export const factoriesCopy = {
+	subtitle: "What runs now, what needs you, and how much room each box has.",
+	updated: (span: string): string => `Updated ${span} ago.`,
+	tiles: {
+		running: "Running",
+		queued: "Queued",
+		attention: "Needs attention",
+		merged: "Merged, 24h",
+		failures: "Failures, 24h",
+		cost: "Cost, 24h",
+	},
+	ofSlots: (total: number): string => `of ${plural(total, "slot", "slots")}`,
+	noSlots: "no factory reports slots",
+	longestWait: (span: string): string => `longest wait ${span}`,
+	noWait: "nothing waits",
+	attentionParts: (failed: number, asks: number): string =>
+		`${failed} failed, ${plural(asks, "question", "questions")}`,
+	versus: (change: number): string =>
+		`${change > 0 ? "+" : ""}${change} vs previous 24h`,
+	reasons: (reasons: readonly { reason: string; count: number }[]): string =>
+		reasons.length === 0
+			? "no failures"
+			: reasons.map(({ reason, count }) => `${count} ${reason}`).join(", "),
+	perMerged: (cost: string | null): string =>
+		cost === null ? "no merged PR" : `${cost} per merged PR`,
+	role: { hub: "hub", daemon: "factory", box: "box" },
+	heartbeat: (span: string): string => `heartbeat ${span} ago`,
+	noHeartbeat: "no heartbeat yet",
+	noAnswer: "does not answer",
+	unreachable: (span: string | null): string =>
+		span === null
+			? "The factory has not answered yet."
+			: `The factory does not answer. Its last heartbeat was ${span} ago.`,
+	slots: "Slots",
+	busy: (used: number, total: number): string => `${used} / ${total} busy`,
+	noSlotCount: "The factory reports no slots.",
+	sources: {
+		daemon: "GET /daemon",
+		running: "GET /runs, /checkpoint, /workers",
+		attention: "GET /runs, /questions",
+		queue: "GET /sources, /holds",
+	},
+	hostSource: `needs workcell#${hostHealthTicket}`,
+	running: "Running now",
+	runningNote: "Longest-running first. The times count up in the page.",
+	noRunning: "No run runs now.",
+	columns: {
+		ticket: "Ticket",
+		factory: "Factory",
+		stages: "Stages",
+		stage: "Current stage",
+		inStage: "In stage",
+		total: "Total",
+		agent: "Agent",
+		cost: "Cost",
+		rank: "#",
+		source: "Source",
+		waiting: "Waiting",
+		waitsOn: "Waits on",
+	},
+	attention: "Needs attention",
+	noAttention: "Nothing needs you.",
+	kind: { failed: "failed", ask: "question" },
+	queue: "Queue",
+	noQueue: "No ticket waits.",
+	held: (failures: number): string =>
+		`held after ${plural(failures, "failure", "failures")}`,
+	notServed: (factory: string, route: string): string =>
+		`${factory} does not serve ${route}.`,
 } as const;

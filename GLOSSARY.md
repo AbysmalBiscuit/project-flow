@@ -278,6 +278,22 @@ _Avoid_: Runs list (when the stored rows are meant), run archive
 One read-only SQL statement over the run history, which Lev runs on the Insights page. The route refuses a write and more than one statement, and cuts a large result at a row limit. A result of a label column and a number column shows as a bar chart.
 _Avoid_: SQL query (when the Insights page is meant)
 
+**Factories tab**:
+The page that shows what each factory does now: the summary tiles, one card for each factory with its slots and heartbeat age, the live runs, the runs that need attention, and the hub queue. Each panel names its data source. A factory that does not answer shows as such, and the other panels keep working.
+_Avoid_: Fleet page, dashboard
+
+**Needs attention**:
+The list of the Factories tab that holds each run that failed in the last 24 hours with no restart or later run, and each open ask of a live run. It lists runs, and Needs you lists tickets and PRs.
+_Avoid_: Alerts
+
+**Heartbeat age**:
+The time since the last good `GET /daemon` read of a factory.
+_Avoid_: Uptime, last seen
+
+**Hub queue**:
+The tickets that a hub source did not start on its last poll, in start order, with what each one waits on. Project Flow reads it from `GET /sources` of each hub, and the budget hold of each ticket from `GET /holds`.
+_Avoid_: Queued runs
+
 **Ticket filter**:
 The project page menu that hides tickets by lane, age, needs you, blocker and assignee. It applies to the board, the graph and the table.
 _Avoid_: Filter (when the run filter can be meant)

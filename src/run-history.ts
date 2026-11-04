@@ -27,6 +27,14 @@ export type InsightAnswer = {
 
 export type InsightResult = InsightAnswer | { error: string };
 
+/** An ended run of the run history: its result, its failure reason and its cost. */
+export type RunHistoryEnd = {
+	result: string | null;
+	reason: string | null;
+	costUsd: number | null;
+	endedAt: string;
+};
+
 /** The columns of the `runs` view, in order, from the run list row. */
 const runColumns = {
 	id: (row: RunListRow) => row.id,
@@ -301,6 +309,14 @@ export function runHistory(db: Database, path: string) {
 				reads.push("turns");
 			}
 			return reads;
+		},
+		/** The runs that ended at or after `since`. */
+		endedSince(since: Date): RunHistoryEnd[] {
+			return db
+				.query<RunHistoryEnd, [string]>(
+					"select result, reason, cost_usd as costUsd, ended_at as endedAt from run_history where julianday(ended_at) >= julianday(?)",
+				)
+				.all(since.toISOString());
 		},
 		tables(): InsightTables {
 			return {

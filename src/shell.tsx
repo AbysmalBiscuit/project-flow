@@ -164,7 +164,8 @@ const links = [
 	{ href: "/runs", label: navLabel.runs },
 	{ href: "/needs-you", label: navLabel.needsYou, count: true },
 	{ href: "/inbox", label: navLabel.inbox },
-	{ href: "/insights", label: navLabel.insights, afterBreak: true },
+	{ href: "/factories", label: navLabel.factories, afterBreak: true },
+	{ href: "/insights", label: navLabel.insights },
 ] as const;
 
 /** Opens a saved ticket link that names no tracker, once its project report names the tracker. */

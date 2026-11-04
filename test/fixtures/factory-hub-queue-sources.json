@@ -1,0 +1,66 @@
+{
+	"sources": [
+		{
+			"name": "acme-github",
+			"last_poll": "2026-10-25T14:19:27.469286+00:00",
+			"last_duration": 16.167099237442017,
+			"polling_since": "2026-10-25T14:20:27.469393+00:00",
+			"last_error": null,
+			"backoff": 0.0,
+			"problems": [],
+			"queue": [
+				{
+					"ticket": "46",
+					"waits": "held",
+					"rank": 4,
+					"created_at": "2026-10-25T13:57:00+00:00"
+				},
+				{
+					"ticket": "47",
+					"waits": "blocked by #46",
+					"rank": 2,
+					"created_at": "2026-10-25T14:05:00+00:00"
+				},
+				{
+					"ticket": "48",
+					"waits": "comments wait",
+					"due": "2026-10-25T14:30:00+00:00"
+				}
+			],
+			"tracker": "github",
+			"repo": "acme/widget",
+			"team": null,
+			"linear_states": {},
+			"rules": [
+				{
+					"name": "build",
+					"state": "factory:ready",
+					"labels": [],
+					"without": []
+				}
+			]
+		},
+		{
+			"name": "widget-launch",
+			"last_poll": "2026-10-25T14:19:13.989347+00:00",
+			"last_duration": 0.8,
+			"polling_since": null,
+			"last_error": null,
+			"backoff": 0.0,
+			"problems": [],
+			"queue": [
+				{
+					"ticket": "PF-12",
+					"waits": "blocked by PF-11",
+					"rank": 1,
+					"created_at": "2026-10-25T12:00:00.761000+00:00"
+				}
+			],
+			"tracker": "linear",
+			"repo": "acme/widget",
+			"team": "PF",
+			"linear_states": {},
+			"rules": []
+		}
+	]
+}

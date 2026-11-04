@@ -12,6 +12,7 @@ import {
 	saveConfiguration,
 } from "./configuration.ts";
 import { eventStream } from "./event-stream.ts";
+import { factoriesRoutes } from "./factories-routes.ts";
 import { factoryReader } from "./factories.ts";
 import { factoryRunRoutes } from "./factory-run-routes.ts";
 import {
@@ -36,6 +37,7 @@ import {
 	factoryRunList,
 	overview,
 	projectViews,
+	trackedTicketUrls,
 } from "./project-views.ts";
 import { pullRoutes } from "./pull-routes.ts";
 import { replyRoutes } from "./reply-routes.ts";
@@ -552,6 +554,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		if (
 			pathname === "/runs" ||
 			pathname.startsWith("/runs/") ||
+			pathname === "/factories" ||
 			pathname === "/insights"
 		) {
 			return undefined;
@@ -583,6 +586,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				"/projects/*": pageResponse,
 				"/runs": pageResponse,
 				"/runs/*": pageResponse,
+				"/factories": pageResponse,
 				"/insights": pageResponse,
 				"/api/overview": {
 					GET: () => {
@@ -696,6 +700,15 @@ export async function start(options: StartOptions): Promise<Running> {
 				...pullRoutes(pollOptions, () => configuration),
 				...inboxRoutes(opened.store, clock),
 				...insightRoutes(opened.history, recordRuns),
+				...factoriesRoutes({
+					factories,
+					history: opened.history,
+					clock,
+					runList: () => factoryRunList(pollOptions, configuration),
+					ticketUrls: () => trackedTicketUrls(pollOptions, configuration),
+					recordRuns,
+					checkFactories,
+				}),
 				...replyRoutes({
 					trackerOf,
 					pollOptions,
