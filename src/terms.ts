@@ -1023,6 +1023,8 @@ export const workflowsCopy = {
 		"Border colour = role. Edge label = condition. The entry graph of the latest run.",
 	noGraph: "No factory serves the graph of a run of this version.",
 	noStages: "No run of this version has stage rows yet.",
+	allStages: (count: number): string => `Show all ${count} stages`,
+	fewerStages: "Show fewer stages",
 	noRuns: "No run of this version.",
 	columns: {
 		stage: "Stage",

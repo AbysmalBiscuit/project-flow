@@ -51,6 +51,7 @@ export type WorkflowRun = {
 export type WorkflowDetail = {
 	package: string;
 	sha: string | null;
+	/** The top-level stages only. A stage of a child graph is not in the list. */
 	stages: WorkflowStage[];
 	runs: WorkflowRun[];
 	/** The entry graph of the latest run that a factory serves the graph of. */
@@ -58,6 +59,8 @@ export type WorkflowDetail = {
 };
 
 const reviewerRole = "reviewer";
+/** The mark in the path of a stage that a child graph runs, such as `post_pr/merge`. */
+const childStageMark = "/";
 
 const versionKey = (run: Pick<PackageRun, "package" | "sha">) =>
 	JSON.stringify([run.package, run.sha]);
@@ -214,7 +217,9 @@ export function workflowDetail(input: {
 	return {
 		package: input.name,
 		sha: input.sha,
-		stages: stagesOf(input.visits, input.usage),
+		stages: stagesOf(input.visits, input.usage).filter(
+			(stage) => !stage.stage.includes(childStageMark),
+		),
 		runs: input.runs.map((run) => {
 			const pull = pulls.get(run.id);
 			const visited = visitsOf.get(run.id);

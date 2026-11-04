@@ -164,6 +164,12 @@ const answers: Answers = {
 			at: "2026-10-25T13:30:00+00:00",
 			duration: 240,
 		},
+		{
+			event: "stage.completed",
+			stage: "post_pr/merge",
+			at: "2026-10-25T13:40:00+00:00",
+			duration: 30,
+		},
 	]),
 	"/runs/run-40/turns": {
 		turns: [turn("implement", 1_000, 100, 2.5), turn("review", 500, 50, 1.5)],
@@ -303,7 +309,7 @@ describe("the Workflows tab", () => {
 		}
 	});
 
-	test("one package version gives the statistics of each stage and its runs, newest first", async () => {
+	test("one package version gives the statistics of each top-level stage and its runs, newest first", async () => {
 		const app = await serveHub();
 		try {
 			const detail = await readWhere<WorkflowDetail>(

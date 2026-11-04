@@ -394,38 +394,58 @@ function Table<K extends string>({
 	);
 }
 
+/** The stages that the table shows until Lev asks for all of them. */
+const shortStageList = 10;
+
 function StagesTable({ stages }: { stages: WorkflowStage[] }) {
+	const [all, setAll] = useState(false);
 	if (stages.length === 0) {
 		return <p className={clsx(styles.empty)}>{workflowsCopy.noStages}</p>;
 	}
 	const { columns } = workflowsCopy;
 	return (
-		<Table
-			columns={[
-				{ key: "stage", label: columns.stage },
-				{ key: "visits", label: columns.visits, number: true },
-				{ key: "failRate", label: columns.failRate, number: true },
-				{ key: "p50", label: columns.p50, number: true },
-				{ key: "p95", label: columns.p95, number: true },
-				{ key: "tokens", label: columns.tokens, number: true },
-				{ key: "cost", label: columns.cost, number: true },
-			]}
-			rows={stages.map((stage) => ({
-				key: stage.stage,
-				cells: {
-					stage: stage.stage,
-					visits: workflowsCopy.visits(stage.visitsPerRun),
-					failRate: workflowsCopy.share(stage.failRate),
-					p50: seconds(stage.p50S),
-					p95: seconds(stage.p95S),
-					tokens:
-						stage.tokensPerRun === null
-							? workflowsCopy.none
-							: workflowsCopy.tokens(stage.tokensPerRun),
-					cost: cost(stage.costPerRun),
-				},
-			}))}
-		/>
+		<>
+			<Table
+				columns={[
+					{ key: "stage", label: columns.stage },
+					{ key: "visits", label: columns.visits, number: true },
+					{ key: "failRate", label: columns.failRate, number: true },
+					{ key: "p50", label: columns.p50, number: true },
+					{ key: "p95", label: columns.p95, number: true },
+					{ key: "tokens", label: columns.tokens, number: true },
+					{ key: "cost", label: columns.cost, number: true },
+				]}
+				rows={(all ? stages : stages.slice(0, shortStageList)).map((stage) => ({
+					key: stage.stage,
+					cells: {
+						stage: stage.stage,
+						visits: workflowsCopy.visits(stage.visitsPerRun),
+						failRate: workflowsCopy.share(stage.failRate),
+						p50: seconds(stage.p50S),
+						p95: seconds(stage.p95S),
+						tokens:
+							stage.tokensPerRun === null
+								? workflowsCopy.none
+								: workflowsCopy.tokens(stage.tokensPerRun),
+						cost: cost(stage.costPerRun),
+					},
+				}))}
+			/>
+			{stages.length > shortStageList ? (
+				<p className={clsx(styles.more)}>
+					<button
+						type="button"
+						className={clsx(styles.moreButton, ...textControl)}
+						aria-expanded={all}
+						onClick={() => setAll(!all)}
+					>
+						{all
+							? workflowsCopy.fewerStages
+							: workflowsCopy.allStages(stages.length)}
+					</button>
+				</p>
+			) : null}
+		</>
 	);
 }
 
