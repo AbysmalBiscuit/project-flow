@@ -9,7 +9,7 @@ import {
 
 import { hexOf, hexToHsv, type Hsv, hsvToHex } from "./colour-space.ts";
 import { control } from "./control-styles.ts";
-import { settingsCopy } from "./terms.ts";
+import { settingsCopy } from "./settings-terms.ts";
 import { TextInput } from "./text-input.tsx";
 import {
 	colours,

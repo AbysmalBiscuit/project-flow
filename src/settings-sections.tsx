@@ -20,13 +20,9 @@ import {
 	Switch,
 } from "./settings-parts.tsx";
 import { settings as fields } from "./settings-styles.ts";
+import { settingsCopy, settingsSection } from "./settings-terms.ts";
 import { tonedProps } from "./state-tone.ts";
-import {
-	graphDirectionLabel,
-	navLabel,
-	settingsCopy,
-	settingsSection,
-} from "./terms.ts";
+import { graphDirectionLabel, navLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import {
 	defaultOpenView,

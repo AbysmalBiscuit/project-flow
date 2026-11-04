@@ -30,10 +30,11 @@ import {
 } from "./settings-sections.tsx";
 import { StatesSection } from "./settings-states.tsx";
 import { settings as fields, settingsBots } from "./settings-styles.ts";
+import { settingsCopy, settingsSection } from "./settings-terms.ts";
 import type { StateSource } from "./settings-write.ts";
 import { PageFrame, PollStatus } from "./shell.tsx";
 import { shippedStates } from "./state-colours.ts";
-import { navLabel, settingsCopy, settingsSection } from "./terms.ts";
+import { navLabel } from "./terms.ts";
 import { TextInput } from "./text-input.tsx";
 import { pageTheme, watchPageTheme } from "./theme.ts";
 import { Toast } from "./toast.tsx";
