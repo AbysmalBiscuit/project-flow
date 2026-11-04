@@ -325,6 +325,24 @@ function shown(value: InsightValue): string {
 	return value === null ? "null" : String(value);
 }
 
+const decimals = new Intl.NumberFormat("en", {
+	maximumFractionDigits: 4,
+	useGrouping: false,
+});
+
+const smallDecimals = new Intl.NumberFormat("en", {
+	maximumSignificantDigits: 4,
+	useGrouping: false,
+});
+
+/** A table cell: a non-integer keeps at most 4 decimals, and a value under 1 keeps 4 significant digits. */
+function cell(value: InsightValue): string {
+	if (typeof value !== "number" || Number.isInteger(value)) {
+		return shown(value);
+	}
+	return (Math.abs(value) < 1 ? smallDecimals : decimals).format(value);
+}
+
 function BarChart({ rows }: { rows: InsightValue[][] }) {
 	const top = Math.max(...rows.map((row) => Math.abs(Number(row[1]))), 0);
 	return (
@@ -384,7 +402,7 @@ function ResultTable({ answer }: { answer: InsightAnswer }) {
 										value === null && styles.empty,
 									)}
 								>
-									{shown(value)}
+									{cell(value)}
 								</td>
 							))}
 						</tr>
