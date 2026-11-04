@@ -32,6 +32,8 @@ export const checkpoint = z.object({
 	node_retries: z.record(z.string(), z.number()).default({}),
 	visits: z.record(z.string(), z.number()).default({}),
 	status: z.string().optional(),
+	/** When the box wrote the checkpoint: the end of the last finished stage. */
+	timestamp: z.string().optional(),
 	context_values: z.record(z.string(), z.unknown()).default({}),
 });
 

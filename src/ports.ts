@@ -17,7 +17,7 @@ import type {
 	Ticket,
 	WorkcellRun,
 } from "./domain.ts";
-import type { FactoryEntry } from "./factories.ts";
+import type { FactoryEntry, FactoryFloor } from "./factories.ts";
 import type {
 	AnswerResult,
 	CancelResult,
@@ -168,6 +168,12 @@ export type FactoryReader = {
 	entries: () => FactoryEntry[];
 	/** The Linear sources of each listed hub, from its last good `GET /sources`. */
 	linearSources: () => LinearSource[];
+	/**
+	 * What the Factories tab reads beside the runs, by factory url or run id: the time of
+	 * the last good `GET /daemon` of each factory, the queue of each hub from `GET /sources`
+	 * and `GET /holds`, and when each live run entered its current stage.
+	 */
+	floor: () => FactoryFloor;
 	/** True when the last check of a listed factory failed. */
 	unreachable: () => boolean;
 	/**

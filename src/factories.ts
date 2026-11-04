@@ -18,7 +18,13 @@ import {
 	streamedRunPollMs,
 	streamRetryMs,
 } from "./factory-events.ts";
-import { body, type Read, reader, Unreachable } from "./factory-http.ts";
+import {
+	body,
+	NotServed,
+	type Read,
+	reader,
+	Unreachable,
+} from "./factory-http.ts";
 import {
 	about,
 	boxCount,
@@ -50,7 +56,7 @@ import { runSandboxReader } from "./factory-run-sandbox.ts";
 import { runSettingsReader } from "./factory-run-settings.ts";
 import { runSourceReader } from "./factory-run-source.ts";
 import { runTranscriptReader } from "./factory-run-transcript.ts";
-import { linearSourcesOf } from "./factory-sources.ts";
+import { hubSourcesOf, type SourceQueue } from "./factory-sources.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FactoryReader } from "./ports.ts";
 import { WatchedMap, WatchedSet } from "./watched.ts";
@@ -67,6 +73,16 @@ export type FactoryEntry = Factory & {
 	slots?: Slots;
 	/** The hub that also reports the runs of this box. */
 	alsoReadThroughHub?: string;
+};
+
+/** What the Factories tab reads from the factories beside the runs. */
+export type FactoryFloor = {
+	/** The clock time of the last good `GET /daemon` read, by factory url. */
+	heartbeats: Map<string, string>;
+	/** The queue of each hub source, by factory url. */
+	queues: Map<string, SourceQueue[] | "not served">;
+	/** When each live run entered its current stage, by run id. */
+	stageSince: Map<string, string>;
 };
 
 export type ListedFactory = Factory & { source: FactoryEntry["source"] };
@@ -250,13 +266,25 @@ export function factoryReader(
 	let checking: Promise<void> | null = null;
 	/** The Linear sources of each hub, by factory url, from its last good `GET /sources`. */
 	const linearSources = new Map<string, LinearSource[]>();
-	const readLinearSources = async (
+	/** The queue of each hub, by factory url, from its last good `GET /sources`. */
+	const queues = new Map<string, SourceQueue[] | "not served">();
+	/** The clock time of the last good `GET /daemon` read of each factory, by factory url. */
+	const heartbeats = new Map<string, string>();
+	/** When each live run entered its current stage, by run id. */
+	const stageSince = new Map<string, string>();
+	const readHubSources = async (
 		factory: ListedFactory,
 		read: Read,
 	): Promise<void> => {
 		try {
-			linearSources.set(factory.url, await linearSourcesOf(read, factory.name));
+			const sources = await hubSourcesOf(read, factory.name);
+			linearSources.set(factory.url, sources.linear);
+			queues.set(factory.url, sources.queues);
 		} catch (error) {
+			if (error instanceof NotServed) {
+				queues.set(factory.url, "not served");
+				return;
+			}
 			if (!(error instanceof Unreachable)) {
 				throw error;
 			}
@@ -267,13 +295,14 @@ export function factoryReader(
 		const known = found.get(factory.url);
 		try {
 			const { role, slots } = await body(await read("/daemon"), about);
+			heartbeats.set(factory.url, now().toISOString());
 			const reported = slots === undefined ? {} : { slots };
 			const kind =
 				known?.reachable === true && known.kind !== null
 					? known.kind
 					: await factoryKind(read, role);
 			if (kind === "hub") {
-				await readLinearSources(factory, read);
+				await readHubSources(factory, read);
 			}
 			if (known?.reachable === true && known.kind !== null) {
 				return {
@@ -413,14 +442,26 @@ export function factoryReader(
 			const path = stagePath(answer);
 			if (path === "") {
 				stages.delete(runId);
+				stageSince.delete(runId);
 			} else {
-				stages.set(runId, path);
+				enterStage(runId, path, answer.timestamp);
 			}
 		} catch (error) {
 			if (!(error instanceof Unreachable)) {
 				throw error;
 			}
 		}
+	};
+	/** Set the current node of a run, and the time it entered the node when the node is new. */
+	const enterStage = (
+		runId: string,
+		node: string,
+		at: string | undefined,
+	): void => {
+		if (stages.get(runId) !== node || !stageSince.has(runId)) {
+			stageSince.set(runId, at ?? now().toISOString());
+		}
+		stages.set(runId, node);
 	};
 	/** `GET /runs`, then the current node of each active run from its checkpoint. */
 	const snapshot = async (factory: ListedFactory): Promise<void> => {
@@ -468,8 +509,9 @@ export function factoryReader(
 			);
 			if (node === undefined) {
 				stages.delete(frame.run_id);
+				stageSince.delete(frame.run_id);
 			} else {
-				stages.set(frame.run_id, node);
+				enterStage(frame.run_id, node, frame.recorded_at);
 			}
 		}
 		const status = frame.status;
@@ -622,6 +664,11 @@ export function factoryReader(
 		entries,
 		linearSources: () =>
 			listed().flatMap((factory) => linearSources.get(factory.url) ?? []),
+		floor: () => ({
+			heartbeats: new Map(heartbeats),
+			queues: new Map(queues),
+			stageSince: new Map(stageSince),
+		}),
 		unreachable,
 		readRuns: readAllRuns,
 		follow,
