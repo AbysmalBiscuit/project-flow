@@ -4,6 +4,7 @@ import {
 	colours,
 	font,
 	measure,
+	media,
 	radius,
 	scheme,
 	space,
@@ -139,12 +140,17 @@ export const frame = stylex.create({
 	},
 	nav: {
 		display: "flex",
-		flexWrap: "nowrap",
+		flexWrap: {
+			default: "nowrap",
+			[media.shellWrap]: "wrap",
+		},
+		rowGap: space.xs,
 		gap: space.navGap,
 		alignItems: "center",
 		marginLeft: space.sm,
 	},
 	item: {
+		whiteSpace: "nowrap",
 		display: "inline-flex",
 		gap: space.xs,
 		alignItems: "center",
@@ -169,6 +175,12 @@ export const frame = stylex.create({
 		fontWeight: type.weight,
 		lineHeight: 1,
 		textAlign: "center",
+	},
+	navBreak: {
+		alignSelf: "stretch",
+		width: measure.hairline,
+		marginInline: space.xs,
+		backgroundColor: colours.laneLine,
 	},
 	spacer: {
 		flexGrow: 1,

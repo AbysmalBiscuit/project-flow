@@ -39,6 +39,7 @@ import type { SourceRead } from "./factory-run-source.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import { liveRunStatusKinds } from "./kinds.ts";
 import { pullMergeCopy, requestChangesCopy } from "./pull-terms.ts";
+import type { InsightResult, InsightTables } from "./run-history.ts";
 import type { RunListRow } from "./run-list.ts";
 import type { StateSource } from "./settings-write.ts";
 import { pendingStatus } from "./stale-reads.ts";
@@ -106,6 +107,10 @@ export const pageQuery = {
 			placeholderData: (previous: ThreadRead | undefined) => previous,
 		});
 	},
+	insightTables: queryOptions({
+		queryKey: ["insight-tables"],
+		queryFn: () => fetchJson<InsightTables>("/api/insights"),
+	}),
 	/** A change in the factory feed reads the Runs list again. */
 	runs: queryOptions({
 		queryKey: ["runs"],
@@ -938,5 +943,22 @@ export function wirePageQueryEvents(): void {
 	});
 	onAppEvent("notification", () => {
 		void pageQueryClient.invalidateQueries(pageQuery.inbox);
+	});
+}
+
+/** Run one SQL statement over the run history. A refused or failed query answers its error. */
+export function useInsightQuery() {
+	return useMutation({
+		mutationFn: async (sql: string): Promise<InsightResult> => {
+			const response = await fetch("/api/insights/query", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ sql }),
+			});
+			const body = (await response
+				.json()
+				.catch(() => null)) as InsightResult | null;
+			return body ?? { error: `query failed (HTTP ${response.status})` };
+		},
 	});
 }

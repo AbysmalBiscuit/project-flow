@@ -45,6 +45,8 @@ export type FactoryRunRouteOptions = {
 	readKey: (request: Request) => string;
 	readFactories: (read: () => Promise<void>) => Promise<void>;
 	publishOverview: () => void;
+	/** Drop a deleted run from the run history. */
+	forgetRun: (runId: string) => void;
 };
 
 /** The routes of `/api/factory-runs`: run reads, and the actions that a run takes. */
@@ -57,6 +59,7 @@ export function factoryRunRoutes({
 	readKey,
 	readFactories,
 	publishOverview,
+	forgetRun,
 }: FactoryRunRouteOptions) {
 	/** The API answer to a resume or a restart: the id of the run that the factory started. */
 	const startAgain = async (started: Promise<StartResult>) => {
@@ -92,9 +95,11 @@ export function factoryRunRoutes({
 			return Response.json({ error: result.refused }, { status: 409 });
 		}
 		await readFactories(() => factories.readRuns(clock.now().getTime()));
-		return Response.json(
-			action === "delete" ? { deleted: true } : { archived: true },
-		);
+		if (action === "delete") {
+			forgetRun(run);
+			return Response.json({ deleted: true });
+		}
+		return Response.json({ archived: true });
 	};
 	const readWorkflow = async (runId: string) => {
 		if (await factories.readWorkflow(runId)) {

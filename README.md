@@ -204,7 +204,7 @@ With no token in the env var, each project of the host shows an error that names
 
 The store is a Bun SQLite file. The path is `$XDG_DATA_HOME/project-flow/project-flow.sqlite`. When `XDG_DATA_HOME` is unset, the path is `~/.local/share/project-flow/project-flow.sqlite`.
 
-The store is a cache. Stop the app, then delete `project-flow.sqlite` with `project-flow.sqlite-wal` and `project-flow.sqlite-shm`. The app fills the store again at the next start.
+The store is a cache. Stop the app, then delete `project-flow.sqlite` with `project-flow.sqlite-wal` and `project-flow.sqlite-shm`. The app fills the store again at the next start. The run history then holds only the runs that the factories still list.
 
 `src/main.ts` builds that path:
 

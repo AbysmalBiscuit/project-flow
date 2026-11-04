@@ -121,6 +121,7 @@ export const navLabel = {
 	needsYou: "Needs you",
 	inbox: "Inbox",
 	runs: "Runs",
+	insights: "Insights",
 	refreshing: "Refreshing",
 	settings: "Settings",
 	theme: "Theme",
@@ -856,3 +857,25 @@ export const closeStagePaneLabel = "Close the stage pane";
 export const openInStagesLabel = "Open in Stages";
 
 export const childStagesLabel = (label: string): string => `Stages of ${label}`;
+
+export const insightsCopy = {
+	subtitle:
+		"Ad-hoc SQL over the run history in Project Flow's own store. Read-only.",
+	tables: "Tables",
+	query: "Query",
+	source: "project-flow SQLite, read-only",
+	editor: "SQL statement",
+	run: "Run (Ctrl+Enter)",
+	chart: "Chart",
+	table: "Table",
+	views: "Result views",
+	noChart:
+		"A chart needs two columns, a label and a number. This result shows as a table.",
+	noRows: "The query gave no rows.",
+	firstQuery:
+		"SELECT date(ended_at) AS day,\n       round(sum(cost_usd), 2) AS cost_usd\nFROM runs\nWHERE ended_at > date('now', '-14 days')\nGROUP BY day\nORDER BY day;",
+	meta: (rows: number, ms: number): string =>
+		`${rows.toLocaleString("en")} ${rows === 1 ? "row" : "rows"}, ${ms} ms`,
+	cut: (limit: number): string =>
+		`The result had more rows. It shows the first ${limit.toLocaleString("en")}.`,
+} as const;

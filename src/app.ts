@@ -24,13 +24,19 @@ import { forceWorkerPath } from "./graph-layout.ts";
 import { inboxEntries } from "./inbox-entries.ts";
 import { inboxRoutes } from "./inbox-routes.ts";
 import page from "./index.html";
+import { insightRoutes } from "./insight-routes.ts";
 import { memoryNotifier } from "./notifier.ts";
 import { paintPage } from "./page-theme.ts";
 import { poll, type PollOptions, runningOverview } from "./poll.ts";
 import type { CheckoutSource, TodoSource } from "./ports.ts";
 import { listedRef } from "./project-ref.ts";
 import { projectRoutes, reportFor } from "./project-routes.ts";
-import { attentionFor, overview, projectViews } from "./project-views.ts";
+import {
+	attentionFor,
+	factoryRunList,
+	overview,
+	projectViews,
+} from "./project-views.ts";
 import { pullRoutes } from "./pull-routes.ts";
 import { replyRoutes } from "./reply-routes.ts";
 import { runStartRoutes } from "./run-start-routes.ts";
@@ -294,9 +300,17 @@ export async function start(options: StartOptions): Promise<Running> {
 			});
 		}
 	};
+	const recordRuns = () => {
+		if (!stopped) {
+			opened.history.record(factoryRunList(pollOptions, configuration));
+		}
+	};
 	const readFactories = async (read: () => Promise<void>) => {
 		const before = factoryState();
 		await read();
+		if (factories.runs() !== before.runs) {
+			recordRuns();
+		}
 		const requests = pollOptions.runStartRequests;
 		pollOptions.runStartRequests = settledRequests(
 			requests,
@@ -527,7 +541,11 @@ export async function start(options: StartOptions): Promise<Running> {
 		if (pathname === "/settings") {
 			return settingsBody();
 		}
-		if (pathname === "/runs" || pathname.startsWith("/runs/")) {
+		if (
+			pathname === "/runs" ||
+			pathname.startsWith("/runs/") ||
+			pathname === "/insights"
+		) {
 			return undefined;
 		}
 		const body = runningOverview(pollOptions, configuration);
@@ -557,6 +575,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				"/projects/*": pageResponse,
 				"/runs": pageResponse,
 				"/runs/*": pageResponse,
+				"/insights": pageResponse,
 				"/api/overview": {
 					GET: () => {
 						const body = Response.json(
@@ -668,6 +687,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				...projectRoutes(pollOptions, () => configuration),
 				...pullRoutes(pollOptions, () => configuration),
 				...inboxRoutes(opened.store, clock),
+				...insightRoutes(opened.history, recordRuns),
 				...replyRoutes({
 					trackerOf,
 					pollOptions,
@@ -695,6 +715,7 @@ export async function start(options: StartOptions): Promise<Running> {
 					readKey,
 					readFactories,
 					publishOverview,
+					forgetRun: (runId) => opened.history.forget(runId),
 				}),
 			},
 			options.hostname,

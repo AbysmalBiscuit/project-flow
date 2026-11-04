@@ -17,6 +17,8 @@ export type RunListRow = Pick<
 	| "coveredByFeed"
 	| "usageTotals"
 	| "archivedAt"
+	| "workflowPackage"
+	| "failureReason"
 > & {
 	key: string;
 	/** Absent when no tracked project holds the ticket. */
@@ -87,6 +89,12 @@ export function runList(
 				? {}
 				: { usageTotals: run.usageTotals }),
 			...(run.archivedAt === undefined ? {} : { archivedAt: run.archivedAt }),
+			...(run.workflowPackage === undefined
+				? {}
+				: { workflowPackage: run.workflowPackage }),
+			...(run.failureReason === undefined
+				? {}
+				: { failureReason: run.failureReason }),
 			...(pull === undefined
 				? {}
 				: { pull: { number: pull.number, url: pull.url } }),

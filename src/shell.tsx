@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 
 import { Button } from "./button.tsx";
 import type { Configuration } from "./configuration.ts";
@@ -164,6 +164,7 @@ const links = [
 	{ href: "/runs", label: navLabel.runs },
 	{ href: "/needs-you", label: navLabel.needsYou, count: true },
 	{ href: "/inbox", label: navLabel.inbox },
+	{ href: "/insights", label: navLabel.insights, afterBreak: true },
 ] as const;
 
 /** Opens a saved ticket link that names no tracker, once its project report names the tracker. */
@@ -232,22 +233,26 @@ export function AppShell({ children }: { children: ReactNode }) {
 				</a>
 				<nav className={clsx(frame.nav)} aria-label="App">
 					{links.map((link) => (
-						<a
-							key={link.href}
-							className={clsx(
-								frame.item,
-								control.clear,
-								control.focus,
-								current(link.href) && control.on,
-							)}
-							href={link.href}
-							aria-current={current(link.href) ? "page" : undefined}
-						>
-							{link.label}
-							{"count" in link && count !== null && count > 0 ? (
-								<span className={clsx(frame.count)}>{count}</span>
+						<Fragment key={link.href}>
+							{"afterBreak" in link ? (
+								<span className={clsx(frame.navBreak)} aria-hidden="true" />
 							) : null}
-						</a>
+							<a
+								className={clsx(
+									frame.item,
+									control.clear,
+									control.focus,
+									current(link.href) && control.on,
+								)}
+								href={link.href}
+								aria-current={current(link.href) ? "page" : undefined}
+							>
+								{link.label}
+								{"count" in link && count !== null && count > 0 ? (
+									<span className={clsx(frame.count)}>{count}</span>
+								) : null}
+							</a>
+						</Fragment>
 					))}
 				</nav>
 				<span className={clsx(frame.spacer)} />

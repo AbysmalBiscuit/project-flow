@@ -12,6 +12,7 @@ import { gitlabHost, gitlabPullMark } from "./gitlab-pin.ts";
 import { mergeTickets } from "./poll-merge.ts";
 import type { Snapshot, Store } from "./ports.ts";
 import { listedRef, projectId } from "./project-ref.ts";
+import { type RunHistory, runHistory } from "./run-history.ts";
 
 type StoredPayload = {
 	tickets: Ticket[];
@@ -112,6 +113,7 @@ const busyTimeoutMs = 5_000;
 export function sqliteStore(path: string): {
 	store: Store;
 	validators: ValidatorStore;
+	history: RunHistory;
 	close: () => void;
 } {
 	const db = new Database(path);
@@ -197,6 +199,7 @@ export function sqliteStore(path: string): {
 			snapshotWrites += 1;
 		}
 	};
+	const history = runHistory(db, path);
 	db.onInsert = countSnapshotWrite;
 	db.onUpdate = countSnapshotWrite;
 	db.onDelete = countSnapshotWrite;
@@ -415,6 +418,10 @@ export function sqliteStore(path: string): {
 				).run(url, etag, body, headers);
 			},
 		},
-		close: () => db.close(),
+		history,
+		close: () => {
+			history.close();
+			db.close();
+		},
 	};
 }

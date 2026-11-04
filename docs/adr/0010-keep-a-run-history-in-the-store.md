@@ -1,0 +1,17 @@
+# Keep a run history in the store
+
+Project Flow keeps a run history in its SQLite store. The run history holds one row for each run that a factory reports in `GET /runs`. Insight queries read the run history through views with stable column names. The aggregates of the Factories, Workflows, Verification and Retros tabs read it too. This decision replaces the part of ADR 0006 that says Project Flow keeps no run history.
+
+## Considered options
+
+- Read `GET /runs` of each factory for each aggregate and each query. A factory serves only the runs that it still lists, and SQL cannot run over an HTTP answer.
+- A central Postgres mirror of all factories. It is not set up, and a local app needs no server.
+- A history in each factory, served by a new workcell route. Each factory then answers for its own runs only, and a query across factories needs Project Flow to join the answers.
+
+## Consequences
+
+- The run history keeps a run after its factory stops listing it, so cost and result queries cover old runs.
+- A delete of a run in Project Flow deletes its row from the run history. An archive keeps the row and sets its `archived_at` value.
+- The store stays a cache for the runs that the factories still list: the next factory read fills their rows again after a lost store. The rows of other runs are lost with the store.
+- Insight queries run on a second, read-only SQLite connection, so a query cannot change the store.
+- Later run history tables, such as stages, turns and host samples, follow the same rule: Project Flow fills them from factory routes and keeps them in the store.
