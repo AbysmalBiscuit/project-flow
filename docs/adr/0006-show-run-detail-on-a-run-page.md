@@ -1,5 +1,7 @@
 # Show run detail on a run page
 
+Superseded in part by ADR 0010: Project Flow now keeps a run history in its store.
+
 Project Flow shows the detail of a workcell run on a run page, in tabs. The side panel of a ticket keeps a summary of its run: the run facts, the run agents, the run thread, the answer and steer boxes, and the run actions. The side panel links to the run page. The Runs list, the ticket card and Ctrl-click also open the run page.
 
 ## Considered options
