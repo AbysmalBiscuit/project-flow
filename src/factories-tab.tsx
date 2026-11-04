@@ -1032,7 +1032,7 @@ function StageTable({ stages }: { stages: StageDuration[] }) {
 							clsx(styles.td, last && styles.lastRow, ...more);
 						return (
 							<tr key={stage.stage} className={clsx(styles.row)}>
-								<td className={cell(styles.wrap)}>{stage.stage}</td>
+								<td className={cell(styles.nowrap)}>{stage.stage}</td>
 								<td className={cell()}>
 									<span className={clsx(styles.pill)}>
 										{factoriesCopy.stageRole[stage.role]}
