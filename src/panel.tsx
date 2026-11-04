@@ -11,7 +11,7 @@ import {
 import { useTrackerLabel } from "./backend-labels.ts";
 import { board } from "./board-styles.ts";
 import { Button } from "./button.tsx";
-import { CopyKey } from "./copy-key.tsx";
+import { CopyText } from "./copy-text.tsx";
 import type {
 	GraphEnd,
 	NeedsYouItem,
@@ -41,6 +41,7 @@ import { tonedProps } from "./state-tone.ts";
 import {
 	closePanelLabel,
 	collapsePanelLabel,
+	copyTextCopy,
 	expandPanelLabel,
 	openOnLabel,
 	openPullLabel,
@@ -324,7 +325,11 @@ export function TicketPanel({
 					</span>
 				</div>
 				<div className={clsx(panel.keyLine)}>
-					<CopyKey ticketKey={ticketKey} />
+					<CopyText
+						text={ticketKey}
+						name={copyTextCopy.ticketKey}
+						style={[panel.key, panel.headKey]}
+					/>
 					<span className={clsx(panel.actions)}>
 						{projectHref === undefined ? null : (
 							<Button href={projectHref} label={projectPageLabel} />

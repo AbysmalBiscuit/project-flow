@@ -2,7 +2,7 @@ import * as stylex from "@stylexjs/stylex";
 import { type ReactNode, useEffect, useRef } from "react";
 
 import { Button } from "./button.tsx";
-import { settingsCopy } from "./terms.ts";
+import { settingsCopy } from "./settings-terms.ts";
 import { colours, measure, radius, space, type } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 

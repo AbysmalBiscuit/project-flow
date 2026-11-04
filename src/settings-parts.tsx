@@ -8,12 +8,8 @@ import { control } from "./control-styles.ts";
 import type { TicketState } from "./domain.ts";
 import { Select } from "./select.tsx";
 import { settings as fields } from "./settings-styles.ts";
-import {
-	settingsCopy,
-	settingsSection,
-	stateLabel,
-	viewLabel,
-} from "./terms.ts";
+import { settingsCopy, settingsSection } from "./settings-terms.ts";
+import { stateLabel, viewLabel } from "./terms.ts";
 import { TextInput } from "./text-input.tsx";
 import { clsx } from "./ui.ts";
 import type { openViews } from "./view-settings.ts";

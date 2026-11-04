@@ -4,7 +4,8 @@ import type { FactoryTokenReport } from "./factory-tokens.ts";
 import { Select } from "./select.tsx";
 import { Switch } from "./settings-parts.tsx";
 import { settings as fields } from "./settings-styles.ts";
-import { factoryTokenFallbackLabel, settingsCopy } from "./terms.ts";
+import { settingsCopy } from "./settings-terms.ts";
+import { factoryTokenFallbackLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 
 const pollChoices = [30, 60, 300, 600] as const;

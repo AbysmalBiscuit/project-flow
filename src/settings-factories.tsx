@@ -11,7 +11,7 @@ import {
 	factoryCopy,
 	settingsCopy,
 	settingsSection,
-} from "./terms.ts";
+} from "./settings-terms.ts";
 import { TextInput } from "./text-input.tsx";
 import { clsx } from "./ui.ts";
 
