@@ -84,7 +84,10 @@ const stageData = z
 	})
 	.catch({});
 
-/** The factory reads that fill the run history of an ended run once. */
+/**
+ * The factory reads that fill the run history of an ended run once. The
+ * `events` read also stores a `package` mark, so the package sha is read once.
+ */
 export type HistoryRead = "events" | "turns";
 
 /** The `workflow.started` data of an entry graph names the workflow package and its sha. */
@@ -123,7 +126,7 @@ export type StageUsage = {
 	costUsd: number;
 };
 
-/** The views that an insight query can read. Later run history tables add theirs. */
+/** The views that an insight query can read. */
 const queryableViews = ["runs", "stages", "turns", "asks"];
 
 /** Whitespace, semicolons and comments: what may follow the one statement of a query. */
