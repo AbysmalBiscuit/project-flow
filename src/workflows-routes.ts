@@ -2,6 +2,7 @@ import type { FactoryReader } from "./ports.ts";
 import { routeTable } from "./route-table.ts";
 import type { PackageRun, RunHistory } from "./run-history.ts";
 import type { RunListRow } from "./run-list.ts";
+import { sourceGraphs } from "./workflow-dot.ts";
 import {
 	versionRuns,
 	type WorkflowDetail,
@@ -13,7 +14,7 @@ import {
 const graphTries = 3;
 
 export type WorkflowsRouteOptions = {
-	factories: Pick<FactoryReader, "workflowGraph" | "firstPullsRun">;
+	factories: Pick<FactoryReader, "source" | "firstPullsRun">;
 	history: RunHistory;
 	runList: () => RunListRow[];
 	/** Bring the run history up to date with the run list. */
@@ -25,9 +26,10 @@ async function latestGraph(
 	runs: readonly PackageRun[],
 ): Promise<WorkflowDetail["graph"]> {
 	for (const run of runs.slice(0, graphTries)) {
-		const graph = await factories.workflowGraph(run.id);
-		if (graph !== null) {
-			return { runId: run.id, graph };
+		const source = await factories.source(run.id);
+		const graphs = typeof source === "string" ? [] : sourceGraphs(source);
+		if (graphs.length > 0) {
+			return { runId: run.id, graphs };
 		}
 	}
 	return null;

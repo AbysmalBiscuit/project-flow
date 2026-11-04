@@ -1020,8 +1020,8 @@ export const workflowsCopy = {
 	tabs: { diagram: "Diagram", stages: "Stages", runs: "Runs" },
 	tabsLabel: "Package detail",
 	diagramNote:
-		"Border colour = role. Edge label = condition. The entry graph of the latest run.",
-	noGraph: "No factory serves the graph of a run of this version.",
+		"Border colour = role. Edge label = condition. The graphs of the latest run.",
+	noGraph: "No factory serves the workflow files of a run of this version.",
 	noStages: "No run of this version has stage rows yet.",
 	allStages: (count: number): string => `Show all ${count} stages`,
 	fewerStages: "Show fewer stages",

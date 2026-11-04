@@ -155,10 +155,39 @@ const styles = stylex.create({
 		fontWeight: type.weight,
 	},
 	note: {
-		margin: `0 0 ${space.sm}`,
+		flexGrow: 1,
+		margin: 0,
 		color: colours.inkSoft,
 		fontSize: type.small,
 		textAlign: "right",
+	},
+	diagramHead: {
+		display: "flex",
+		flexWrap: "wrap",
+		alignItems: "flex-start",
+		gap: space.sm,
+		marginBottom: space.sm,
+	},
+	chips: {
+		display: "flex",
+		flexWrap: "wrap",
+		gap: space.xs,
+	},
+	chip: {
+		padding: `${space.xs} ${space.sm}`,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.laneLine,
+		borderRadius: radius.md,
+		backgroundColor: "transparent",
+		color: colours.ink,
+		font: "inherit",
+		fontSize: type.small,
+		cursor: "pointer",
+	},
+	chipOn: {
+		backgroundColor: colours.chip,
+		fontWeight: type.weight,
 	},
 	empty: {
 		margin: 0,
@@ -514,13 +543,34 @@ function RunsTable({ runs }: { runs: WorkflowRun[] }) {
 }
 
 function Diagram({ graph }: { graph: WorkflowDetail["graph"] }) {
-	if (graph === null) {
+	const [picked, setPicked] = useState<string | null>(null);
+	const shown =
+		graph?.graphs.find((item) => item.name === picked) ?? graph?.graphs[0];
+	if (graph === null || shown === undefined) {
 		return <p className={clsx(styles.empty)}>{workflowsCopy.noGraph}</p>;
 	}
 	return (
 		<>
-			<p className={clsx(styles.note)}>{workflowsCopy.diagramNote}</p>
-			<WorkflowDiagram key={graph.runId} graph={graph.graph} />
+			<div className={clsx(styles.diagramHead)}>
+				<div className={clsx(styles.chips)}>
+					{graph.graphs.map((item) => (
+						<button
+							key={item.name}
+							type="button"
+							aria-pressed={item === shown}
+							className={clsx(styles.chip, item === shown && styles.chipOn)}
+							onClick={() => setPicked(item.name)}
+						>
+							{item.name}
+						</button>
+					))}
+				</div>
+				<p className={clsx(styles.note)}>{workflowsCopy.diagramNote}</p>
+			</div>
+			<WorkflowDiagram
+				key={`${graph.runId}\n${shown.name}`}
+				graph={shown.graph}
+			/>
 		</>
 	);
 }

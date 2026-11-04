@@ -1,7 +1,7 @@
-import type { RunGraph } from "./domain.ts";
 import type { RunResult, RunStatusKind } from "./kinds.ts";
 import type { PackageRun, StageUsage, StageVisit } from "./run-history.ts";
 import type { RunListRow } from "./run-list.ts";
+import type { WorkflowGraph } from "./workflow-dot.ts";
 
 /** One workflow package at one version, from the started runs of the run history. */
 export type WorkflowCard = {
@@ -54,8 +54,8 @@ export type WorkflowDetail = {
 	/** The top-level stages only. A stage of a child graph is not in the list. */
 	stages: WorkflowStage[];
 	runs: WorkflowRun[];
-	/** The entry graph of the latest run that a factory serves the graph of. */
-	graph: { runId: string; graph: RunGraph } | null;
+	/** The graphs of the latest run that a factory serves the source of: the entry graph first, then each graph it calls. */
+	graph: { runId: string; graphs: WorkflowGraph[] } | null;
 };
 
 const reviewerRole = "reviewer";
@@ -209,7 +209,7 @@ export function workflowDetail(input: {
 		),
 	);
 	const reviewers = new Set(
-		input.graph?.graph.nodes
+		input.graph?.graphs[0]?.graph.nodes
 			.filter((node) => node.role === reviewerRole)
 			.map((node) => node.id),
 	);

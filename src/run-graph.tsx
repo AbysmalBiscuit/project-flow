@@ -5,6 +5,7 @@ import {
 	type Edge,
 	EdgeLabelRenderer,
 	type EdgeProps,
+	type FitViewOptions,
 	Handle,
 	MarkerType,
 	type Node,
@@ -12,6 +13,7 @@ import {
 	Position,
 	ReactFlow,
 	ReactFlowProvider,
+	type Viewport,
 } from "@xyflow/react";
 import { useCallback, useMemo, useState } from "react";
 
@@ -30,10 +32,12 @@ import { float, FloatPanel } from "./graph-float.tsx";
 import { GraphTools } from "./graph-pane.tsx";
 import { DirectionSwitch } from "./graph-switches.tsx";
 import {
+	diagramStageScale,
 	type LaidEdge,
 	layoutWorkflow,
+	runStageScale,
 	stageFrameId,
-	stageSize,
+	type StageScale,
 	type WorkflowLayout,
 } from "./graph-workflow.ts";
 import { panel } from "./panel-styles.ts";
@@ -427,11 +431,12 @@ function textSize(text: string) {
 	return { width: text.length * textCharWidth + 8, height: textHeight };
 }
 
-/** Lays out the graph again only when its stages, edges, open frames or direction change. */
+/** Lays out the graph again only when its stages, edges, open frames, direction or scale change. */
 function useLaidWorkflow(
 	graph: Graph,
 	open: ReadonlySet<string>,
 	direction: GraphDirection,
+	scale: StageScale,
 ): WorkflowLayout | undefined {
 	const shape = JSON.stringify([
 		graph.nodes.map((node) => [
@@ -441,10 +446,12 @@ function useLaidWorkflow(
 		graph.edges,
 		[...open].toSorted(),
 		direction,
+		scale,
 	]);
 	return useQuery({
 		queryKey: ["runGraphLayout", shape],
-		queryFn: () => layoutWorkflow(elk(), graph, open, direction, textSize),
+		queryFn: () =>
+			layoutWorkflow(elk(), graph, open, direction, textSize, scale),
 		staleTime: Number.POSITIVE_INFINITY,
 	}).data;
 }
@@ -482,7 +489,7 @@ function flowOf(
 							id: stage.id,
 							type: "stage",
 							position: at,
-							...stageSize,
+							...(roles ? diagramStageScale : runStageScale).size,
 							data: {
 								facts: factsOf(stage),
 								shape,
@@ -598,30 +605,92 @@ type RunState = {
 	onPick: (stage: string) => void;
 };
 
-const openingStages = 6;
+/** The diagram pane fits the laid graph, up to the height of the run page pane. */
+const fitted = stylex.create({
+	height: (graph: number) => ({
+		height: `min(calc(${graph}px + 2 * ${space.xl}), ${measure.runGraph})`,
+	}),
+});
 
-/** The start stage and the stages that the layout places nearest to it. */
-function nearStart(graph: Graph, stages: ReadonlyMap<string, Point>): string[] {
-	const start = graph.nodes.find((node) => node.kind === "start");
-	const origin = start === undefined ? undefined : stages.get(start.id);
-	if (origin === undefined) {
-		return [];
-	}
-	return [...stages]
-		.map(([id, point]) => ({
-			id,
-			distance: Math.hypot(point.x - origin.x, point.y - origin.y),
-		}))
-		.toSorted((a, b) => a.distance - b.distance)
-		.slice(0, openingStages)
-		.map((stage) => stage.id);
+/** The smallest zoom that keeps the diagram labels near the size of the page text. */
+const readableZoom = 0.85;
+
+/** The share of the pane that the opening view fills. */
+const paneFill = 0.92;
+
+/** The box around the laid diagram: its stages, edge routes and edge texts. */
+function laidBounds(laid: WorkflowLayout) {
+	const { width, height } = diagramStageScale.size;
+	const points = [
+		...[...laid.stages.values()].flatMap((point) => [
+			point,
+			{ x: point.x + width, y: point.y + height },
+		]),
+		...laid.edges.flatMap((edge) => [
+			...edge.points,
+			...(edge.text === undefined
+				? []
+				: [
+						edge.text,
+						{
+							x: edge.text.x + edge.text.width,
+							y: edge.text.y + edge.text.height,
+						},
+					]),
+		]),
+	];
+	const xs = points.map((point) => point.x);
+	const ys = points.map((point) => point.y);
+	const left = Math.min(...xs);
+	const top = Math.min(...ys);
+	return {
+		left,
+		top,
+		width: Math.max(...xs) - left,
+		height: Math.max(...ys) - top,
+	};
+}
+
+/**
+ * The whole diagram in the pane, at zoom 1 or less. When the whole diagram
+ * needs a zoom under the readable zoom, the view opens on the start stage.
+ */
+function openingView(
+	bounds: ReturnType<typeof laidBounds>,
+	start: Point | undefined,
+	pane: { width: number; height: number },
+): Viewport {
+	const zoom = Math.max(
+		readableZoom,
+		Math.min(
+			1,
+			(pane.width * paneFill) / bounds.width,
+			(pane.height * paneFill) / bounds.height,
+		),
+	);
+	const { height } = diagramStageScale.size;
+	const fits = (room: number, size: number) => size * zoom <= room;
+	return {
+		x:
+			fits(pane.width, bounds.width) || start === undefined
+				? (pane.width - bounds.width * zoom) / 2 - bounds.left * zoom
+				: (pane.width * (1 - paneFill)) / 2 - start.x * zoom,
+		y:
+			fits(pane.height, bounds.height) || start === undefined
+				? (pane.height - bounds.height * zoom) / 2 - bounds.top * zoom
+				: pane.height / 2 - (start.y + height / 2) * zoom,
+		zoom,
+	};
 }
 
 /** The graph view of a workflow. With no `run`, each stage border shows its agent role instead of its run state. */
 function GraphPane({ graph, run }: { graph: Graph; run: RunState | null }) {
 	const checkpoint = run?.checkpoint;
 	const agents = run?.agents;
-	const [direction, setDirection] = useState<GraphDirection>("top-to-bottom");
+	const [direction, setDirection] = useState<GraphDirection>(
+		run === null ? "left-to-right" : "top-to-bottom",
+	);
+	const scale = run === null ? diagramStageScale : runStageScale;
 	const [refit, setRefit] = useState(0);
 	const [toggled, setToggled] = useState<ReadonlyMap<string, boolean>>(
 		new Map(),
@@ -640,7 +709,7 @@ function GraphPane({ graph, run }: { graph: Graph; run: RunState | null }) {
 			),
 		[graph, toggled],
 	);
-	const laid = useLaidWorkflow(graph, open, direction);
+	const laid = useLaidWorkflow(graph, open, direction, scale);
 	const flow = useMemo(
 		() =>
 			laid === undefined
@@ -660,7 +729,6 @@ function GraphPane({ graph, run }: { graph: Graph; run: RunState | null }) {
 		[graph, laid, checkpoint, agents, open],
 	);
 	// The view opens on the live stage, or on the whole open frame that holds it.
-	// A graph with no run opens on the stages near its start.
 	const caller = liveStage(graph)?.id.split("/")[0];
 	const liveId =
 		caller === undefined
@@ -668,23 +736,28 @@ function GraphPane({ graph, run }: { graph: Graph; run: RunState | null }) {
 			: laid?.frames.has(caller) === true
 				? stageFrameId(caller)
 				: caller;
-	const focus = useMemo(
+	const bounds = useMemo(
 		() =>
-			run === null
-				? nearStart(graph, laid?.stages ?? new Map())
-				: liveId === undefined
-					? []
-					: [liveId],
-		[run, graph, laid, liveId],
+			run === null && laid !== undefined && laid.stages.size > 0
+				? laidBounds(laid)
+				: null,
+		[run, laid],
 	);
-	const fit = useCallback(
-		() => ({
+	const fit = useCallback((): FitViewOptions | Viewport => {
+		const pane = document.getElementById(paneId);
+		if (bounds !== null && pane !== null) {
+			const start = graph.nodes.find((node) => node.kind === "start");
+			return openingView(bounds, laid?.stages.get(start?.id ?? ""), {
+				width: pane.clientWidth,
+				height: pane.clientHeight,
+			});
+		}
+		return {
 			maxZoom: 1,
 			padding: 0.2,
-			...(focus.length === 0 ? {} : { nodes: focus.map((id) => ({ id })) }),
-		}),
-		[focus],
-	);
+			...(liveId === undefined ? {} : { nodes: [{ id: liveId }] }),
+		};
+	}, [bounds, graph, laid, liveId]);
 	const fitAll = useCallback(() => ({ padding: 0.1 }), []);
 	return (
 		<>
@@ -693,7 +766,10 @@ function GraphPane({ graph, run }: { graph: Graph; run: RunState | null }) {
 			)}
 			<figure
 				id={paneId}
-				className={clsx(styles.pane)}
+				{...stylex.props(
+					styles.pane,
+					bounds !== null && fitted.height(bounds.height),
+				)}
 				aria-label={runGraphLabel}
 				title={runGraphHelp}
 				data-direction={direction}

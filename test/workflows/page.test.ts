@@ -5,7 +5,6 @@ import type {
 	WorkflowsPage,
 } from "../../src/workflows-page.ts";
 import hubRuns from "../fixtures/factory-hub-runs.json";
-import runGraph from "../fixtures/factory-run-graph.json";
 import {
 	type Answers,
 	eventLog,
@@ -174,7 +173,39 @@ const answers: Answers = {
 	"/runs/run-40/turns": {
 		turns: [turn("implement", 1_000, 100, 2.5), turn("review", 500, 50, 1.5)],
 	},
-	"/runs/run-40/graph": runGraph,
+	"/runs/run-40/source": {
+		entry: "pre_pr.dot",
+		graphs: {
+			"pre_pr.dot": `digraph PrePr {
+  graph [label="Pre PR", rankdir=LR]
+  start [shape=Mdiamond]
+  exit [shape=Msquare]
+  inputs [shape=parallelogram, label="Read inputs"]
+  implement [shape=box, class="implementer",
+    label="Implement", prompt="Write the \\"fix\\"."]
+  review [shape=box, class="reviewer", label="Review"]
+  post_pr [shape=house, class="manager", label="Post PR", prompt_file="post_pr.dot"]
+  retry [shape=house, class="manager", label="Retry", prompt_file="post_pr.dot"]
+  start -> inputs
+  inputs -> implement [condition="preferred_label=build"]
+  implement -> review -> post_pr -> exit
+  review -> implement [label="changes"]
+}
+`,
+			"post_pr.dot": `digraph PostPr {
+  start [shape=Mdiamond]
+  exit [shape=Msquare]
+  merge [shape=box, class="receiver", label="Merge"]
+  start -> merge -> exit
+}
+`,
+			"unused.dot": `digraph Unused {
+  start [shape=Mdiamond]
+  start -> exit
+}
+`,
+		},
+	},
 	"/runs/run-39/events": runLog("run-39", newSha, [
 		{
 			event: "stage.completed",
@@ -368,7 +399,7 @@ describe("the Workflows tab", () => {
 		}
 	});
 
-	test("one package version gives the graph of its latest run, with the role of each node and the condition of each edge", async () => {
+	test("one package version gives the graphs of its latest run, the entry graph and then each graph it calls, with the role of each node and the condition of each edge", async () => {
 		const app = await serveHub();
 		try {
 			const detail = await readWhere<WorkflowDetail>(
@@ -377,23 +408,51 @@ describe("the Workflows tab", () => {
 				(seen) => seen.graph !== null,
 			);
 			expect(detail.graph?.runId).toBe("run-40");
-			const nodes = new Map(
-				detail.graph?.graph.nodes.map((node) => [node.id, node]),
-			);
+			expect(detail.graph?.graphs.map((graph) => graph.name)).toEqual([
+				"pre_pr.dot",
+				"post_pr.dot",
+			]);
+			const [entry, postPr] = detail.graph?.graphs ?? [];
+			const nodes = new Map(entry?.graph.nodes.map((node) => [node.id, node]));
+			expect([...nodes.keys()]).toEqual([
+				"start",
+				"exit",
+				"inputs",
+				"implement",
+				"review",
+				"post_pr",
+				"retry",
+			]);
 			expect(nodes.get("review")).toMatchObject({
 				label: "Review",
 				shape: "box",
 				kind: "codergen",
 				role: "reviewer",
 			});
-			expect(nodes.get("implement")?.role).toBe("implementer");
-			expect(nodes.get("inputs")?.role).toBeUndefined();
-			expect(nodes.size).toBe(runGraph.nodes.length);
-			expect(detail.graph?.graph.edges).toContainEqual({
-				from: "inputs",
-				to: "implement",
-				condition: "preferred_label=build",
+			expect(nodes.get("implement")?.label).toBe("Implement");
+			expect(nodes.get("inputs")).toMatchObject({
+				label: "Read inputs",
+				kind: "tool",
 			});
+			expect(nodes.get("inputs")?.role).toBeUndefined();
+			expect(nodes.get("start")?.kind).toBe("start");
+			expect(entry?.graph.edges).toEqual([
+				{ from: "start", to: "inputs" },
+				{
+					from: "inputs",
+					to: "implement",
+					condition: "preferred_label=build",
+				},
+				{ from: "implement", to: "review" },
+				{ from: "review", to: "post_pr" },
+				{ from: "post_pr", to: "exit" },
+				{ from: "review", to: "implement", label: "changes" },
+			]);
+			expect(postPr?.graph.nodes.map((node) => node.role)).toEqual([
+				undefined,
+				undefined,
+				"receiver",
+			]);
 		} finally {
 			await app.stop();
 		}
