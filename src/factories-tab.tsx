@@ -14,6 +14,7 @@ import type {
 	RunningRun,
 	StageDuration,
 } from "./factories-page.ts";
+import { PageLoading } from "./loading.tsx";
 import { runPagePath } from "./page-links.ts";
 import { pageQuery } from "./queries.ts";
 import type { RunGraph, RunGraphNodeState } from "./run-domain.ts";
@@ -1081,7 +1082,9 @@ export function Page() {
 			title={navLabel.factories}
 			subtitle={`${factoriesCopy.subtitle}${updated}`}
 		>
-			{page === undefined ? null : (
+			{page === undefined ? (
+				<PageLoading />
+			) : (
 				<>
 					<Tiles page={page} now={now} />
 					<div className={clsx(styles.grid, styles.boxes)}>

@@ -10,7 +10,7 @@ import type { FactoryEntry } from "./factories.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
-import { Loading } from "./loading.tsx";
+import { PageLoading } from "./loading.tsx";
 import { withoutPins, withPin } from "./project-pins.ts";
 import { samePin } from "./project-ref.ts";
 import { pageQuery, useSaveSettings } from "./queries.ts";
@@ -671,7 +671,7 @@ export function Page() {
 	if (loaded === undefined) {
 		return (
 			<PageFrame title={navLabel.settings}>
-				<Loading />
+				<PageLoading />
 			</PageFrame>
 		);
 	}

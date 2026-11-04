@@ -8,6 +8,16 @@ import { clsx } from "./ui.ts";
 
 const reducedMotion = "@media (prefers-reduced-motion: reduce)";
 
+const spin = stylex.keyframes({
+	from: { transform: "rotate(0deg)" },
+	to: { transform: "rotate(360deg)" },
+});
+
+const dotsGrow = stylex.keyframes({
+	from: { width: "1ch" },
+	to: { width: "3ch" },
+});
+
 const styles = stylex.create({
 	row: {
 		display: "flex",
@@ -33,15 +43,37 @@ const styles = stylex.create({
 		borderColor: colours.line,
 		borderTopColor: colours.accent,
 		borderRadius: radius.pill,
-		animationName: {
-			default: stylex.keyframes({
-				from: { transform: "rotate(0deg)" },
-				to: { transform: "rotate(360deg)" },
-			}),
-			[reducedMotion]: "none",
-		},
+		animationName: { default: spin, [reducedMotion]: "none" },
 		animationDuration: measure.spin,
 		animationTimingFunction: "linear",
+		animationIterationCount: "infinite",
+	},
+	page: {
+		display: "flex",
+		flexDirection: "column",
+		gap: space.md,
+		alignItems: "center",
+		justifyContent: "center",
+		minHeight: measure.pageLoading,
+		color: colours.inkSoft,
+		fontSize: type.heading,
+	},
+	pageSpinner: {
+		width: measure.pageSpinner,
+		height: measure.pageSpinner,
+		borderWidth: space.xs,
+	},
+	word: {
+		position: "relative",
+	},
+	dots: {
+		position: "absolute",
+		left: "100%",
+		width: "3ch",
+		overflow: "hidden",
+		animationName: { default: dotsGrow, [reducedMotion]: "none" },
+		animationDuration: measure.dotsCycle,
+		animationTimingFunction: "steps(3, jump-none)",
 		animationIterationCount: "infinite",
 	},
 	track: {
@@ -82,6 +114,24 @@ export function Loading({
 	);
 }
 
+/** The loading state of a whole page: a large spinner and "Loading" with cycling dots, in the middle of the page. */
+export function PageLoading() {
+	return (
+		<div role="status" data-loading="page" className={clsx(styles.page)}>
+			<span
+				aria-hidden="true"
+				className={clsx(styles.spinner, styles.pageSpinner)}
+			/>
+			<span className={clsx(styles.word)}>
+				{loadingLabel}
+				<span aria-hidden="true" className={clsx(styles.dots)}>
+					...
+				</span>
+			</span>
+		</div>
+	);
+}
+
 /** A progress bar for a loading state with known progress, and the line that says what it reads. */
 export function LoadingBar({
 	percent,
@@ -108,13 +158,15 @@ export function LoadingBar({
 	);
 }
 
-/** The bar of the running poll, or a spinner before the poll reports progress. */
+/** The poll as a whole-page loading state: the centred spinner, then the centred bar once the poll reports progress. */
 export function PollLoading() {
 	const progress = usePollProgress();
 	if (progress === null) {
-		return <Loading />;
+		return <PageLoading />;
 	}
 	return (
-		<LoadingBar percent={pollPercent(progress)} text={pollLine(progress)} />
+		<div className={clsx(styles.page)}>
+			<LoadingBar percent={pollPercent(progress)} text={pollLine(progress)} />
+		</div>
 	);
 }

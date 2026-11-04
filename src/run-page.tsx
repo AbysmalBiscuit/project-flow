@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { textControl } from "./control-styles.ts";
 import type { RunDetail } from "./domain.ts";
-import { Loading } from "./loading.tsx";
+import { PageLoading } from "./loading.tsx";
 import { runPagePath, verificationPagePath } from "./page-links.ts";
 import { commentTime, elapsed, RunFact, runTime } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
@@ -267,7 +267,7 @@ export function Page() {
 						isError ? (
 							<p className={clsx(panel.note)}>{runReadFailedLabel}</p>
 						) : (
-							<Loading />
+							<PageLoading />
 						)
 					) : data === null ? (
 						<p className={clsx(panel.note)}>{runMissingLabel}</p>

@@ -6,7 +6,7 @@ import { Button } from "./button.tsx";
 import { control } from "./control-styles.ts";
 import type { InboxEntry, NotificationTrigger } from "./domain.ts";
 import { inbox } from "./inbox-styles.ts";
-import { Loading } from "./loading.tsx";
+import { PageLoading } from "./loading.tsx";
 import {
 	askNotificationPermission,
 	notificationPermission,
@@ -316,7 +316,7 @@ export function Page() {
 	) {
 		return (
 			<PageFrame title={navLabel.inbox}>
-				<Loading />
+				<PageLoading />
 			</PageFrame>
 		);
 	}
