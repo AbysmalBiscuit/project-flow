@@ -10,21 +10,35 @@ import {
 	serve,
 } from "../support/factory.ts";
 
-/** The app with one hub that answers `answers`, on the store at `databasePath` when given. */
+/**
+ * The app with one hub that answers `answers`, on the store at `databasePath` when given.
+ * `now` replaces the clock, so a test moves time to the next run poll.
+ */
 export async function serveHub(
 	answers: Answers = hub,
 	databasePath?: string,
-): ReturnType<typeof serve> {
+	now?: () => Date,
+): Promise<
+	Awaited<ReturnType<typeof serve>> & {
+		/** The paths of the requests that the app sent to the hub. */
+		paths: () => string[];
+	}
+> {
 	const requests: FactoryRequest[] = [];
-	return serve(
+	const app = await serve(
 		[],
 		{ factories: [{ name: "work hub", url: hubUrl }] },
 		factoryFetch({ [hubUrl]: answers }, requests),
 		{
 			env: { GITHUB_TOKEN: "recorded-token" },
 			...(databasePath === undefined ? {} : { databasePath }),
+			...(now === undefined ? {} : { now }),
 		},
 	);
+	return {
+		...app,
+		paths: () => requests.map((request) => new URL(request.url).pathname),
+	};
 }
 
 export async function insightQuery(

@@ -21,7 +21,7 @@ import { isLive, type ReadRun, type StatusRows } from "./factory-run-rows.ts";
 import type { Fetch } from "./fetch.ts";
 import { resumableRunStatusKinds } from "./kinds.ts";
 import { lastAgentStage, stageVisits, startNodes } from "./run-agent-stage.ts";
-import { runUsage } from "./run-usage.ts";
+import { type RecordedTurn, runUsage } from "./run-usage.ts";
 
 export type CheckpointRead = RunCheckpoint | "missing" | "not served";
 
@@ -230,28 +230,31 @@ function runGraph(
 	};
 }
 
+/** `GET /runs/{id}/turns`. Throws `NotServed` on 404 and `Unreachable` on a failed read. */
+export async function turnsOf(read: Read, id: string): Promise<RecordedTurn[]> {
+	const listed = await body(
+		await read(`/runs/${encodeURIComponent(id)}/turns`),
+		turns,
+	);
+	return listed.turns.map((turn) => ({
+		nodePath: turn.node_path,
+		usage: {
+			inputTokens: turn.tokens.input,
+			outputTokens: turn.tokens.output,
+			costUsd: turn.cost_usd,
+			durationS: turn.duration_s,
+			tools: turn.tools,
+		},
+	}));
+}
+
 /** The usage of a run from its recorded turns. A factory that gives no turns leaves it unknown. */
 async function usageOf(
 	read: Read,
 	id: string,
 ): Promise<RunUsage | "not served" | null> {
 	try {
-		const listed = await body(
-			await read(`/runs/${encodeURIComponent(id)}/turns`),
-			turns,
-		);
-		return runUsage(
-			listed.turns.map((turn) => ({
-				nodePath: turn.node_path,
-				usage: {
-					inputTokens: turn.tokens.input,
-					outputTokens: turn.tokens.output,
-					costUsd: turn.cost_usd,
-					durationS: turn.duration_s,
-					tools: turn.tools,
-				},
-			})),
-		);
+		return runUsage(await turnsOf(read, id));
 	} catch (error) {
 		if (error instanceof NotServed) {
 			return "not served";

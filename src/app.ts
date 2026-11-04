@@ -39,6 +39,7 @@ import {
 } from "./project-views.ts";
 import { pullRoutes } from "./pull-routes.ts";
 import { replyRoutes } from "./reply-routes.ts";
+import { historyBackfill } from "./run-history-backfill.ts";
 import { runStartRoutes } from "./run-start-routes.ts";
 import { settledRequests } from "./run-start.ts";
 import {
@@ -172,7 +173,12 @@ export async function start(options: StartOptions): Promise<Running> {
 		listedFactories,
 		requests.signal,
 		() => clock.now(),
+		{
+			stage: (runId, event) => opened.history.recordStage(runId, event),
+			asks: (runId, asks) => opened.history.recordAsks(runId, asks),
+		},
 	);
+	const backfill = historyBackfill(opened.history, factories);
 	const backends = buildBackends({
 		credentials: options.credentials,
 		env: options.env,
@@ -302,7 +308,9 @@ export async function start(options: StartOptions): Promise<Running> {
 	};
 	const recordRuns = () => {
 		if (!stopped) {
-			opened.history.record(factoryRunList(pollOptions, configuration));
+			const runs = factoryRunList(pollOptions, configuration);
+			opened.history.record(runs);
+			backfill(runs);
 		}
 	};
 	const readFactories = async (read: () => Promise<void>) => {
