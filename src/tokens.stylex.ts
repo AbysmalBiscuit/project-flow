@@ -277,6 +277,7 @@ export const radius = stylex.defineVars({
 	md: "0.6rem",
 	menu: "0.5rem",
 	pill: "999px",
+	cell: "2px",
 });
 
 export const font = stylex.defineVars({
@@ -402,6 +403,12 @@ export const measure = stylex.defineVars({
 	step: "1.1rem",
 	stepHeight: "0.45rem",
 	stepGap: "2px",
+	stripCell: "0.6rem",
+	stripCellHeight: "1rem",
+	resultDot: "0.55rem",
+	underline: "2px",
+	failureMin: "12rem",
+	failureMax: "20rem",
 	outcomeChart: "8rem",
 	outcomeGap: "6px",
 	legendSwatch: "0.6rem",

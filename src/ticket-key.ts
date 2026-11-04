@@ -30,6 +30,16 @@ export function teamKey(team: string, number: number | string): string {
 	return `${team.toUpperCase()}-${number}`;
 }
 
+/** A ticket key without its repo owner, such as `widget#41`, and a Linear key alone, such as `PF-12`. */
+export function ticketLabel(key: string): string {
+	const hash = key.lastIndexOf(numberMark);
+	const tail = key.slice(hash + 1);
+	if (hash === -1 || !/^\d+$/.test(tail)) {
+		return hash === -1 ? key : tail;
+	}
+	return key.slice(key.lastIndexOf("/", hash) + 1);
+}
+
 /** The repo and number of an `owner/name#number` key. */
 export function numberedKeyParts(
 	key: string,

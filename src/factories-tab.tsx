@@ -19,6 +19,7 @@ import { pageQuery } from "./queries.ts";
 import type { RunGraph, RunGraphNodeState } from "./run-domain.ts";
 import { PageFrame } from "./shell.tsx";
 import { costLabel, factoriesCopy, navLabel, spanText } from "./terms.ts";
+import { ticketLabel } from "./ticket-key.ts";
 import {
 	colours,
 	font,
@@ -415,16 +416,6 @@ function useNow(): number {
 		return () => clearInterval(timer);
 	}, []);
 	return now;
-}
-
-/** A ticket key without its repo owner, such as `widget#41`, and a Linear key alone, such as `PF-12`. */
-function ticketLabel(key: string): string {
-	const hash = key.lastIndexOf("#");
-	const tail = key.slice(hash + 1);
-	if (hash === -1 || !/^\d+$/.test(tail)) {
-		return hash === -1 ? key : tail;
-	}
-	return key.slice(key.lastIndexOf("/", hash) + 1);
 }
 
 const since = (time: string | null | undefined, now: number): string | null =>

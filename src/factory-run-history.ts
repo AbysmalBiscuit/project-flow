@@ -1,11 +1,15 @@
 import { sseFrames } from "./factory-events.ts";
-import { NotServed, reader, Unreachable } from "./factory-http.ts";
+import { body, NotServed, reader, Unreachable } from "./factory-http.ts";
 import { turnsOf } from "./factory-run-detail.ts";
 import { runEventFrame } from "./factory-run-events.ts";
 import type { ReadRun, StatusRows } from "./factory-run-rows.ts";
 import type { Fetch } from "./fetch.ts";
 import type { StageEvent } from "./run-history.ts";
 import type { RecordedTurn } from "./run-usage.ts";
+import {
+	type VerificationRecord,
+	verificationRecord,
+} from "./verification-page.ts";
 
 /** An ended run's event log can be long, so its read gets more time than a plain read. */
 const eventLogLimitMs = 30_000;
@@ -59,6 +63,32 @@ export function runHistoryReader(deps: {
 			}
 			try {
 				return await turnsOf(reader(fetchImpl, row.url, signal), runId);
+			} catch (error) {
+				if (error instanceof NotServed) {
+					return "not served";
+				}
+				if (error instanceof Unreachable) {
+					return null;
+				}
+				throw error;
+			}
+		},
+		verification: async (
+			runId: string,
+		): Promise<HistoryAnswer<VerificationRecord>> => {
+			const { row } = statusRowOf(runId);
+			if (row === undefined) {
+				return null;
+			}
+			try {
+				return await body(
+					await reader(
+						fetchImpl,
+						row.url,
+						signal,
+					)(`/runs/${encodeURIComponent(runId)}/verification`),
+					verificationRecord,
+				);
 			} catch (error) {
 				if (error instanceof NotServed) {
 					return "not served";
