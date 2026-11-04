@@ -7,7 +7,7 @@ import type { ReadRun, StatusRows } from "./factory-run-rows.ts";
 import type { Fetch } from "./fetch.ts";
 
 /** One event of `GET /runs/{id}/events`. */
-const runEventFrame = z.object({
+export const runEventFrame = z.object({
 	id: z.string(),
 	recorded_at: z.string(),
 	item: z.object({

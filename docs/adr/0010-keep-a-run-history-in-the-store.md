@@ -14,4 +14,8 @@ Project Flow keeps a run history in its SQLite store. The run history holds one 
 - A delete of a run in Project Flow deletes its row from the run history. An archive keeps the row and sets its `archived_at` value.
 - The store stays a cache for the runs that the factories still list: the next factory read fills their rows again after a lost store. The rows of other runs are lost with the store.
 - Insight queries run on a second, read-only SQLite connection, so a query cannot change the store.
-- Later run history tables, such as stages, turns and host samples, follow the same rule: Project Flow fills them from factory routes and keeps them in the store.
+- Later run history tables, such as host samples, follow the same rule: Project Flow fills them from factory routes and keeps them in the store.
+- Stage rows come from the stage events of the factory feed. An ended run with no stage rows gets its stage rows from one read of its event log.
+- Turn rows come from one `GET /runs/{id}/turns` read of each ended run, because the turns of an ended run do not change.
+- Ask rows come from the asks reads that Project Flow already sends.
+- The backfill reads run in the background with a small fixed limit on concurrent reads, so a first start does not flood a factory.

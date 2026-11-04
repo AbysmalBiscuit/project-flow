@@ -1,7 +1,6 @@
 import type { FactoryRun, PullRequest, RunResult, Ticket } from "./domain.ts";
 import { endedRunStatusKinds } from "./kinds.ts";
-import { numberedKey } from "./ticket-key.ts";
-import { runsFor } from "./workcell.ts";
+import { foldKey, numberedKey } from "./ticket-key.ts";
 
 /** One row of the Runs list: a factory run with the ticket, project, PR and result that it works on. */
 export type RunListRow = Pick<
@@ -66,12 +65,51 @@ export function runResultOf(
 	return stored === undefined ? "noPr" : "prOpen";
 }
 
+type TicketOwner = { key: string; title: string; project: string };
+
+/**
+ * Finds the tracked ticket of a run: the first project, then the first ticket in it, whose
+ * key matches the run key or its numbered key. One map per list keeps the lookup linear.
+ */
+function ticketOwners(projects: ProjectTickets[]) {
+	const owners = new Map<string, TicketOwner & { order: number }>();
+	let order = 0;
+	for (const project of projects) {
+		for (const ticket of project.tickets) {
+			order += 1;
+			if (ticket.key === null) {
+				continue;
+			}
+			const folded = foldKey(ticket.key);
+			if (!owners.has(folded)) {
+				owners.set(folded, {
+					key: ticket.key,
+					title: ticket.title,
+					project: project.name,
+					order,
+				});
+			}
+		}
+	}
+	return (run: FactoryRun): TicketOwner | undefined => {
+		const keys = [run.key];
+		if (run.repo !== undefined) {
+			keys.push(numberedKey(run.repo, run.key));
+		}
+		const [first] = keys
+			.flatMap((key) => owners.get(foldKey(key)) ?? [])
+			.sort((left, right) => left.order - right.order);
+		return first;
+	};
+}
+
 /** Each factory run, in the order of `runs`, with its ticket from the tracked projects. */
 export function runList(
 	runs: FactoryRun[],
 	projects: ProjectTickets[],
 ): RunListRow[] {
 	const pulls = projects.flatMap((project) => project.pulls);
+	const ownerOf = ticketOwners(projects);
 	return runs.map((run) => {
 		const { pull } = run;
 		const result = runResultOf(run, pulls);
@@ -100,18 +138,13 @@ export function runList(
 				: { pull: { number: pull.number, url: pull.url } }),
 			...(result === undefined ? {} : { result }),
 		};
-		for (const project of projects) {
-			const ticket = project.tickets.find(
-				(item) => runsFor(item, [run]).length > 0,
-			);
-			if (ticket?.key === undefined || ticket.key === null) {
-				continue;
-			}
+		const owner = ownerOf(run);
+		if (owner !== undefined) {
 			return {
 				...row,
-				key: ticket.key,
-				title: ticket.title,
-				project: project.name,
+				key: owner.key,
+				title: owner.title,
+				project: owner.project,
 			};
 		}
 		return {

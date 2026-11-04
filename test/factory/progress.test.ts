@@ -418,7 +418,7 @@ describe("factory runs", () => {
 					expect(
 						new Set(
 							app.requests
-								.filter((request) => request.url.endsWith("/turns"))
+								.filter((request) => request.url.endsWith(turnsPath))
 								.map((request) => request.url),
 						),
 					).toEqual(new Set([`${hubUrl}${turnsPath}`]));

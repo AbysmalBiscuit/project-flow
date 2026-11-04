@@ -31,11 +31,14 @@ import type {
 import type { ArtifactsRead } from "./factory-run-artifacts.ts";
 import type { CheckpointRead } from "./factory-run-detail.ts";
 import type { FilesRead } from "./factory-run-files.ts";
+import type { HistoryAnswer } from "./factory-run-history.ts";
 import type { SandboxRead } from "./factory-run-sandbox.ts";
 import type { RunSettingsRead } from "./factory-run-settings.ts";
 import type { SourceRead } from "./factory-run-source.ts";
 import type { TranscriptRead } from "./factory-run-transcript.ts";
 import type { ProjectRef } from "./project-ref.ts";
+import type { StageEvent } from "./run-history.ts";
+import type { RecordedTurn } from "./run-usage.ts";
 
 export type { Snapshot, WorkcellRun };
 
@@ -223,6 +226,13 @@ export type FactoryReader = {
 		lastEventId: string | null,
 		client: AbortSignal,
 	) => Response | null;
+	/**
+	 * `GET /runs/{id}/events` of an ended run, read to the end of the stream:
+	 * the hub that reports the run, or else its box.
+	 */
+	eventLog: (runId: string) => Promise<HistoryAnswer<StageEvent[]>>;
+	/** `GET /runs/{id}/turns` of the factory whose row gives the run its status. */
+	turns: (runId: string) => Promise<HistoryAnswer<RecordedTurn[]>>;
 	/**
 	 * `GET /runs/{id}/artifacts` of the hub that reports the run, or else of its box.
 	 * "missing" when no factory reported the run or the factory did not answer,
