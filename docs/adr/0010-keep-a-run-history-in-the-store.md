@@ -15,7 +15,7 @@ Project Flow keeps a run history in its SQLite store. The run history holds one 
 - The store stays a cache for the runs that the factories still list: the next factory read fills their rows again after a lost store. The rows of other runs are lost with the store.
 - Insight queries run on a second, read-only SQLite connection, so a query cannot change the store.
 - Later run history tables, such as host samples, follow the same rule: Project Flow fills them from factory routes and keeps them in the store.
-- Stage rows come from the stage events of the factory feed. An ended run with no stage rows gets its stage rows from one read of its event log.
+- Stage rows come from the stage events of the factory feed. An ended run with no stage rows gets its stage rows from one read of its event log. The same read gives the package sha of the run, from its `workflow.started` event.
 - Turn rows come from one `GET /runs/{id}/turns` read of each ended run, because the turns of an ended run do not change.
 - Ask rows come from the asks reads that Project Flow already sends.
 - The verification record of a run comes from one `GET /runs/{id}/verification` read of each ended run. A 404 stores no record, and the Verification tab names the factory that does not serve the route.

@@ -152,10 +152,9 @@ export function factoryFetch(
 			throw new TypeError("Unable to connect");
 		}
 		const answer = answers[url.pathname];
-		const body =
-			typeof answer === "function"
-				? answer(url, init?.method ?? "GET")
-				: answer;
+		const body: unknown = await (typeof answer === "function"
+			? answer(url, init?.method ?? "GET")
+			: answer);
 		if (body instanceof EventFeed) {
 			return body.answer(init?.signal);
 		}

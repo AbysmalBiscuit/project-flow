@@ -13,9 +13,22 @@ import type { FlowGap } from "./graph-flow.ts";
 import type { NodeSize } from "./graph-sizes.ts";
 import type { GraphDirection } from "./view-settings.ts";
 
-export const stageSize = { width: 216, height: 84 };
+/** The size of each stage card, and the gaps between the stages. */
+export type StageScale = { size: NodeSize; gap: FlowGap };
 
-const stageGap: FlowGap = { along: 300, across: 140 };
+export const stageSize: NodeSize = { width: 216, height: 84 };
+
+/** The run page: each card holds the run state of its stage. */
+export const runStageScale: StageScale = {
+	size: stageSize,
+	gap: { along: 300, across: 140 },
+};
+
+/** The Workflows diagram: each card holds only the stage label and its role. */
+export const diagramStageScale: StageScale = {
+	size: { width: 112, height: 40 },
+	gap: { along: 72, across: 32 },
+};
 
 /** The gap between a child graph frame's border and its stages. */
 export const stageFramePad = 16;
@@ -75,12 +88,14 @@ export async function layoutWorkflow(
 	open: ReadonlySet<string>,
 	direction: GraphDirection,
 	textSize: (text: string) => NodeSize,
+	scale: StageScale = runStageScale,
 ): Promise<WorkflowLayout> {
+	const stageSize = scale.size;
 	const framed = openCallers(graph, open);
 	// A workflow loops back often. Breaking cycles depth first from the nodes in
 	// workflow order keeps each edge out of start pointing along the flow.
 	const options = {
-		...directionOptions(direction, stageSize, stageGap),
+		...directionOptions(direction, stageSize, scale.gap),
 		"elk.layered.cycleBreaking.strategy": "DEPTH_FIRST",
 		"elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
 	};

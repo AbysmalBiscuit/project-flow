@@ -3,6 +3,7 @@ import type { FactoryEntry, FactoryFloor } from "./factories.ts";
 import type { Slots } from "./factory-kind.ts";
 import type { RunHistoryEnd, StageCost, StageSample } from "./run-history.ts";
 import type { RunListRow } from "./run-list.ts";
+import { percentile } from "./stats.ts";
 import { numberedKey } from "./ticket-key.ts";
 
 const dayMs = 24 * 60 * 60 * 1_000;
@@ -181,11 +182,6 @@ function slotsOf(boxes: FactoryCard[]): Slots | null {
 			}));
 }
 
-/** The nearest-rank percentile of sorted values. */
-function percentile(sorted: number[], share: number): number {
-	return sorted[Math.max(0, Math.ceil(share * sorted.length) - 1)] ?? 0;
-}
-
 /** A stage duration, with the runs that completed the stage, which decide its stall rule. */
 type StageStats = StageDuration & { endedRuns: number };
 
@@ -202,9 +198,9 @@ function stageDurations(
 				(event) =>
 					event.event === "stage.completed" && event.durationS !== null,
 			);
-			const durations = completions
-				.flatMap((event) => (event.durationS === null ? [] : [event.durationS]))
-				.toSorted((left, right) => left - right);
+			const durations = completions.flatMap((event) =>
+				event.durationS === null ? [] : [event.durationS],
+			);
 			const retries = events.filter(
 				(event) => event.event === "stage.retrying",
 			).length;
@@ -215,8 +211,8 @@ function stageDurations(
 				runs,
 				endedRuns: new Set(completions.map((event) => event.runId)).size,
 				samples: durations.length,
-				p50S: percentile(durations, 0.5),
-				p95S: percentile(durations, 0.95),
+				p50S: percentile(durations, 0.5) ?? 0,
+				p95S: percentile(durations, 0.95) ?? 0,
 				retriesPerRun: retries / runs,
 				costPerRun:
 					stageCosts.length === 0

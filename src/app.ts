@@ -58,6 +58,7 @@ import { storeHoldsRead } from "./stored-page.ts";
 import { needsYouSeenId } from "./ticket-key.ts";
 import { projectTrackers } from "./tracker-route.ts";
 import { verificationRoutes } from "./verification-routes.ts";
+import { workflowsRoutes } from "./workflows-routes.ts";
 import { guardWrites } from "./write-guard.ts";
 
 const elkWorkerFile = Bun.resolveSync(
@@ -556,6 +557,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			pathname === "/runs" ||
 			pathname.startsWith("/runs/") ||
 			pathname === "/factories" ||
+			pathname === "/workflows" ||
 			pathname === "/verification" ||
 			pathname === "/insights"
 		) {
@@ -589,6 +591,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				"/runs": pageResponse,
 				"/runs/*": pageResponse,
 				"/factories": pageResponse,
+				"/workflows": pageResponse,
 				"/verification": pageResponse,
 				"/insights": pageResponse,
 				"/api/overview": {
@@ -711,6 +714,12 @@ export async function start(options: StartOptions): Promise<Running> {
 					ticketUrls: () => trackedTicketUrls(pollOptions, configuration),
 					recordRuns,
 					checkFactories,
+				}),
+				...workflowsRoutes({
+					factories,
+					history: opened.history,
+					runList: () => factoryRunList(pollOptions, configuration),
+					recordRuns,
 				}),
 				...verificationRoutes({
 					factories,

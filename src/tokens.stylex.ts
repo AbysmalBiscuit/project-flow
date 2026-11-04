@@ -396,6 +396,8 @@ export const measure = stylex.defineVars({
 	insightEditor: "9rem",
 	tileMin: "150px",
 	boxCardMin: "340px",
+	workflowCardMin: "300px",
+	statGap: "1.25rem",
 	meterLabel: "7.5rem",
 	meterValue: "8rem",
 	meterBar: "0.55rem",

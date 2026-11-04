@@ -5,6 +5,7 @@ import {
 	type Edge,
 	EdgeLabelRenderer,
 	type EdgeProps,
+	type FitViewOptions,
 	Handle,
 	MarkerType,
 	type Node,
@@ -12,6 +13,7 @@ import {
 	Position,
 	ReactFlow,
 	ReactFlowProvider,
+	type Viewport,
 } from "@xyflow/react";
 import { useCallback, useMemo, useState } from "react";
 
@@ -30,10 +32,12 @@ import { float, FloatPanel } from "./graph-float.tsx";
 import { GraphTools } from "./graph-pane.tsx";
 import { DirectionSwitch } from "./graph-switches.tsx";
 import {
+	diagramStageScale,
 	type LaidEdge,
 	layoutWorkflow,
+	runStageScale,
 	stageFrameId,
-	stageSize,
+	type StageScale,
 	type WorkflowLayout,
 } from "./graph-workflow.ts";
 import { panel } from "./panel-styles.ts";
@@ -151,6 +155,25 @@ const styles = stylex.create({
 	legendText: {
 		position: "static",
 	},
+	roleCard: {
+		display: "flex",
+		flexDirection: "column",
+		alignItems: "center",
+		minWidth: 0,
+		textAlign: "center",
+	},
+	roleLabel: {
+		maxWidth: "100%",
+		overflow: "hidden",
+		color: colours.ink,
+		fontSize: type.small,
+		textOverflow: "ellipsis",
+		whiteSpace: "nowrap",
+	},
+	roleName: {
+		color: colours.inkSoft,
+		fontSize: type.meta,
+	},
 });
 
 /** The inner gap of each shape, so that the stage text stays inside the outline. */
@@ -205,13 +228,42 @@ const outlines: Record<string, Mark[]> = {
 	house: [{ points: "50,0 100,30 100,100 0,100 0,30", closed: true }],
 };
 
+/** The border of a workflow stage in the colour of its agent role. A stage with no role is a tool stage. */
+const roleStroke = stylex.create({
+	implementer: { stroke: colours.accent },
+	verifier: { stroke: colours.awaitingMerge },
+	reviewer: { stroke: colours.done },
+	receiver: { stroke: colours.warn },
+	senior: { stroke: colours.danger },
+	manager: { stroke: colours.lineStrong },
+	tool: { stroke: colours.inkSoft },
+});
+
+const roleOutline = stylex.create({
+	other: { stroke: colours.inkMuted },
+	all: { fill: colours.raised, strokeWidth: measure.focus },
+});
+
+const roleStrokes: ReadonlyMap<string, stylex.StyleXStyles> = new Map(
+	Object.entries(roleStroke),
+);
+
+function roleStrokeOf(role: string | undefined): stylex.StyleXStyles {
+	return [
+		roleOutline.all,
+		role === undefined
+			? roleStroke.tool
+			: (roleStrokes.get(role) ?? roleOutline.other),
+	];
+}
+
 function Outline({
 	shape,
-	state,
+	stroke,
 	layout,
 }: {
 	shape: string;
-	state: RunGraphNodeState;
+	stroke: stylex.StyleXStyles;
 	layout: stylex.StyleXStyles;
 }) {
 	const marks = outlines[shape] ?? outlines.box ?? [];
@@ -228,7 +280,7 @@ function Outline({
 						key={mark.points}
 						points={mark.points}
 						vectorEffect="non-scaling-stroke"
-						className={clsx(stageStroke[state])}
+						className={clsx(stroke)}
 					/>
 				) : (
 					<polyline
@@ -236,7 +288,7 @@ function Outline({
 						points={mark.points}
 						vectorEffect="non-scaling-stroke"
 						fill="none"
-						className={clsx(stageStroke[state])}
+						className={clsx(stroke)}
 						data-mark={index}
 					/>
 				),
@@ -251,6 +303,8 @@ type StageNode = Node<
 		shape: string;
 		kind: string;
 		child: { open: boolean; toggle: () => void } | null;
+		/** Set when the graph shows the agent role of each stage instead of its run state. */
+		role: { name: string | undefined } | null;
 	},
 	"stage"
 >;
@@ -259,12 +313,15 @@ type FrameNode = Node<Record<string, never>, "frame">;
 
 type RouteEdge = Edge<Pick<LaidEdge, "points" | "text" | "condition">, "route">;
 
-function Stage({ data: { facts, shape, kind, child } }: NodeProps<StageNode>) {
+function Stage({
+	data: { facts, shape, kind, child, role },
+}: NodeProps<StageNode>) {
 	return (
 		<div
 			className={clsx(styles.stage, inset[insetOf[shape] ?? "box"])}
 			data-shape={shape}
 			data-kind={kind}
+			data-role={role?.name}
 			data-child={child === null ? undefined : child.open ? "open" : "closed"}
 		>
 			<Handle
@@ -274,11 +331,24 @@ function Stage({ data: { facts, shape, kind, child } }: NodeProps<StageNode>) {
 			/>
 			<Outline
 				shape={shape}
-				state={facts.stage.state}
+				stroke={
+					role === null
+						? stageStroke[facts.stage.state]
+						: roleStrokeOf(role.name)
+				}
 				layout={styles.outline}
 			/>
 			<span className={clsx(styles.body)}>
-				<StageCard facts={facts} />
+				{role === null ? (
+					<StageCard facts={facts} />
+				) : (
+					<span className={clsx(styles.roleCard)} title={facts.stage.label}>
+						<span className={clsx(styles.roleLabel)}>{facts.stage.label}</span>
+						<span className={clsx(styles.roleName)}>
+							{role.name ?? stageKindLabel(kind)}
+						</span>
+					</span>
+				)}
 			</span>
 			{child === null ? null : (
 				<span className={`nodrag nopan ${clsx(styles.toggle)}`}>
@@ -361,11 +431,12 @@ function textSize(text: string) {
 	return { width: text.length * textCharWidth + 8, height: textHeight };
 }
 
-/** Lays out the graph again only when its stages, edges, open frames or direction change. */
+/** Lays out the graph again only when its stages, edges, open frames, direction or scale change. */
 function useLaidWorkflow(
 	graph: Graph,
 	open: ReadonlySet<string>,
 	direction: GraphDirection,
+	scale: StageScale,
 ): WorkflowLayout | undefined {
 	const shape = JSON.stringify([
 		graph.nodes.map((node) => [
@@ -375,10 +446,12 @@ function useLaidWorkflow(
 		graph.edges,
 		[...open].toSorted(),
 		direction,
+		scale,
 	]);
 	return useQuery({
 		queryKey: ["runGraphLayout", shape],
-		queryFn: () => layoutWorkflow(elk(), graph, open, direction, textSize),
+		queryFn: () =>
+			layoutWorkflow(elk(), graph, open, direction, textSize, scale),
 		staleTime: Number.POSITIVE_INFINITY,
 	}).data;
 }
@@ -389,6 +462,7 @@ function flowOf(
 	factsOf: (stage: StageFacts["stage"]) => StageFacts,
 	open: ReadonlySet<string>,
 	toggle: (id: string) => void,
+	roles: boolean,
 ) {
 	const frames: FrameNode[] = [...laid.frames].map(([caller, rect]) => ({
 		id: stageFrameId(caller),
@@ -405,6 +479,7 @@ function flowOf(
 			child: StageNode["data"]["child"],
 			shape: string,
 			kind: string,
+			role: string | undefined,
 		): StageNode[] => {
 			const at = laid.stages.get(stage.id);
 			return at === undefined
@@ -414,8 +489,14 @@ function flowOf(
 							id: stage.id,
 							type: "stage",
 							position: at,
-							...stageSize,
-							data: { facts: factsOf(stage), shape, kind, child },
+							...(roles ? diagramStageScale : runStageScale).size,
+							data: {
+								facts: factsOf(stage),
+								shape,
+								kind,
+								child,
+								role: roles ? { name: role } : null,
+							},
 						},
 					];
 		};
@@ -424,9 +505,9 @@ function flowOf(
 				? null
 				: { open: open.has(node.id), toggle: () => toggle(node.id) };
 		return [
-			...stageNode(node, child, node.shape, node.kind),
+			...stageNode(node, child, node.shape, node.kind, node.role),
 			...(node.child ?? []).flatMap((stage) =>
-				stageNode(stage, null, "box", ""),
+				stageNode(stage, null, "box", "", undefined),
 			),
 		];
 	});
@@ -472,7 +553,11 @@ function Legend({ graph }: { graph: Graph }) {
 						className={clsx(board.legendItem)}
 						data-legend-state={state}
 					>
-						<Outline shape="box" state={state} layout={styles.glyph} />
+						<Outline
+							shape="box"
+							stroke={stageStroke[state]}
+							layout={styles.glyph}
+						/>
 						{runStageStateLabel[state]}
 					</li>
 				))}
@@ -489,7 +574,7 @@ function Legend({ graph }: { graph: Graph }) {
 					>
 						<Outline
 							shape={node.shape}
-							state="completed"
+							stroke={stageStroke.completed}
 							layout={styles.glyph}
 						/>
 						{stageKindLabel(node.kind)}
@@ -514,18 +599,98 @@ function Legend({ graph }: { graph: Graph }) {
 
 const paneId = "run-graph";
 
-function GraphPane({
-	graph,
-	checkpoint,
-	agents,
-	onPick,
-}: {
-	graph: Graph;
+type RunState = {
 	checkpoint: RunCheckpoint;
 	agents: readonly RunAgent[];
 	onPick: (stage: string) => void;
-}) {
-	const [direction, setDirection] = useState<GraphDirection>("top-to-bottom");
+};
+
+/** The diagram pane fits the laid graph, up to the height of the run page pane. */
+const fitted = stylex.create({
+	height: (graph: number) => ({
+		height: `min(calc(${graph}px + 2 * ${space.xl}), ${measure.runGraph})`,
+	}),
+});
+
+/** The smallest zoom that keeps the diagram labels near the size of the page text. */
+const readableZoom = 0.85;
+
+/** The share of the pane that the opening view fills. */
+const paneFill = 0.92;
+
+/** The box around the laid diagram: its stages, edge routes and edge texts. */
+function laidBounds(laid: WorkflowLayout) {
+	const { width, height } = diagramStageScale.size;
+	const points = [
+		...[...laid.stages.values()].flatMap((point) => [
+			point,
+			{ x: point.x + width, y: point.y + height },
+		]),
+		...laid.edges.flatMap((edge) => [
+			...edge.points,
+			...(edge.text === undefined
+				? []
+				: [
+						edge.text,
+						{
+							x: edge.text.x + edge.text.width,
+							y: edge.text.y + edge.text.height,
+						},
+					]),
+		]),
+	];
+	const xs = points.map((point) => point.x);
+	const ys = points.map((point) => point.y);
+	const left = Math.min(...xs);
+	const top = Math.min(...ys);
+	return {
+		left,
+		top,
+		width: Math.max(...xs) - left,
+		height: Math.max(...ys) - top,
+	};
+}
+
+/**
+ * The whole diagram in the pane, at zoom 1 or less. When the whole diagram
+ * needs a zoom under the readable zoom, the view opens on the start stage.
+ */
+function openingView(
+	bounds: ReturnType<typeof laidBounds>,
+	start: Point | undefined,
+	pane: { width: number; height: number },
+): Viewport {
+	const zoom = Math.max(
+		readableZoom,
+		Math.min(
+			1,
+			(pane.width * paneFill) / bounds.width,
+			(pane.height * paneFill) / bounds.height,
+		),
+	);
+	const { height } = diagramStageScale.size;
+	const fits = (room: number, size: number) => size * zoom <= room;
+	return {
+		x:
+			fits(pane.width, bounds.width) || start === undefined
+				? (pane.width - bounds.width * zoom) / 2 - bounds.left * zoom
+				: (pane.width * (1 - paneFill)) / 2 - start.x * zoom,
+		y:
+			fits(pane.height, bounds.height) || start === undefined
+				? (pane.height - bounds.height * zoom) / 2 - bounds.top * zoom
+				: pane.height / 2 - (start.y + height / 2) * zoom,
+		zoom,
+	};
+}
+
+/** The graph view of a workflow. With no `run`, each stage border shows its agent role instead of its run state. */
+function GraphPane({ graph, run }: { graph: Graph; run: RunState | null }) {
+	const checkpoint = run?.checkpoint;
+	const agents = run?.agents;
+	const [direction, setDirection] = useState<GraphDirection>(
+		run === null ? "left-to-right" : "top-to-bottom",
+	);
+	const scale = run === null ? diagramStageScale : runStageScale;
 	const [refit, setRefit] = useState(0);
 	const [toggled, setToggled] = useState<ReadonlyMap<string, boolean>>(
 		new Map(),
@@ -544,7 +709,7 @@ function GraphPane({
 			),
 		[graph, toggled],
 	);
-	const laid = useLaidWorkflow(graph, open, direction);
+	const laid = useLaidWorkflow(graph, open, direction, scale);
 	const flow = useMemo(
 		() =>
 			laid === undefined
@@ -552,10 +717,14 @@ function GraphPane({
 				: flowOf(
 						graph,
 						laid,
-						(stage) => stageFacts(stage, checkpoint, agents),
+						(stage) =>
+							checkpoint === undefined
+								? { stage, tool: null, usage: undefined }
+								: stageFacts(stage, checkpoint, agents ?? []),
 						open,
 						(id) =>
 							setToggled((before) => new Map(before).set(id, !open.has(id))),
+						checkpoint === undefined,
 					),
 		[graph, laid, checkpoint, agents, open],
 	);
@@ -567,21 +736,40 @@ function GraphPane({
 			: laid?.frames.has(caller) === true
 				? stageFrameId(caller)
 				: caller;
-	const fit = useCallback(
-		() => ({
+	const bounds = useMemo(
+		() =>
+			run === null && laid !== undefined && laid.stages.size > 0
+				? laidBounds(laid)
+				: null,
+		[run, laid],
+	);
+	const fit = useCallback((): FitViewOptions | Viewport => {
+		const pane = document.getElementById(paneId);
+		if (bounds !== null && pane !== null) {
+			const start = graph.nodes.find((node) => node.kind === "start");
+			return openingView(bounds, laid?.stages.get(start?.id ?? ""), {
+				width: pane.clientWidth,
+				height: pane.clientHeight,
+			});
+		}
+		return {
 			maxZoom: 1,
 			padding: 0.2,
 			...(liveId === undefined ? {} : { nodes: [{ id: liveId }] }),
-		}),
-		[liveId],
-	);
+		};
+	}, [bounds, graph, laid, liveId]);
 	const fitAll = useCallback(() => ({ padding: 0.1 }), []);
 	return (
 		<>
-			<h3 className={clsx(panel.sectionLabel)}>{runGraphLabel}</h3>
+			{run === null ? null : (
+				<h3 className={clsx(panel.sectionLabel)}>{runGraphLabel}</h3>
+			)}
 			<figure
 				id={paneId}
-				className={clsx(styles.pane)}
+				{...stylex.props(
+					styles.pane,
+					bounds !== null && fitted.height(bounds.height),
+				)}
 				aria-label={runGraphLabel}
 				title={runGraphHelp}
 				data-direction={direction}
@@ -601,7 +789,7 @@ function GraphPane({
 							zoomOnDoubleClick={false}
 							onNodeClick={(_, node) => {
 								if (node.type === "stage") {
-									onPick(node.id);
+									run?.onPick(node.id);
 								}
 							}}
 							minZoom={0.1}
@@ -610,9 +798,11 @@ function GraphPane({
 							<FitLayout layout={laid} held={false} refit={refit} fit={fit} />
 						</ReactFlow>
 					)}
-					<div className={clsx(float.overlay)}>
-						<Legend graph={graph} />
-					</div>
+					{run === null ? null : (
+						<div className={clsx(float.overlay)}>
+							<Legend graph={graph} />
+						</div>
+					)}
 					<div className={clsx(float.corner)}>
 						<FloatPanel
 							id="run-graph-controls"
@@ -644,6 +834,11 @@ function GraphPane({
 	);
 }
 
+/** A workflow graph with no run: each stage in the shape of its node, its border in the colour of its role. */
+export function WorkflowDiagram({ graph }: { graph: Graph }) {
+	return <GraphPane graph={graph} run={null} />;
+}
+
 /** The run's workflow graph, each stage in the shape of its workflow node and marked from the run checkpoint. */
 export function RunGraph({
 	run,
@@ -671,9 +866,7 @@ export function RunGraph({
 			<div className={clsx(styles.graphColumn)}>
 				<GraphPane
 					graph={data.graph}
-					checkpoint={data}
-					agents={agents}
-					onPick={setPicked}
+					run={{ checkpoint: data, agents, onPick: setPicked }}
 				/>
 			</div>
 			{stage === undefined ? null : (
