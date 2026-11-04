@@ -330,6 +330,16 @@ export function runHistory(db: Database, path: string) {
 				})),
 			};
 		},
+		/** True when `sql` compiles on the read-only connection: its tables and columns exist. */
+		prepares(sql: string): boolean {
+			try {
+				reader ??= new Database(path, { readonly: true });
+				reader.prepare(sql).finalize();
+				return true;
+			} catch {
+				return false;
+			}
+		},
 		/** Run one SQL statement on the read-only connection. */
 		query(sql: string): InsightResult {
 			const started = performance.now();

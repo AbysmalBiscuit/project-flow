@@ -13,6 +13,7 @@ import { mergeTickets } from "./poll-merge.ts";
 import type { Snapshot, Store } from "./ports.ts";
 import { listedRef, projectId } from "./project-ref.ts";
 import { type RunHistory, runHistory } from "./run-history.ts";
+import { savedInsights, type SavedInsightStore } from "./saved-insights.ts";
 
 type StoredPayload = {
 	tickets: Ticket[];
@@ -114,6 +115,7 @@ export function sqliteStore(path: string): {
 	store: Store;
 	validators: ValidatorStore;
 	history: RunHistory;
+	saved: SavedInsightStore;
 	close: () => void;
 } {
 	const db = new Database(path);
@@ -200,6 +202,7 @@ export function sqliteStore(path: string): {
 		}
 	};
 	const history = runHistory(db, path);
+	const saved = savedInsights(db, history.prepares);
 	db.onInsert = countSnapshotWrite;
 	db.onUpdate = countSnapshotWrite;
 	db.onDelete = countSnapshotWrite;
@@ -419,6 +422,7 @@ export function sqliteStore(path: string): {
 			},
 		},
 		history,
+		saved,
 		close: () => {
 			history.close();
 			db.close();

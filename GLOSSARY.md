@@ -294,6 +294,14 @@ _Avoid_: Uptime, last seen
 The tickets that a hub source did not start on its last poll, in start order, with what each one waits on. Project Flow reads it from `GET /sources` of each hub, and the budget hold of each ticket from `GET /holds`.
 _Avoid_: Queued runs
 
+**Saved query**:
+An insight query that Lev keeps with a name, in the list beside the Insights editor. Lev can open, change, rename and delete it. The store keeps saved queries as user data, so a refill of the run history does not remove them.
+_Avoid_: Bookmark, favourite query
+
+**Starting insight**:
+A saved query that Project Flow adds to the store. Project Flow adds it once its tables and columns exist. A starting insight that Lev changes or deletes stays changed after a restart. The Insights page opens on the first saved query.
+_Avoid_: Default query, example query
+
 **Ticket filter**:
 The project page menu that hides tickets by lane, age, needs you, blocker and assignee. It applies to the board, the graph and the table.
 _Avoid_: Filter (when the run filter can be meant)

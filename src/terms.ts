@@ -873,8 +873,21 @@ export const insightsCopy = {
 	noChart:
 		"A chart needs two columns, a label and a number. This result shows as a table.",
 	noRows: "The query gave no rows.",
-	firstQuery:
-		"SELECT date(ended_at) AS day,\n       round(sum(cost_usd), 2) AS cost_usd\nFROM runs\nWHERE ended_at > date('now', '-14 days')\nGROUP BY day\nORDER BY day;",
+	savedQueries: "Saved queries",
+	noSaved: "No saved queries yet. Save a query to run it again.",
+	save: "Save",
+	saveAs: "Save as new",
+	rename: "Rename",
+	delete: "Delete",
+	nameField: "Name",
+	saveTitle: "Save the query",
+	saveBody: "The saved query lists beside the editor.",
+	renameTitle: "Rename the saved query",
+	renameBody: "Give the saved query a new name.",
+	deleteTitle: "Delete the saved query?",
+	deleteBody: (name: string): string => `"${name}" leaves the saved queries.`,
+	columnsOf: (table: string): string => `Columns of ${table}`,
+	preview: (table: string): string => `SELECT * FROM ${table} LIMIT 50;`,
 	meta: (rows: number, ms: number): string =>
 		`${rows.toLocaleString("en")} ${rows === 1 ? "row" : "rows"}, ${ms} ms`,
 	cut: (limit: number): string =>

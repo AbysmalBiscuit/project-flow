@@ -3,11 +3,18 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { Button } from "./button.tsx";
+import { ConfirmDialog } from "./confirm-dialog.tsx";
 import { control } from "./control-styles.ts";
-import { pageQuery, useInsightQuery } from "./queries.ts";
+import {
+	pageQuery,
+	useInsightQuery,
+	useSavedInsightChange,
+} from "./queries.ts";
 import type { InsightAnswer, InsightValue } from "./run-history.ts";
+import type { SavedInsight } from "./saved-insights.ts";
 import { PageFrame } from "./shell.tsx";
 import { insightsCopy, navLabel } from "./terms.ts";
+import { TextInput } from "./text-input.tsx";
 import {
 	colours,
 	font,
@@ -68,9 +75,70 @@ const styles = stylex.create({
 		borderBottomColor: colours.line,
 		color: colours.ink,
 	},
+	section: {
+		marginTop: space.md,
+	},
+	saved: {
+		display: "flex",
+		flexDirection: "column",
+		gap: space.twoXs,
+		margin: 0,
+		padding: 0,
+		listStyle: "none",
+	},
+	savedItem: {
+		display: "block",
+		boxSizing: "border-box",
+		width: "100%",
+		padding: `${space.xs} ${space.sm}`,
+		borderWidth: 0,
+		borderRadius: radius.menu,
+		backgroundColor: {
+			default: "transparent",
+			":hover": colours.segment,
+		},
+		color: colours.ink,
+		fontFamily: font.sans,
+		fontSize: type.menu,
+		textAlign: "left",
+		cursor: "pointer",
+	},
+	savedOn: {
+		backgroundColor: {
+			default: colours.chip,
+			":hover": colours.chip,
+		},
+	},
+	tableButton: {
+		display: "block",
+		width: "100%",
+		padding: 0,
+		borderWidth: 0,
+		backgroundColor: "transparent",
+		color: {
+			default: colours.ink,
+			":hover": colours.accent,
+		},
+		fontFamily: font.mono,
+		fontSize: type.meta,
+		textAlign: "left",
+		cursor: "pointer",
+	},
+	tableOn: {
+		fontWeight: type.weight,
+	},
+	columns: {
+		margin: `${space.xs} 0 0`,
+		padding: `0 0 0 ${space.md}`,
+		listStyle: "none",
+		color: colours.inkSoft,
+		fontSize: type.lane,
+		lineHeight: type.line,
+	},
 	head: {
 		display: "flex",
 		flexWrap: "wrap",
+		minHeight: measure.control,
 		gap: space.sm,
 		alignItems: "center",
 		marginBottom: space.md,
@@ -232,6 +300,7 @@ const styles = stylex.create({
 		color: colours.ink,
 		fontSize: type.menu,
 		verticalAlign: "middle",
+		whiteSpace: "nowrap",
 	},
 	number: {
 		textAlign: "right",
@@ -254,6 +323,24 @@ function chartable(answer: InsightAnswer): boolean {
 
 function shown(value: InsightValue): string {
 	return value === null ? "null" : String(value);
+}
+
+const decimals = new Intl.NumberFormat("en", {
+	maximumFractionDigits: 4,
+	useGrouping: false,
+});
+
+const smallDecimals = new Intl.NumberFormat("en", {
+	maximumSignificantDigits: 4,
+	useGrouping: false,
+});
+
+/** A table cell: a non-integer keeps at most 4 decimals, and a value under 1 keeps 4 significant digits. */
+function cell(value: InsightValue): string {
+	if (typeof value !== "number" || Number.isInteger(value)) {
+		return shown(value);
+	}
+	return (Math.abs(value) < 1 ? smallDecimals : decimals).format(value);
 }
 
 function BarChart({ rows }: { rows: InsightValue[][] }) {
@@ -315,7 +402,7 @@ function ResultTable({ answer }: { answer: InsightAnswer }) {
 										value === null && styles.empty,
 									)}
 								>
-									{shown(value)}
+									{cell(value)}
 								</td>
 							))}
 						</tr>
@@ -344,44 +431,146 @@ function Result({ answer, view }: { answer: InsightAnswer; view: View }) {
 	);
 }
 
+type Dialog = "save" | "rename" | "delete" | null;
+
 export function Page() {
 	const tables = useQuery(pageQuery.insightTables);
+	const saved = useQuery(pageQuery.savedInsights);
 	const query = useInsightQuery();
-	const [sql, setSql] = useState<string>(insightsCopy.firstQuery);
+	const change = useSavedInsightChange();
+	const [sql, setSql] = useState("");
 	const [view, setView] = useState<View>("chart");
-	const run = () => {
-		if (sql.trim() !== "") {
-			query.mutate(sql);
+	const [openId, setOpenId] = useState<number | null>(null);
+	const [openTable, setOpenTable] = useState<string | null>(null);
+	const [dialog, setDialog] = useState<Dialog>(null);
+	const [name, setName] = useState("");
+	const queries = saved.data?.queries ?? [];
+	const open = queries.find((item) => item.id === openId) ?? null;
+	const runSql = (text: string) => {
+		if (text.trim() !== "") {
+			query.mutate(text);
 		}
 	};
-	// The page opens with the result of its first query.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: runs once on mount
+	const openSaved = (item: SavedInsight) => {
+		setOpenId(item.id);
+		setOpenTable(null);
+		setSql(item.sql);
+		setView("chart");
+		runSql(item.sql);
+	};
+	const previewTable = (table: string) => {
+		const preview = insightsCopy.preview(table);
+		setOpenId(null);
+		setOpenTable(table);
+		setSql(preview);
+		setView("table");
+		runSql(preview);
+	};
+	// The page opens on the first saved query, with its result.
+	const first = queries[0];
+	const [opened, setOpened] = useState(false);
 	useEffect(() => {
-		query.mutate(insightsCopy.firstQuery);
-	}, []);
+		if (!opened && first !== undefined) {
+			setOpened(true);
+			openSaved(first);
+		}
+	});
+	const closeDialog = () => {
+		setDialog(null);
+		setName("");
+	};
 	const result = query.data;
 	const answer = result !== undefined && "rows" in result ? result : null;
 	const canChart = answer !== null && chartable(answer);
 	return (
 		<PageFrame title={navLabel.insights} subtitle={insightsCopy.subtitle}>
 			<div className={clsx(styles.grid)}>
-				<section className={clsx(styles.card)} aria-label={insightsCopy.tables}>
-					<h2 className={clsx(styles.kicker)}>{insightsCopy.tables}</h2>
-					<ul className={clsx(styles.tables)}>
-						{(tables.data?.tables ?? []).map((table) => (
-							<li
-								key={table.name}
-								className={clsx(styles.tableName)}
-								title={table.columns.join(", ")}
-							>
-								{table.name}
-							</li>
-						))}
-					</ul>
-				</section>
-				<section className={clsx(styles.card)} aria-label={insightsCopy.query}>
+				<div className={clsx(styles.card)}>
+					<section aria-label={insightsCopy.savedQueries}>
+						<h2 className={clsx(styles.kicker)}>{insightsCopy.savedQueries}</h2>
+						{saved.isSuccess && queries.length === 0 ? (
+							<p className={clsx(styles.note)}>{insightsCopy.noSaved}</p>
+						) : (
+							<ul className={clsx(styles.saved)}>
+								{queries.map((item) => (
+									<li key={item.id}>
+										<button
+											type="button"
+											aria-current={item.id === openId || undefined}
+											className={clsx(
+												styles.savedItem,
+												control.focus,
+												item.id === openId && styles.savedOn,
+											)}
+											onClick={() => openSaved(item)}
+										>
+											{item.name}
+										</button>
+									</li>
+								))}
+							</ul>
+						)}
+					</section>
+					<section
+						className={clsx(styles.section)}
+						aria-label={insightsCopy.tables}
+					>
+						<h2 className={clsx(styles.kicker)}>{insightsCopy.tables}</h2>
+						<ul className={clsx(styles.tables)}>
+							{(tables.data?.tables ?? []).map((table) => (
+								<li key={table.name} className={clsx(styles.tableName)}>
+									<button
+										type="button"
+										aria-expanded={table.name === openTable}
+										className={clsx(
+											styles.tableButton,
+											control.focus,
+											table.name === openTable && styles.tableOn,
+										)}
+										onClick={() => previewTable(table.name)}
+									>
+										{table.name}
+									</button>
+									{table.name === openTable ? (
+										<ul
+											className={clsx(styles.columns)}
+											aria-label={insightsCopy.columnsOf(table.name)}
+										>
+											{table.columns.map((column) => (
+												<li key={column}>{column}</li>
+											))}
+										</ul>
+									) : null}
+								</li>
+							))}
+						</ul>
+					</section>
+				</div>
+				<section
+					className={clsx(styles.card)}
+					aria-label={open?.name ?? insightsCopy.query}
+				>
 					<div className={clsx(styles.head)}>
-						<h2 className={clsx(styles.heading)}>{insightsCopy.query}</h2>
+						<h2 className={clsx(styles.heading)}>
+							{open?.name ?? insightsCopy.query}
+						</h2>
+						{open === null ? null : (
+							<>
+								<Button
+									icon="pencil"
+									name={insightsCopy.rename}
+									onClick={() => {
+										setName(open.name);
+										setDialog("rename");
+									}}
+								/>
+								<Button
+									icon="trash"
+									name={insightsCopy.delete}
+									onClick={() => setDialog("delete")}
+								/>
+							</>
+						)}
 						<span className={clsx(styles.source)}>{insightsCopy.source}</span>
 					</div>
 					{/* The global stylesheet gives a textarea the font of its parent. */}
@@ -395,7 +584,7 @@ export function Page() {
 							onKeyDown={(event) => {
 								if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
 									event.preventDefault();
-									run();
+									runSql(sql);
 								}
 							}}
 						/>
@@ -403,7 +592,7 @@ export function Page() {
 					<div className={clsx(styles.toolbar)}>
 						<Button
 							label={insightsCopy.run}
-							onClick={run}
+							onClick={() => runSql(sql)}
 							disabled={query.isPending}
 						/>
 						<div
@@ -445,15 +634,90 @@ export function Page() {
 								{insightsCopy.meta(answer.rowCount, answer.ms)}
 							</span>
 						)}
+						{open !== null && sql !== open.sql ? (
+							<Button
+								label={insightsCopy.save}
+								disabled={sql.trim() === "" || change.isPending}
+								onClick={() =>
+									change.mutate({ kind: "change", id: open.id, sql })
+								}
+							/>
+						) : null}
+						<Button
+							label={insightsCopy.saveAs}
+							disabled={sql.trim() === "" || change.isPending}
+							onClick={() => setDialog("save")}
+						/>
 					</div>
 					{result !== undefined && "error" in result ? (
 						<p className={clsx(styles.error)} role="alert">
 							{result.error}
 						</p>
 					) : null}
+					{change.error === null ? null : (
+						<p className={clsx(styles.error)} role="alert">
+							{change.error.message}
+						</p>
+					)}
 					{answer === null ? null : <Result answer={answer} view={view} />}
 				</section>
 			</div>
+			<ConfirmDialog
+				id="insight-name-dialog"
+				open={dialog === "save" || dialog === "rename"}
+				title={
+					dialog === "rename"
+						? insightsCopy.renameTitle
+						: insightsCopy.saveTitle
+				}
+				body={
+					dialog === "rename" ? insightsCopy.renameBody : insightsCopy.saveBody
+				}
+				confirmLabel={
+					dialog === "rename" ? insightsCopy.rename : insightsCopy.save
+				}
+				confirmDisabled={name.trim() === ""}
+				onCancel={closeDialog}
+				onConfirm={() => {
+					if (dialog === "rename" && open !== null) {
+						change.mutate({ kind: "change", id: open.id, name });
+					} else {
+						change.mutate(
+							{ kind: "create", name, sql },
+							{
+								onSuccess: (created) => {
+									if (created !== null) {
+										setOpenId(created.id);
+										setOpenTable(null);
+									}
+								},
+							},
+						);
+					}
+					closeDialog();
+				}}
+			>
+				<TextInput
+					aria-label={insightsCopy.nameField}
+					value={name}
+					onChange={(event) => setName(event.target.value)}
+				/>
+			</ConfirmDialog>
+			<ConfirmDialog
+				id="insight-delete-dialog"
+				open={dialog === "delete"}
+				title={insightsCopy.deleteTitle}
+				body={insightsCopy.deleteBody(open?.name ?? "")}
+				confirmLabel={insightsCopy.delete}
+				onCancel={closeDialog}
+				onConfirm={() => {
+					if (open !== null) {
+						change.mutate({ kind: "delete", id: open.id });
+						setOpenId(null);
+					}
+					closeDialog();
+				}}
+			/>
 		</PageFrame>
 	);
 }
