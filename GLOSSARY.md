@@ -276,7 +276,7 @@ _Avoid_: Runs list (when the stored rows are meant), run archive
 
 **Insight query**:
 One read-only SQL statement over the run history, which Lev runs on the Insights page. The route refuses a write and more than one statement, and cuts a large result at a row limit. A result of a label column and a number column shows as a bar chart.
-_Avoid_: Report, SQL query (when the Insights page is meant)
+_Avoid_: SQL query (when the Insights page is meant)
 
 **Ticket filter**:
 The project page menu that hides tickets by lane, age, needs you, blocker and assignee. It applies to the board, the graph and the table.
