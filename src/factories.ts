@@ -35,6 +35,7 @@ import {
 } from "./factory-run-detail.ts";
 import { runEventsReader } from "./factory-run-events.ts";
 import { runFilesReader } from "./factory-run-files.ts";
+import { runHistoryReader } from "./factory-run-history.ts";
 import { runPullReader } from "./factory-run-pulls.ts";
 import {
 	asksOf,
@@ -53,6 +54,7 @@ import { runTranscriptReader } from "./factory-run-transcript.ts";
 import { linearSourcesOf } from "./factory-sources.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FactoryReader } from "./ports.ts";
+import type { StageEvent } from "./run-history.ts";
 import { WatchedMap, WatchedSet } from "./watched.ts";
 
 /** A factory that this launch reads, and what its last check found. */
@@ -97,6 +99,12 @@ export function flagFactory(value: string): Factory | { error: string } {
 	};
 }
 
+/** Takes the stage events of the factory feed and the asks of each asks read, for the run history. */
+export type HistorySink = {
+	stage: (runId: string, event: StageEvent) => void;
+	asks: (runId: string, asks: RunAsks) => void;
+};
+
 type Found = Pick<FactoryEntry, "reachable" | "kind" | "boxes" | "slots">;
 
 const activeKinds: ReadonlySet<RunStatusKind> = new Set([
@@ -118,6 +126,7 @@ export function factoryReader(
 	listed: () => ListedFactory[],
 	signal: AbortSignal,
 	now: () => Date,
+	history: HistorySink = { stage: () => {}, asks: () => {} },
 ): FactoryReader {
 	/** Counts the writes to the state that the run list reads. */
 	let runWrites = 0;
@@ -153,6 +162,7 @@ export function factoryReader(
 	};
 	/** Each ask and answer that is new to the thread of a run joins it. */
 	const threadAsks = (runId: string, asks: RunAsks): void => {
+		history.asks(runId, asks);
 		for (const ask of asks.answered) {
 			// The factory gives no ask time for an answered ask, so the ask takes the answer time.
 			addMessage(
@@ -455,6 +465,14 @@ export function factoryReader(
 				);
 			}
 		}
+		if (frame.item !== undefined && frame.recorded_at !== undefined) {
+			history.stage(frame.run_id, {
+				event: frame.item.event,
+				stage: frame.item.node_path,
+				at: frame.recorded_at,
+				data: frame.item.data,
+			});
+		}
 		if (frame.item !== undefined) {
 			lastEvents.set(frame.run_id, {
 				event: frame.item.event,
@@ -635,6 +653,7 @@ export function factoryReader(
 			lastEvents,
 		}),
 		events: runEventsReader({ fetchImpl, signal, statusRowOf }),
+		...runHistoryReader({ fetchImpl, signal, statusRowOf }),
 		...runArtifactsReader({ fetchImpl, signal, statusRowOf }),
 		sandbox,
 		files: runFilesReader({ fetchImpl, signal, statusRowOf, sandbox }),
