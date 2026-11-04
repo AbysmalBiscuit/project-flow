@@ -935,8 +935,8 @@ export const factoriesCopy = {
 	noSlots: "no factory reports slots",
 	longestWait: (span: string): string => `longest wait ${span}`,
 	noWait: "nothing waits",
-	attentionParts: (failed: number, asks: number): string =>
-		`${failed} failed, ${plural(asks, "question", "questions")}`,
+	attentionParts: (failed: number, stalled: number, asks: number): string =>
+		`${failed} failed, ${stalled} stalled, ${plural(asks, "question", "questions")}`,
 	versus: (change: number): string =>
 		`${change > 0 ? "+" : ""}${change} vs previous 24h`,
 	reasons: (reasons: readonly { reason: string; count: number }[]): string =>
@@ -961,10 +961,15 @@ export const factoriesCopy = {
 		running: "GET /runs, /checkpoint, /workers",
 		attention: "GET /runs, /questions",
 		queue: "GET /sources, /holds",
+		outcomes: "project-flow from GET /runs",
+		stageEvents: "stage.completed events",
+		stageAggregate: "project-flow aggregate",
 	},
 	hostSource: `needs workcell#${hostHealthTicket}`,
 	running: "Running now",
-	runningNote: "Longest-running first. The times count up in the page.",
+	runningNote:
+		"Amber: the current stage runs past its p95 over the last 30 days, and for at least 10 minutes. Longest-running first. The times count up in the page.",
+	pastP95: "past p95",
 	noRunning: "No run runs now.",
 	columns: {
 		ticket: "Ticket",
@@ -979,10 +984,34 @@ export const factoriesCopy = {
 		source: "Source",
 		waiting: "Waiting",
 		waitsOn: "Waits on",
+		stageName: "Stage",
+		role: "Role",
+		runs: "Runs",
+		p50: "p50",
+		p95: "p95",
+		spread: "p50 (dark) to p95 (light)",
+		retries: "Retries / run",
+		costPerRun: "Cost / run",
 	},
 	attention: "Needs attention",
 	noAttention: "Nothing needs you.",
-	kind: { failed: "failed", ask: "question" },
+	kind: { failed: "failed", stalled: "stalled", ask: "question" },
+	stalledReason: (stage: string, inStage: string, p95: string): string =>
+		`${stage} ran ${inStage}, its p95 is ${p95}`,
+	outcomes: "Outcomes, last 14 days",
+	outcome: { merged: "merged", failed: "failed", stopped: "stopped" },
+	today: "today",
+	dayOutcome: (
+		label: string,
+		counts: { merged: number; failed: number; stopped: number },
+	): string =>
+		`${label}: ${counts.merged} merged, ${counts.failed} failed, ${counts.stopped} stopped`,
+	stageDurations: "Stage durations, last 30 days",
+	noStages: "No stage completed in the last 30 days.",
+	allStages: (count: number): string => `Show all ${count} stages`,
+	fewerStages: "Show fewer stages",
+	stageRole: { agent: "agent", tool: "tool" },
+	noCost: "-",
 	queue: "Queue",
 	noQueue: "No ticket waits.",
 	held: (failures: number): string =>

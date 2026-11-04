@@ -4,7 +4,7 @@ import hubEvents from "../fixtures/factory-hub-events.json";
 import hubRuns from "../fixtures/factory-hub-runs.json";
 import answeredAsks from "../fixtures/factory-run-questions-answered.json";
 import runTurns from "../fixtures/factory-run-turns.json";
-import { type Answers, EventFeed, hub } from "../support/factory.ts";
+import { type Answers, EventFeed, eventLog, hub } from "../support/factory.ts";
 import { answerWhere, insightTables, serveHub } from "./_support.ts";
 
 const runPollMs = 10_000;
@@ -21,27 +21,6 @@ const failedRun = runOf("39");
 const succeededRun = runOf("40");
 const runningRun = runOf("41");
 const queuedRun = runOf("42");
-
-/** A `GET /runs/{id}/events` answer of an ended run: each event, then the end of the stream. */
-function eventLog(
-	runId: string,
-	items: { event: string; stage: string; at: string; data: unknown }[],
-): Response {
-	return new Response(
-		items
-			.map(
-				(item, index) =>
-					`id: ${runId}-${index}\ndata: ${JSON.stringify({
-						run_id: runId,
-						id: `${runId}-${index}`,
-						recorded_at: item.at,
-						item: { event: item.event, node_path: item.stage, data: item.data },
-					})}\n\n`,
-			)
-			.join(""),
-		{ headers: { "content-type": "text/event-stream" } },
-	);
-}
 
 const succeededLog = eventLog(succeededRun.id, [
 	{
