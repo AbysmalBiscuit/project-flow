@@ -10,12 +10,12 @@ const ended: ReadonlySet<string> = new Set(endedRunStatusKinds);
 
 /**
  * Fills the run history of each end of a run once: its stage rows from its
- * event log, and its turn rows. The reads run in the background, `backfillReads` at a
+ * event log, its turn rows and its verification record. The reads run in the background, `backfillReads` at a
  * time. A failed read runs again at the next call.
  */
 export function historyBackfill(
 	history: RunHistory,
-	factories: Pick<FactoryReader, "eventLog" | "turns">,
+	factories: Pick<FactoryReader, "eventLog" | "turns" | "verification">,
 ) {
 	const queued = new Set<string>();
 	const waiting: (() => Promise<void>)[] = [];
@@ -47,6 +47,17 @@ export function historyBackfill(
 					runId,
 					endedAt,
 					answer === "not served" ? null : answer,
+				);
+			}
+			return;
+		}
+		if (read === "verification") {
+			const record = await factories.verification(runId);
+			if (record !== null) {
+				history.recordVerification(
+					runId,
+					endedAt,
+					record === "not served" ? null : record,
 				);
 			}
 			return;

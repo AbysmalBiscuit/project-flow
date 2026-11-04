@@ -123,6 +123,7 @@ export const navLabel = {
 	runs: "Runs",
 	factories: "Factories",
 	workflows: "Workflows",
+	verification: "Verification",
 	insights: "Insights",
 	refreshing: "Refreshing",
 	settings: "Settings",
@@ -326,6 +327,8 @@ export const runFactLabel = {
 	status: "Status",
 	stage: "Stage",
 	ticket: "Ticket",
+	verification: "Verification",
+	openVerification: "Open the record",
 	project: "Project",
 	box: "Box",
 	factory: "Factory",
@@ -1072,4 +1075,66 @@ export const workflowsCopy = {
 		runCost: "Cost",
 	},
 	none: "-",
+} as const;
+
+/** The percentage of `part` in `whole`, rounded, or a dash when `whole` is 0. */
+const percent = (part: number, whole: number): string =>
+	whole === 0 ? "-" : `${Math.round((part / whole) * 100)}%`;
+
+const perRun = (count: number, runs: number): string =>
+	runs === 0 ? "-" : (count / runs).toFixed(1);
+
+export const verificationCopy = {
+	subtitle:
+		"What each run proved before merge: the Done-when verdicts, the review check, the gates and CI.",
+	percent,
+	perRun,
+	tiles: {
+		firstRound: "Verified in round 1",
+		rejected: "Rejected verdicts",
+		failLines: "Review FAIL lines / run",
+		ci: "CI proof passed",
+	},
+	firstRoundDetail: (items: number): string =>
+		`last 30 days, ${plural(items, "Done-when verdict", "Done-when verdicts")}`,
+	mostOften: (reason: string | null): string =>
+		reason === null ? "no rejected verdict" : `most often: ${reason}`,
+	highSeverity: (value: string): string => `high severity ${value}`,
+	firstPush: (value: string): string => `first push ${value}`,
+	checks: "Checks",
+	reasons: "Rejection reasons",
+	noChecks: "No stored record has a check yet.",
+	noReasons: "No verdict rejects a Done-when line.",
+	columns: {
+		check: "Check",
+		kind: "Kind",
+		passRate: "Pass rate",
+		last: "Last 10 results",
+		topFailure: "Top failure",
+	},
+	noFailure: "-",
+	sources: {
+		aggregate: "project-flow aggregate",
+		store: "project-flow",
+		route: "GET /runs/{id}/verification",
+	},
+	run: "Run",
+	pickRun: "Run",
+	noRuns: "No ended run has a verification record yet.",
+	round: (round: number, last: boolean): string =>
+		round === 0 ? "Before round 1" : `Round ${round}${last ? " (final)" : ""}`,
+	doneWhen: "Done when",
+	reviewCheck: "Review check",
+	gates: "Gates and CI",
+	noDoneWhen: "The round gave no Done-when verdict.",
+	noReviewCheck: "The round has no review check line.",
+	noGates: "The round ran no gate and no CI proof.",
+	noRecord: "The factory has no verification record of this run yet.",
+	reviewState: { fail: "FAIL", kept: "KEPT", fixed: "FIXED" },
+	where: (path: string | null, line: number | null): string =>
+		path === null ? "" : line === null ? path : `${path}:${line}`,
+	notServed: (factory: string): string =>
+		`${factory} does not serve GET /runs/{id}/verification.`,
+	runNotServed:
+		"The factory of this run does not serve GET /runs/{id}/verification.",
 } as const;

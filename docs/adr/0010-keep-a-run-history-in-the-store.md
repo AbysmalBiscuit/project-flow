@@ -18,4 +18,5 @@ Project Flow keeps a run history in its SQLite store. The run history holds one 
 - Stage rows come from the stage events of the factory feed. An ended run with no stage rows gets its stage rows from one read of its event log. The same read gives the package sha of the run, from its `workflow.started` event.
 - Turn rows come from one `GET /runs/{id}/turns` read of each ended run, because the turns of an ended run do not change.
 - Ask rows come from the asks reads that Project Flow already sends.
+- The verification record of a run comes from one `GET /runs/{id}/verification` read of each ended run. A 404 stores no record, and the Verification tab names the factory that does not serve the route.
 - The backfill reads run in the background with a small fixed limit on concurrent reads, so a first start does not flood a factory.

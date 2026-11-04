@@ -6,6 +6,12 @@ import type { RunAsks } from "./factory-run-rows.ts";
 import type { RunResult, RunStatusKind } from "./kinds.ts";
 import type { RunListRow } from "./run-list.ts";
 import type { RecordedTurn } from "./run-usage.ts";
+import {
+	type RecordedRun,
+	storedResult,
+	type VerificationRecord,
+	verificationRecord,
+} from "./verification-page.ts";
 
 /** The most rows that an insight query answers. */
 export const insightRowLimit = 5_000;
@@ -99,7 +105,7 @@ const stageData = z
  * The factory reads that fill the run history of an ended run once. The
  * `events` read also stores a `package` mark, so the package sha is read once.
  */
-export type HistoryRead = "events" | "turns";
+export type HistoryRead = "events" | "turns" | "verification";
 
 /** The `workflow.started` data of an entry graph gives the sha of the workflow package. */
 const workflowStart = z.object({
@@ -138,7 +144,7 @@ export type StageUsage = {
 };
 
 /** The views that an insight query can read. */
-const queryableViews = ["runs", "stages", "turns", "asks"];
+const queryableViews = ["runs", "stages", "turns", "asks", "verdicts"];
 
 /** Whitespace, semicolons and comments: what may follow the one statement of a query. */
 const statementTail = /^(?:\s|;|--[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/)*$/;
@@ -200,6 +206,26 @@ export function runHistory(db: Database, path: string) {
 	db.run(
 		"create table if not exists run_packages (run_id text primary key, sha text not null)",
 	);
+	db.run(
+		"create table if not exists run_verifications (run_id text primary key, record text)",
+	);
+	// The view is derived, so a store from an older launch gets the current columns.
+	db.run("drop view if exists verdicts");
+	// `final` is 1 for the verdicts of the last stage of a round that gave verdicts: the
+	// judged verdicts that the Verification tab counts. `WHERE final = 1` gives its counts.
+	db.run(`
+		create view verdicts as
+		with given as (
+			select v.run_id, s.key as position, s.value ->> 'round' as round, s.value ->> 'stage' as stage,
+				s.value ->> 'node_path' as node_path, d.value ->> 'number' as number,
+				d.value ->> 'verdict' as verdict, d.value ->> 'reason' as reason, d.value ->> 'text' as text
+			from run_verifications v, json_each(v.record, '$.stages') s, json_each(s.value, '$.verdicts') d
+			where d.type = 'object'
+		)
+		select run_id, round, stage, node_path, number, verdict, reason, text,
+			position = max(position) over (partition by run_id, round) as final
+		from given
+	`);
 	db.run(
 		"create table if not exists run_history_reads (run_id text not null, read text not null, ended_at text, primary key (run_id, read))",
 	);
@@ -288,6 +314,7 @@ export function runHistory(db: Database, path: string) {
 					"run_turns",
 					"run_asks",
 					"run_packages",
+					"run_verifications",
 					"run_history_reads",
 				]) {
 					db.query(`delete from ${table} where run_id = ?`).run(runId);
@@ -365,7 +392,7 @@ export function runHistory(db: Database, path: string) {
 		},
 		/**
 		 * The reads that an ended run still needs: its event log while it has no
-		 * stage rows or no package sha, and its turns. Each read runs once for each end of the run,
+		 * stage rows or no package sha, its turns and its verification record. Each read runs once for each end of the run,
 		 * so a resumed run that ends again gets its turns read again.
 		 */
 		unread(runId: string, endedAt: string | null): HistoryRead[] {
@@ -380,7 +407,88 @@ export function runHistory(db: Database, path: string) {
 			if (!done.has("turns")) {
 				reads.push("turns");
 			}
+			if (!done.has("verification")) {
+				reads.push("verification");
+			}
 			return reads;
+		},
+		/**
+		 * Keep the verification record of an ended run, and remember the read with the
+		 * run's end time. A null record means the factory does not serve the route.
+		 */
+		recordVerification(
+			runId: string,
+			endedAt: string | null,
+			record: VerificationRecord | null,
+		): void {
+			db.transaction(() => {
+				db.query(
+					"insert into run_verifications (run_id, record) values (?, ?) on conflict(run_id) do update set record = excluded.record",
+				).run(runId, record === null ? null : JSON.stringify(record));
+				markRead.run(runId, "verification", endedAt);
+			})();
+		},
+		/** The stored record of a run: null when no read stored one, and "not served" after a 404. */
+		verificationOf(runId: string): VerificationRecord | "not served" | null {
+			const row = db
+				.query<{ record: string | null }, [string]>(
+					"select record from run_verifications where run_id = ?",
+				)
+				.get(runId);
+			if (row === null) {
+				return null;
+			}
+			return row.record === null
+				? "not served"
+				: verificationRecord.parse(JSON.parse(row.record));
+		},
+		/** The stored records of the runs that ended at or after `since`, oldest first. */
+		verifiedSince(since: Date): RecordedRun[] {
+			return db
+				.query<
+					{
+						id: string;
+						ticket: string;
+						result: string | null;
+						endedAt: string | null;
+						record: string;
+					},
+					[string]
+				>(
+					`select h.id, h.ticket, h.result, h.ended_at as endedAt, v.record from run_verifications v
+					join run_history h on h.id = v.run_id
+					where v.record is not null and julianday(h.ended_at) >= julianday(?)
+					order by julianday(h.ended_at)`,
+				)
+				.all(since.toISOString())
+				.map((row) => ({
+					...row,
+					result: storedResult.parse(row.result),
+					record: verificationRecord.parse(JSON.parse(row.record)),
+				}));
+		},
+		/** The ticket and result of a run in the history, or null for a run it does not hold. */
+		runOf(runId: string): Pick<RecordedRun, "ticket" | "result"> | null {
+			const row = db
+				.query<{ ticket: string; result: string | null }, [string]>(
+					"select ticket, result from run_history where id = ?",
+				)
+				.get(runId);
+			return row === null
+				? null
+				: { ticket: row.ticket, result: storedResult.parse(row.result) };
+		},
+		/** The factories whose newest record read found no verification route. */
+		verificationNotServed(): string[] {
+			return db
+				.query<{ factory: string }, []>(
+					`select factory from (
+						select h.factory, v.record, row_number() over (partition by h.factory order by julianday(h.ended_at) desc) as newest
+						from run_verifications v join run_history h on h.id = v.run_id
+					) where newest = 1 and record is null order by factory`,
+				)
+				.all()
+				.map((row) => row.factory);
 		},
 		/** The runs that ended at or after `since`. */
 		endedSince(since: Date): RunHistoryEnd[] {

@@ -271,12 +271,16 @@ The table of every workcell run that the factories report, with search and filte
 _Avoid_: Run log
 
 **Run history**:
-The copy of the runs that the factories report, which the store keeps. It also keeps the stages, turns and asks of each run, and its package version. Each run keeps its rows after the factory stops listing it, until Lev deletes the run. The next factory read fills it again after a lost store. Insight queries read it through views: `runs`, `stages`, `turns` and `asks`.
+The copy of the runs that the factories report, which the store keeps. It also keeps the stages, turns, asks and verification record of each run, and its package version. Each run keeps its rows after the factory stops listing it, until Lev deletes the run. The next factory read fills it again after a lost store. Insight queries read it through views: `runs`, `stages`, `turns`, `asks` and `verdicts`.
 _Avoid_: Runs list (when the stored rows are meant), run archive
 
 **Insight query**:
 One read-only SQL statement over the run history, which Lev runs on the Insights page. The route refuses a write and more than one statement, and cuts a large result at a row limit. A result of a label column and a number column shows as a bar chart.
 _Avoid_: SQL query (when the Insights page is meant)
+
+**Verification record**:
+What a run proved before its merge, as its factory serves it: the Done-when verdicts, the review check lines, the gate outcomes and checks, and the CI proof of each round. The run history stores the record of each ended run once. The Verification tab shows the record of one run and the check rates across runs. The `verdicts` view holds each verdict of each stage. Its `final` column is 1 for the last verdicts of a round, so `WHERE final = 1` gives the counts of the tab.
+_Avoid_: Verdict file, proof record
 
 **Factories tab**:
 The page that shows what each factory does now: the summary tiles, one card for each factory with its slots and heartbeat age, the live runs, the runs that need attention, and the hub queue. Each panel names its data source. A factory that does not answer shows as such, and the other panels keep working.

@@ -46,6 +46,7 @@ import type { SavedInsight, SavedInsights } from "./saved-insights.ts";
 import type { StateSource } from "./settings-write.ts";
 import { pendingStatus } from "./stale-reads.ts";
 import { storedObject } from "./stored-page.ts";
+import type { RunVerification, VerificationPage } from "./verification-page.ts";
 import type { WorkflowDetail, WorkflowsPage } from "./workflows-page.ts";
 
 type SettingsPage = {
@@ -134,6 +135,20 @@ export const pageQuery = {
 					`/api/workflows/${encodeURIComponent(name)}${sha === null ? "" : `?sha=${encodeURIComponent(sha)}`}`,
 				),
 			placeholderData: (previous: WorkflowDetail | undefined) => previous,
+		}),
+	/** A change in the factory feed reads the Verification tab again. */
+	verification: queryOptions({
+		queryKey: ["verification"],
+		queryFn: () => fetchJson<VerificationPage>("/api/verification"),
+		placeholderData: (previous: VerificationPage | undefined) => previous,
+	}),
+	verificationRun: (runId: string) =>
+		queryOptions({
+			queryKey: ["verification", "run", runId],
+			queryFn: () =>
+				fetchJson<RunVerification>(
+					`/api/verification/runs/${encodeURIComponent(runId)}`,
+				),
 		}),
 	savedInsights: queryOptions({
 		queryKey: ["saved-insights"],
@@ -938,6 +953,7 @@ function applyOverviewEvent(body: Overview): void {
 	void pageQueryClient.invalidateQueries(pageQuery.factories);
 	void pageQueryClient.invalidateQueries(pageQuery.workflows);
 	void pageQueryClient.invalidateQueries({ queryKey: ["workflow"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["verification"] });
 }
 
 function invalidatePageQueries(): void {
@@ -961,6 +977,7 @@ function invalidatePageQueries(): void {
 	void pageQueryClient.invalidateQueries(pageQuery.factories);
 	void pageQueryClient.invalidateQueries(pageQuery.workflows);
 	void pageQueryClient.invalidateQueries({ queryKey: ["workflow"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["verification"] });
 }
 
 export function wirePageQueryEvents(): void {
