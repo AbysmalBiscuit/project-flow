@@ -404,6 +404,10 @@ export const measure = stylex.defineVars({
 	step: "1.1rem",
 	stepHeight: "0.45rem",
 	stepGap: "2px",
+	outcomeChart: "8rem",
+	outcomeGap: "6px",
+	legendSwatch: "0.6rem",
+	spreadColumn: "35%",
 });
 
 export const stack = stylex.defineVars({

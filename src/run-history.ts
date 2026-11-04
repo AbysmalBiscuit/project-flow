@@ -36,6 +36,17 @@ export type RunHistoryEnd = {
 	endedAt: string;
 };
 
+/** One stage event of the run history: a completed or failed stage with its duration, or a retry. */
+export type StageSample = {
+	stage: string;
+	runId: string;
+	event: string;
+	durationS: number | null;
+};
+
+/** The cost of the turns of one run in one stage. */
+export type StageCost = { stage: string; runId: string; costUsd: number };
+
 /** The columns of the `runs` view, in order, from the run list row. */
 const runColumns = {
 	id: (row: RunListRow) => row.id,
@@ -411,6 +422,22 @@ export function runHistory(db: Database, path: string) {
 					from run_turns where run_id in (select value from json_each(?)) group by run_id, stage`,
 				)
 				.all(JSON.stringify(runIds));
+		},
+		/** The stage events at or after `since`. */
+		stageSamples(since: Date): StageSample[] {
+			return db
+				.query<StageSample, [string]>(
+					"select stage, run_id as runId, event, duration_s as durationS from run_stages where julianday(at) >= julianday(?)",
+				)
+				.all(since.toISOString());
+		},
+		/** The turn cost of each stage of each run that has a stage event at or after `since`. */
+		stageCosts(since: Date): StageCost[] {
+			return db
+				.query<StageCost, [string]>(
+					"select stage, run_id as runId, sum(coalesce(cost_usd, 0)) as costUsd from run_turns where run_id in (select run_id from run_stages where julianday(at) >= julianday(?)) group by stage, run_id",
+				)
+				.all(since.toISOString());
 		},
 		tables(): InsightTables {
 			return {

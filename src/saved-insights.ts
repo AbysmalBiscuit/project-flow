@@ -6,7 +6,13 @@ export type SavedInsight = { id: number; name: string; sql: string };
 export type SavedInsights = { queries: SavedInsight[] };
 
 /** The insight queries that a fresh store starts with, keyed by a stable id. Each one gives a label column and a number column. */
-const startingInsights: { key: string; name: string; sql: string }[] = [
+const startingInsights: {
+	key: string;
+	name: string;
+	sql: string;
+	/** Earlier SQL of the insight. A stored insight that still holds it gets `sql`, and an edited one stays. */
+	replaces?: string[];
+}[] = [
 	{
 		key: "cost-per-merged-pr-by-week",
 		name: "Cost per merged PR by week",
@@ -95,6 +101,20 @@ LIMIT 10;`,
          row_number() OVER (PARTITION BY stage ORDER BY duration_s) AS position,
          count(*) OVER (PARTITION BY stage) AS total
   FROM stages
+  WHERE event = 'stage.completed' AND duration_s IS NOT NULL
+    AND julianday(at) >= julianday('now', '-30 days')
+)
+SELECT stage, round(min(minutes), 1) AS p95_minutes
+FROM timed
+WHERE position >= 0.95 * total
+GROUP BY stage
+ORDER BY p95_minutes DESC;`,
+		replaces: [
+			`WITH timed AS (
+  SELECT stage, duration_s / 60.0 AS minutes,
+         row_number() OVER (PARTITION BY stage ORDER BY duration_s) AS position,
+         count(*) OVER (PARTITION BY stage) AS total
+  FROM stages
   WHERE event IN ('stage.completed', 'stage.failed') AND duration_s IS NOT NULL
 )
 SELECT stage, round(min(minutes), 1) AS p95_minutes
@@ -102,6 +122,7 @@ FROM timed
 WHERE position >= 0.95 * total
 GROUP BY stage
 ORDER BY p95_minutes DESC;`,
+		],
 	},
 	{
 		key: "retries-by-stage-30-days",
@@ -174,6 +195,16 @@ export function savedInsights(
 			}
 		})();
 	};
+	const replace = db.query<unknown, [string, string, string]>(
+		"update saved_queries set sql = ? where starting = ? and sql = ?",
+	);
+	db.transaction(() => {
+		for (const insight of startingInsights) {
+			for (const earlier of insight.replaces ?? []) {
+				replace.run(insight.sql, insight.key, earlier);
+			}
+		}
+	})();
 	// The store seeds when it opens, so the starting insights list before Lev's own queries.
 	seedStarting();
 	return {

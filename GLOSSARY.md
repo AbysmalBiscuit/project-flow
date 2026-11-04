@@ -99,8 +99,8 @@ The tracker status when that status lags the state.
 _Avoid_: Stale, out of date, wrong status
 
 **Run failed**:
-A workcell run that failed or stalled. The ticket drops the evidence that the run gave: a live run, a started todo and a pushed branch. Evidence from PRs still moves the ticket forward, so an open PR can set In progress, In review or Awaiting merge. With no such PR, the ticket returns to the lane of its tracker status.
-_Avoid_: Failed, error, stalled
+A workcell run that failed, or whose progress comment is older than two hours. The ticket drops the evidence that the run gave: a live run, a started todo and a pushed branch. Evidence from PRs still moves the ticket forward, so an open PR can set In progress, In review or Awaiting merge. With no such PR, the ticket returns to the lane of its tracker status.
+_Avoid_: Failed, error
 
 **Done**:
 A ticket the tracker closed as completed, or whose merged PR closes it.
@@ -291,8 +291,12 @@ The page that shows one card for each package version, with its run count, merge
 _Avoid_: Packages page, workflow list
 
 **Needs attention**:
-The list of the Factories tab that holds each run that failed in the last 24 hours with no restart or later run, and each open ask of a live run. It lists runs, and Needs you lists tickets and PRs.
+The list of the Factories tab that holds each run that failed in the last 24 hours with no restart or later run, each stalled run, and each open ask of a live run. It lists runs, and Needs you lists tickets and PRs.
 _Avoid_: Alerts
+
+**Stalled run**:
+A live run whose time in its current stage passes the p95 of that stage over the last 30 days of the run history, and is at least 10 minutes. The p95 comes from the completed visits of the stage. A stage that fewer than 10 runs completed in those 30 days has no stall rule. "Running now" marks a stalled run "past p95", and Needs attention lists it.
+_Avoid_: Stuck run, timed-out run
 
 **Heartbeat age**:
 The time since the last good `GET /daemon` read of a factory.
@@ -329,7 +333,7 @@ _Avoid_: Daemon feed, live feed
 ### Attention
 
 **Needs you**:
-A ticket or PR that only Lev can move. Reasons include an open ask to Lev, awaiting merge, decide, or a failed or stalled workcell run. A need-human or need-engineer label with Lev as assignee also counts.
+A ticket or PR that only Lev can move. Reasons include an open ask to Lev, awaiting merge, decide, or a Run failed. A need-human or need-engineer label with Lev as assignee also counts.
 _Avoid_: Waits on you, waits on Lev, needs Lev
 
 **Decide**:

@@ -40,10 +40,14 @@ export const laptopAbout = {
 	slots: { total: 2, used: 1 },
 };
 
-/** The app with the hub and, when given, the laptop daemon, on a clock fixed at `clockStart`. */
+/**
+ * The app with the hub and, when given, the laptop daemon. The clock stays at
+ * `clockStart` unless `now` replaces it.
+ */
 export async function serveFactories(
 	hubAnswers: Answers,
 	laptopAnswers?: Answers | "down",
+	now: () => Date = () => new Date(clockStart),
 ) {
 	const requests: FactoryRequest[] = [];
 	const app = await serve(
@@ -65,7 +69,7 @@ export async function serveFactories(
 		),
 		{
 			env: { GITHUB_TOKEN: "recorded-token" },
-			now: () => new Date(clockStart),
+			now,
 		},
 	);
 	return { ...app, requests };
