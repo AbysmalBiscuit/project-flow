@@ -11,6 +11,7 @@ import type {
 	RetroDetail,
 	RetroRow,
 	RetrosPage,
+	RetroStage,
 	RunRetro,
 	Smoothness,
 } from "./retros-page.ts";
@@ -27,6 +28,7 @@ import {
 	space,
 	type,
 } from "./tokens.stylex.ts";
+import { headerControlStyle } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 const styles = stylex.create({
@@ -74,10 +76,6 @@ const styles = stylex.create({
 		color: colours.ink,
 		fontSize: type.heading,
 		fontWeight: type.weight,
-	},
-	filters: {
-		display: "flex",
-		gap: space.xs,
 	},
 	source: {
 		marginLeft: "auto",
@@ -188,7 +186,10 @@ const styles = stylex.create({
 		whiteSpace: "nowrap",
 	},
 	barCell: {
-		width: "45%",
+		width: {
+			default: "45%",
+			[media.phone]: "30%",
+		},
 	},
 	link: {
 		padding: 0,
@@ -277,6 +278,16 @@ const smoothnessTone: Record<Smoothness, stylex.StyleXStyles> = {
 const shortStageS = 30;
 
 const span = (seconds: number): string => spanText(seconds * 1_000);
+
+/**
+ * The time a stage held the run. A question wait counts in the lost time but not in
+ * the stage rows, so the larger of the two shows it.
+ */
+const spent = (stage: RetroStage): number =>
+	Math.max(stage.seconds, stage.lostS);
+
+/** Lost time under a minute reads `0m`, as the run lost no whole minute. */
+const lost = (seconds: number): string => (seconds < 60 ? "0m" : span(seconds));
 
 const pickedRun = (): string | null =>
 	new URLSearchParams(window.location.search).get("run");
@@ -389,7 +400,7 @@ function RunsTable({
 								<td className={cell(styles.number)}>{run.rounds}</td>
 								<td className={cell(styles.number)}>{run.friction}</td>
 								<td className={cell(styles.number, styles.nowrap)}>
-									{span(run.timeLostS)}
+									{lost(run.timeLostS)}
 								</td>
 								<td className={cell(styles.number)}>
 									{costLabel(run.costUsd)}
@@ -428,7 +439,7 @@ function Tiles({ retro }: { retro: RetroDetail }) {
 		[retrosCopy.tiles.cost, costLabel(retro.costUsd)],
 		[retrosCopy.tiles.rounds, String(retro.rounds)],
 		[retrosCopy.tiles.retries, String(retro.retries)],
-		[retrosCopy.tiles.lost, span(retro.timeLostS)],
+		[retrosCopy.tiles.lost, lost(retro.timeLostS)],
 	] as const;
 	return (
 		<div className={clsx(styles.grid, styles.tiles)}>
@@ -442,6 +453,9 @@ function Tiles({ retro }: { retro: RetroDetail }) {
 	);
 }
 
+/** A stage path that breaks only after a `/` or a `_`, so a narrow table keeps whole words. */
+const stageName = (path: string): string => path.replace(/[/_]/g, "$&\u200b");
+
 function StageTable({ retro }: { retro: RetroDetail }) {
 	const stages = retro.stages.filter(
 		(stage) =>
@@ -450,7 +464,7 @@ function StageTable({ retro }: { retro: RetroDetail }) {
 	if (stages.length === 0) {
 		return <p className={clsx(styles.empty)}>{retrosCopy.noStages}</p>;
 	}
-	const longest = Math.max(...stages.map((stage) => stage.seconds), 1);
+	const longest = Math.max(...stages.map(spent), 1);
 	const { columns } = retrosCopy;
 	return (
 		<div className={clsx(styles.scroll)}>
@@ -474,16 +488,16 @@ function StageTable({ retro }: { retro: RetroDetail }) {
 							clsx(styles.td, last && styles.lastRow, ...more);
 						return (
 							<tr key={stage.stage}>
-								<td className={cell()}>{stage.stage}</td>
+								<td className={cell()}>{stageName(stage.stage)}</td>
 								<td className={cell(styles.number)}>
-									{Math.round(stage.seconds / 60)}
+									{Math.round(spent(stage) / 60)}
 								</td>
 								<td className={cell(styles.number)}>{stage.retries}</td>
 								<td className={cell(styles.barCell)}>
 									<span className={clsx(styles.bar)}>
 										<span
 											{...stylex.props(
-												styles.fill(`${(stage.seconds / longest) * 100}%`),
+												styles.fill(`${(spent(stage) / longest) * 100}%`),
 												stage.lostS > 0 && styles.fillLost,
 											)}
 										/>
@@ -598,7 +612,7 @@ export function Page() {
 						title={retrosCopy.runs}
 						head={
 							<>
-								<span className={clsx(styles.filters)}>
+								<span className={clsx(headerControlStyle.group)}>
 									<Segment
 										label={retrosCopy.all}
 										on={!roughOrWorse}
