@@ -139,7 +139,7 @@ export function runHistory(db: Database, path: string) {
 		"create view if not exists asks as select run_id, id, stage, text, answer, sender, answered_at from run_asks",
 	);
 	db.run(
-		"create table if not exists run_history_reads (run_id text not null, read text not null, primary key (run_id, read))",
+		"create table if not exists run_history_reads (run_id text not null, read text not null, ended_at text, primary key (run_id, read))",
 	);
 	const insertStage = db.query<unknown, SQLQueryBindings[]>(
 		"insert or ignore into run_stages (run_id, stage, event, at, duration_s, will_retry, attempt, error) values (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -154,10 +154,10 @@ export function runHistory(db: Database, path: string) {
 		answered_at = coalesce(excluded.answered_at, answered_at)`,
 	);
 	const markRead = db.query<unknown, SQLQueryBindings[]>(
-		"insert or ignore into run_history_reads (run_id, read) values (?, ?)",
+		"insert into run_history_reads (run_id, read, ended_at) values (?, ?, ?) on conflict(run_id, read) do update set ended_at = excluded.ended_at",
 	);
-	const readsOf = db.query<{ read: HistoryRead }, [string]>(
-		"select read from run_history_reads where run_id = ?",
+	const readsOf = db.query<{ read: HistoryRead }, [string, string | null]>(
+		"select read from run_history_reads where run_id = ? and ended_at is ?",
 	);
 	const hasStages = db.query<unknown, [string]>(
 		"select 1 from run_stages where run_id = ? limit 1",
@@ -221,19 +221,27 @@ export function runHistory(db: Database, path: string) {
 		/** Keep the stage row of one event of the factory feed. Other events give no row. */
 		recordStage: addStage,
 		/**
-		 * Keep the stage rows of an ended run's event log, and remember the read.
-		 * Null events mean the factory does not serve the log.
+		 * Keep the stage rows of an ended run's event log, and remember the read
+		 * with the run's end time. Null events mean the factory does not serve the log.
 		 */
-		recordEventLog(runId: string, events: StageEvent[] | null): void {
+		recordEventLog(
+			runId: string,
+			endedAt: string | null,
+			events: StageEvent[] | null,
+		): void {
 			db.transaction(() => {
 				for (const event of events ?? []) {
 					addStage(runId, event);
 				}
-				markRead.run(runId, "events");
+				markRead.run(runId, "events", endedAt);
 			})();
 		},
-		/** Keep the turn rows of an ended run, and remember the read. */
-		recordTurns(runId: string, turns: RecordedTurn[]): void {
+		/** Keep the turn rows of an ended run, and remember the read with the run's end time. */
+		recordTurns(
+			runId: string,
+			endedAt: string | null,
+			turns: RecordedTurn[],
+		): void {
 			db.transaction(() => {
 				db.query("delete from run_turns where run_id = ?").run(runId);
 				turns.forEach((turn, index) => {
@@ -248,7 +256,7 @@ export function runHistory(db: Database, path: string) {
 						JSON.stringify(turn.usage.tools),
 					);
 				});
-				markRead.run(runId, "turns");
+				markRead.run(runId, "turns", endedAt);
 			})();
 		},
 		/** Keep the open and answered asks of a run. An answer stays after its ask closes. */
@@ -280,10 +288,11 @@ export function runHistory(db: Database, path: string) {
 		},
 		/**
 		 * The reads that an ended run still needs: its event log while it has no
-		 * stage rows, and its turns. Each read runs once for each run.
+		 * stage rows, and its turns. Each read runs once for each end of the run,
+		 * so a resumed run that ends again gets its turns read again.
 		 */
-		unread(runId: string): HistoryRead[] {
-			const done = new Set(readsOf.all(runId).map((row) => row.read));
+		unread(runId: string, endedAt: string | null): HistoryRead[] {
+			const done = new Set(readsOf.all(runId, endedAt).map((row) => row.read));
 			const reads: HistoryRead[] = [];
 			if (!done.has("events") && hasStages.get(runId) === null) {
 				reads.push("events");

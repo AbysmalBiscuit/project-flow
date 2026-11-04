@@ -272,3 +272,36 @@ test("Insights lists the stages, turns and asks tables", async () => {
 		await app.stop();
 	}
 });
+
+test("a resumed run that ends again gets its turns read again", async () => {
+	let now = Date.parse("2026-10-25T15:00:00Z");
+	let endedAt = succeededRun.ended_at;
+	const app = await serveHub(
+		{
+			...backfilled,
+			"/runs": () => ({
+				runs: hubRuns.runs.map((run) =>
+					run.id === succeededRun.id ? { ...run, ended_at: endedAt } : run,
+				),
+			}),
+		},
+		undefined,
+		() => new Date(now),
+	);
+	const turnsReads = () =>
+		app.paths().filter((path) => path === `/runs/${succeededRun.id}/turns`)
+			.length;
+	try {
+		while (turnsReads() < 1) {
+			await Bun.sleep(10);
+		}
+		endedAt = "2026-10-25T16:00:00+00:00";
+		now += runPollMs;
+		while (turnsReads() < 2) {
+			await Bun.sleep(10);
+		}
+		expect(turnsReads()).toBe(2);
+	} finally {
+		await app.stop();
+	}
+});
