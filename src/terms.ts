@@ -226,6 +226,14 @@ export const steerFailed = "Steer failed";
 
 export const toastCloseLabel = "Close message";
 
+export const copyTextCopy = {
+	action: (text: string, name?: string) =>
+		name === undefined ? `Copy ${text}` : `Copy ${name} ${text}`,
+	copied: "Copied",
+	failed: "Copy failed",
+	ticketKey: "ticket key",
+} as const;
+
 export const runCancelCopy = {
 	action: "Cancel run",
 	pending: "Cancelling",

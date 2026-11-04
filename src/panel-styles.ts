@@ -60,13 +60,6 @@ export const panel = stylex.create({
 		minWidth: 0,
 		margin: 0,
 	},
-	copyKey: {
-		borderWidth: 0,
-		fontFamily: "inherit",
-		lineHeight: "inherit",
-		textAlign: "left",
-		cursor: "copy",
-	},
 	key: {
 		margin: `0 0 ${space.xs}`,
 		overflowWrap: "anywhere",
