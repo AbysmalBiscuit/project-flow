@@ -32,6 +32,8 @@ export type FactoryRun = {
 	id: string;
 	key: string;
 	repo?: string;
+	/** The name of the workflow package that the run runs. */
+	workflowPackage?: string;
 	statusKind: RunStatusKind;
 	/** The box that does the run. Null while the run waits in the hub queue. */
 	box: string | null;

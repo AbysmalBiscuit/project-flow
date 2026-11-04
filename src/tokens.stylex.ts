@@ -292,6 +292,8 @@ export const type = stylex.defineVars({
 	kicker: "0.68rem",
 	kickerTrack: "0.06em",
 	nav: "0.875rem",
+	tag: "0.7rem",
+	headTrack: "0.04em",
 });
 
 export const scheme = stylex.defineVars({
@@ -376,6 +378,9 @@ export const measure = stylex.defineVars({
 	// The tallest stage transcript before it scrolls.
 	transcript: "28rem",
 	stagePane: "26rem",
+	insightSide: "15rem",
+	insightChart: "12.5rem",
+	insightEditor: "9rem",
 });
 
 export const stack = stylex.defineVars({

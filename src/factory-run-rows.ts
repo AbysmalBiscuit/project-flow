@@ -9,6 +9,7 @@ export const runRow = z.object({
 	id: z.string(),
 	ticket: z.string(),
 	repo: z.string().nullish(),
+	package: z.string().nullish(),
 	status: z.object({
 		kind: z.enum([
 			"submitted",
@@ -101,6 +102,9 @@ export function factoryRuns(rows: unknown[], factory: Factory): ReadRun[] {
 					...(run.repo === null || run.repo === undefined
 						? {}
 						: { repo: run.repo }),
+					...(run.package === null || run.package === undefined
+						? {}
+						: { workflowPackage: run.package }),
 					statusKind: statusKindOf(run.status.kind),
 					box: local ? factory.name : machine,
 					factory: factory.name,

@@ -268,7 +268,15 @@ _Avoid_: Waiting ticket, queued run (when the ticket is meant)
 
 **Runs list**:
 The table of every workcell run that the factories report, with search and filters. Each row links to its run page. Each row shows the cost of the run from the usage totals in `GET /runs`, and Lev can sort the rows by start or by cost.
-_Avoid_: Run history, run log
+_Avoid_: Run log
+
+**Run history**:
+The copy of the runs that the factories report, which the store keeps. Each run keeps its row after the factory stops listing it. The next factory read fills it again after a lost store. Insight queries read it through views, such as `runs`.
+_Avoid_: Runs list (when the stored rows are meant), run archive
+
+**Insight query**:
+One read-only SQL statement over the run history, which Lev runs on the Insights page. The route refuses a write and more than one statement, and cuts a large result at a row limit. A result of a label column and a number column shows as a bar chart.
+_Avoid_: Report, SQL query (when the Insights page is meant)
 
 **Ticket filter**:
 The project page menu that hides tickets by lane, age, needs you, blocker and assignee. It applies to the board, the graph and the table.
