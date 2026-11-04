@@ -99,8 +99,8 @@ The tracker status when that status lags the state.
 _Avoid_: Stale, out of date, wrong status
 
 **Run failed**:
-A workcell run that failed or stalled. The ticket drops the evidence that the run gave: a live run, a started todo and a pushed branch. Evidence from PRs still moves the ticket forward, so an open PR can set In progress, In review or Awaiting merge. With no such PR, the ticket returns to the lane of its tracker status.
-_Avoid_: Failed, error, stalled
+A workcell run that failed, or whose progress comment is older than two hours. The ticket drops the evidence that the run gave: a live run, a started todo and a pushed branch. Evidence from PRs still moves the ticket forward, so an open PR can set In progress, In review or Awaiting merge. With no such PR, the ticket returns to the lane of its tracker status.
+_Avoid_: Failed, error
 
 **Done**:
 A ticket the tracker closed as completed, or whose merged PR closes it.
@@ -283,8 +283,12 @@ The page that shows what each factory does now: the summary tiles, one card for 
 _Avoid_: Fleet page, dashboard
 
 **Needs attention**:
-The list of the Factories tab that holds each run that failed in the last 24 hours with no restart or later run, and each open ask of a live run. It lists runs, and Needs you lists tickets and PRs.
+The list of the Factories tab that holds each run that failed in the last 24 hours with no restart or later run, each stalled run, and each open ask of a live run. It lists runs, and Needs you lists tickets and PRs.
 _Avoid_: Alerts
+
+**Stalled run**:
+A live run whose time in its current stage passes the p95 of that stage over the last 30 days of the run history. The p95 comes from the completed visits of the stage. A stage with fewer than 5 completed visits has no stall rule. "Running now" marks a stalled run "past p95", and Needs attention lists it.
+_Avoid_: Stuck run, timed-out run
 
 **Heartbeat age**:
 The time since the last good `GET /daemon` read of a factory.

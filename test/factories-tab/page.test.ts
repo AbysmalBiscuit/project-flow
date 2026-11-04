@@ -126,7 +126,7 @@ describe("the Factories tab", () => {
 				slots: { total: 14, used: 4 },
 				queued: 0,
 				longestWaitSince: null,
-				attention: { total: 2, failed: 1, asks: 1 },
+				attention: { total: 2, failed: 1, stalled: 0, asks: 1 },
 				merged: { last: 1, before: 0 },
 				failed: {
 					last: 2,

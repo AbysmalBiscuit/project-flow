@@ -3,13 +3,16 @@ import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
+import { Button } from "./button.tsx";
 import { textControl } from "./control-styles.ts";
 import type {
 	AttentionItem,
+	DayOutcome,
 	FactoriesPage,
 	FactoryCard,
 	QueueItem,
 	RunningRun,
+	StageDuration,
 } from "./factories-page.ts";
 import { runPagePath } from "./page-links.ts";
 import { pageQuery } from "./queries.ts";
@@ -48,6 +51,13 @@ const styles = stylex.create({
 			[media.phone]: "minmax(0, 1fr)",
 		},
 		alignItems: "start",
+	},
+	half: {
+		gridTemplateColumns: {
+			default: "minmax(0, 1fr) minmax(0, 1fr)",
+			[media.phone]: "minmax(0, 1fr)",
+		},
+		alignItems: "stretch",
 	},
 	card: {
 		boxSizing: "border-box",
@@ -128,6 +138,13 @@ const styles = stylex.create({
 		backgroundColor: colours.warnWash,
 		color: colours.warn,
 	},
+	sourceAggregate: {
+		backgroundColor: colours.chip,
+		color: colours.chipInk,
+	},
+	sourceNext: {
+		marginLeft: 0,
+	},
 	sourceRow: {
 		display: "flex",
 		justifyContent: "flex-end",
@@ -151,6 +168,13 @@ const styles = stylex.create({
 	pillInfo: {
 		backgroundColor: colours.chip,
 		color: colours.chipInk,
+	},
+	pillWarn: {
+		backgroundColor: colours.warnWash,
+		color: colours.warn,
+	},
+	stagePill: {
+		marginLeft: space.xs,
 	},
 	meter: {
 		display: "grid",
@@ -272,6 +296,80 @@ const styles = stylex.create({
 	stepFailed: {
 		backgroundColor: colours.danger,
 	},
+	stepStalled: {
+		backgroundColor: colours.warn,
+	},
+	chart: {
+		display: "flex",
+		gap: measure.outcomeGap,
+		alignItems: "flex-end",
+		height: measure.outcomeChart,
+	},
+	day: {
+		display: "flex",
+		flex: 1,
+		flexDirection: "column-reverse",
+		height: "100%",
+	},
+	segment: (share: string) => ({
+		height: share,
+		borderRadius: measure.hairline,
+	}),
+	merged: {
+		backgroundColor: colours.awaitingMerge,
+	},
+	failed: {
+		backgroundColor: colours.danger,
+	},
+	stopped: {
+		backgroundColor: colours.inkSoft,
+	},
+	axis: {
+		display: "flex",
+		justifyContent: "space-between",
+		marginTop: space.twoXs,
+		color: colours.inkSoft,
+		fontSize: type.tag,
+	},
+	legend: {
+		display: "flex",
+		flexWrap: "wrap",
+		gap: space.md,
+		marginTop: space.twoXs,
+		color: colours.inkSoft,
+		fontSize: type.lane,
+	},
+	swatch: {
+		display: "inline-block",
+		width: measure.legendSwatch,
+		height: measure.legendSwatch,
+		marginRight: space.twoXs,
+		borderRadius: measure.hairline,
+	},
+	legendItem: {
+		display: "inline-flex",
+		alignItems: "center",
+	},
+	more: {
+		marginTop: space.md,
+	},
+	spreadColumn: {
+		width: measure.spreadColumn,
+	},
+	spread: {
+		display: "flex",
+		height: measure.meterBar,
+		overflow: "hidden",
+		borderRadius: radius.pill,
+	},
+	spreadP50: (share: string) => ({
+		width: share,
+		backgroundColor: colours.accent,
+	}),
+	spreadP95: (share: string) => ({
+		width: share,
+		backgroundColor: colours.chip,
+	}),
 	list: {
 		margin: 0,
 		padding: 0,
@@ -335,12 +433,25 @@ const since = (time: string | null | undefined, now: number): string | null =>
 function Source({
 	children,
 	need = false,
+	aggregate = false,
+	next = false,
 }: {
 	children: string;
 	need?: boolean;
+	/** A source that Project Flow computes from its own store. */
+	aggregate?: boolean;
+	/** A source after another source in the same row. */
+	next?: boolean;
 }) {
 	return (
-		<span className={clsx(styles.source, need && styles.sourceNeed)}>
+		<span
+			className={clsx(
+				styles.source,
+				need && styles.sourceNeed,
+				aggregate && styles.sourceAggregate,
+				next && styles.sourceNext,
+			)}
+		>
 			{children}
 		</span>
 	);
@@ -349,11 +460,13 @@ function Source({
 function Card({
 	title,
 	source,
+	aggregate,
 	children,
 	stretch = false,
 }: {
 	title: string;
-	source: string;
+	source?: string;
+	aggregate?: string;
 	children: ReactNode;
 	stretch?: boolean;
 }) {
@@ -364,7 +477,12 @@ function Card({
 		>
 			<div className={clsx(styles.head)}>
 				<h2 className={clsx(styles.heading)}>{title}</h2>
-				<Source>{source}</Source>
+				{source === undefined ? null : <Source>{source}</Source>}
+				{aggregate === undefined ? null : (
+					<Source aggregate next={source !== undefined}>
+						{aggregate}
+					</Source>
+				)}
 			</div>
 			{children}
 		</section>
@@ -427,6 +545,7 @@ function Tiles({ page, now }: { page: FactoriesPage; now: number }) {
 				value={String(tiles.attention.total)}
 				detail={factoriesCopy.attentionParts(
 					tiles.attention.failed,
+					tiles.attention.stalled,
 					tiles.attention.asks,
 				)}
 				{...(tiles.attention.total > 0 ? { tone: "warn" as const } : {})}
@@ -583,7 +702,12 @@ function Stepper({ run }: { run: RunningRun }) {
 				<span
 					key={node.id}
 					title={node.label}
-					className={clsx(styles.step, stepStyle[node.state])}
+					className={clsx(
+						styles.step,
+						node.state === "current" && run.stall !== undefined
+							? styles.stepStalled
+							: stepStyle[node.state],
+					)}
 				/>
 			))}
 		</span>
@@ -647,7 +771,20 @@ function RunningTable({ runs, now }: { runs: RunningRun[]; now: number }) {
 								<td className={cell()}>
 									<Stepper run={run} />
 								</td>
-								<td className={cell(styles.wrap)}>{run.stage}</td>
+								<td className={cell(styles.wrap)}>
+									{run.stage}
+									{run.stall === undefined ? null : (
+										<span
+											className={clsx(
+												styles.pill,
+												styles.pillWarn,
+												styles.stagePill,
+											)}
+										>
+											{factoriesCopy.pastP95}
+										</span>
+									)}
+								</td>
 								<td className={cell(styles.number, styles.nowrap)}>
 									{since(run.stageSince, now)}
 								</td>
@@ -669,6 +806,25 @@ function RunningTable({ runs, now }: { runs: RunningRun[]; now: number }) {
 	);
 }
 
+const kindPill: Record<AttentionItem["kind"], stylex.StyleXStyles> = {
+	failed: styles.pillBad,
+	stalled: styles.pillWarn,
+	ask: styles.pillInfo,
+};
+
+/** A stalled run names its stage, its time in the stage and the p95 that it passed. */
+function reasonOf(item: AttentionItem, now: number): string {
+	if (item.p95S === undefined) {
+		return item.reason;
+	}
+	const p95Ms = item.p95S * 1_000;
+	return factoriesCopy.stalledReason(
+		item.reason,
+		spanText(now - Date.parse(item.since) + p95Ms),
+		spanText(p95Ms),
+	);
+}
+
 function AttentionList({
 	items,
 	now,
@@ -686,12 +842,7 @@ function AttentionList({
 					key={`${item.kind} ${item.runId} ${item.reason}`}
 					className={clsx(styles.item)}
 				>
-					<span
-						className={clsx(
-							styles.pill,
-							item.kind === "failed" ? styles.pillBad : styles.pillInfo,
-						)}
-					>
+					<span className={clsx(styles.pill, kindPill[item.kind])}>
 						{factoriesCopy.kind[item.kind]}
 					</span>
 					<span className={clsx(styles.itemBody)}>
@@ -701,8 +852,8 @@ function AttentionList({
 						>
 							{ticketLabel(item.key)}
 						</a>
-						<span className={clsx(styles.clamp)} title={item.reason}>
-							{item.reason}
+						<span className={clsx(styles.clamp)} title={reasonOf(item, now)}>
+							{reasonOf(item, now)}
 						</span>
 					</span>
 					<span className={clsx(styles.where)}>{since(item.since, now)}</span>
@@ -786,6 +937,155 @@ function NotServed({ page, panel }: { page: FactoriesPage; panel: "queue" }) {
 		));
 }
 
+const outcomeKinds = ["merged", "failed", "stopped"] as const;
+
+const dayLabel = (day: string) =>
+	new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, {
+		month: "short",
+		day: "numeric",
+		timeZone: "UTC",
+	});
+
+function OutcomeChart({ days }: { days: DayOutcome[] }) {
+	const most = Math.max(
+		1,
+		...days.map((day) => day.merged + day.failed + day.stopped),
+	);
+	const first = days[0];
+	return (
+		<>
+			<div className={clsx(styles.chart)}>
+				{days.map((day) => (
+					<div
+						key={day.day}
+						className={clsx(styles.day)}
+						title={factoriesCopy.dayOutcome(dayLabel(day.day), day)}
+					>
+						{outcomeKinds.map((kind) => (
+							<span
+								key={kind}
+								{...stylex.props(
+									styles.segment(`${(day[kind] / most) * 100}%`),
+									styles[kind],
+								)}
+							/>
+						))}
+					</div>
+				))}
+			</div>
+			<div className={clsx(styles.axis)}>
+				<span>{first === undefined ? null : dayLabel(first.day)}</span>
+				<span>{factoriesCopy.today}</span>
+			</div>
+			<div className={clsx(styles.legend)}>
+				{outcomeKinds.map((kind) => (
+					<span key={kind} className={clsx(styles.legendItem)}>
+						<span className={clsx(styles.swatch, styles[kind])} />
+						{factoriesCopy.outcome[kind]}
+					</span>
+				))}
+			</div>
+		</>
+	);
+}
+
+const secondsText = (seconds: number) => spanText(seconds * 1_000);
+
+/** The stages that the table shows until Lev asks for all of them. */
+const shortStageList = 10;
+
+function StageTable({ stages }: { stages: StageDuration[] }) {
+	const [all, setAll] = useState(false);
+	if (stages.length === 0) {
+		return <p className={clsx(styles.empty)}>{factoriesCopy.noStages}</p>;
+	}
+	const shown = all ? stages : stages.slice(0, shortStageList);
+	const { columns } = factoriesCopy;
+	const slowest = Math.max(...stages.map((stage) => stage.p95S));
+	const share = (seconds: number) =>
+		`${slowest === 0 ? 0 : (seconds / slowest) * 100}%`;
+	return (
+		<div className={clsx(styles.scroll)}>
+			<table className={clsx(styles.table)}>
+				<thead>
+					<tr>
+						<th className={clsx(styles.th)}>{columns.stageName}</th>
+						<th className={clsx(styles.th)}>{columns.role}</th>
+						<th className={clsx(styles.th, styles.number)}>{columns.runs}</th>
+						<th className={clsx(styles.th, styles.number)}>{columns.p50}</th>
+						<th className={clsx(styles.th, styles.number)}>{columns.p95}</th>
+						<th className={clsx(styles.th, styles.spreadColumn, styles.wide)}>
+							{columns.spread}
+						</th>
+						<th className={clsx(styles.th, styles.number)}>
+							{columns.retries}
+						</th>
+						<th className={clsx(styles.th, styles.number)}>
+							{columns.costPerRun}
+						</th>
+					</tr>
+				</thead>
+				<tbody>
+					{shown.map((stage, index) => {
+						const last = index === shown.length - 1;
+						const cell = (...more: (stylex.StyleXStyles | false)[]) =>
+							clsx(styles.td, last && styles.lastRow, ...more);
+						return (
+							<tr key={stage.stage} className={clsx(styles.row)}>
+								<td className={cell(styles.wrap)}>{stage.stage}</td>
+								<td className={cell()}>
+									<span className={clsx(styles.pill)}>
+										{factoriesCopy.stageRole[stage.role]}
+									</span>
+								</td>
+								<td className={cell(styles.number)}>{stage.runs}</td>
+								<td className={cell(styles.number, styles.nowrap)}>
+									{secondsText(stage.p50S)}
+								</td>
+								<td className={cell(styles.number, styles.nowrap)}>
+									{secondsText(stage.p95S)}
+								</td>
+								<td className={cell(styles.wide)}>
+									<span className={clsx(styles.spread)}>
+										<span
+											{...stylex.props(styles.spreadP50(share(stage.p50S)))}
+										/>
+										<span
+											{...stylex.props(
+												styles.spreadP95(share(stage.p95S - stage.p50S)),
+											)}
+										/>
+									</span>
+								</td>
+								<td className={cell(styles.number)}>
+									{Number(stage.retriesPerRun.toFixed(1))}
+								</td>
+								<td className={cell(styles.number)}>
+									{stage.costPerRun === null
+										? factoriesCopy.noCost
+										: costLabel(stage.costPerRun)}
+								</td>
+							</tr>
+						);
+					})}
+				</tbody>
+			</table>
+			{stages.length > shortStageList ? (
+				<div className={clsx(styles.more)}>
+					<Button
+						label={
+							all
+								? factoriesCopy.fewerStages
+								: factoriesCopy.allStages(stages.length)
+						}
+						onClick={() => setAll(!all)}
+					/>
+				</div>
+			) : null}
+		</div>
+	);
+}
+
 export function Page() {
 	const query = useQuery(pageQuery.factories);
 	const now = useNow();
@@ -823,12 +1123,27 @@ export function Page() {
 							<AttentionList items={page.attention} now={now} />
 						</Card>
 					</div>
+					<div className={clsx(styles.grid, styles.half)}>
+						<Card
+							title={factoriesCopy.queue}
+							source={factoriesCopy.sources.queue}
+						>
+							<QueueTable items={page.queue} now={now} />
+							<NotServed page={page} panel="queue" />
+						</Card>
+						<Card
+							title={factoriesCopy.outcomes}
+							aggregate={factoriesCopy.sources.outcomes}
+						>
+							<OutcomeChart days={page.outcomes} />
+						</Card>
+					</div>
 					<Card
-						title={factoriesCopy.queue}
-						source={factoriesCopy.sources.queue}
+						title={factoriesCopy.stageDurations}
+						source={factoriesCopy.sources.stageEvents}
+						aggregate={factoriesCopy.sources.stageAggregate}
 					>
-						<QueueTable items={page.queue} now={now} />
-						<NotServed page={page} panel="queue" />
+						<StageTable stages={page.stages} />
 					</Card>
 				</>
 			)}

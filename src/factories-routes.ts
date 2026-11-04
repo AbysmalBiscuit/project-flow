@@ -1,10 +1,22 @@
-import { factoriesPage, factoryCheckMs } from "./factories-page.ts";
+import {
+	factoriesPage,
+	factoryCheckMs,
+	outcomeDays,
+	stageDays,
+} from "./factories-page.ts";
 import type { Clock, FactoryReader } from "./ports.ts";
 import { routeTable } from "./route-table.ts";
 import type { RunHistory } from "./run-history.ts";
 import type { RunListRow } from "./run-list.ts";
 
-const twoDaysMs = 2 * 24 * 60 * 60 * 1_000;
+const dayMs = 24 * 60 * 60 * 1_000;
+
+/** The start of the UTC day `days` days before `now`. */
+function dayStart(now: Date, days: number): Date {
+	const start = new Date(now.getTime() - days * dayMs);
+	start.setUTCHours(0, 0, 0, 0);
+	return start;
+}
 
 export type FactoriesRouteOptions = {
 	factories: FactoryReader;
@@ -30,15 +42,16 @@ export function factoriesRoutes(options: FactoriesRouteOptions) {
 					options.checkFactories();
 				}
 				options.recordRuns();
+				const stagesSince = new Date(now.getTime() - stageDays * dayMs);
 				return Response.json(
 					factoriesPage({
 						entries: options.factories.entries(),
 						floor: options.factories.floor(),
 						runs: options.factories.runs(),
 						rows: options.runList(),
-						ended: options.history.endedSince(
-							new Date(now.getTime() - twoDaysMs),
-						),
+						ended: options.history.endedSince(dayStart(now, outcomeDays - 1)),
+						stageSamples: options.history.stageSamples(stagesSince),
+						stageCosts: options.history.stageCosts(stagesSince),
 						ticketUrls: options.ticketUrls(),
 						now,
 					}),

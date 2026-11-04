@@ -1,11 +1,20 @@
 import type { FactoryRun } from "./domain.ts";
 import type { FactoryEntry, FactoryFloor } from "./factories.ts";
 import type { Slots } from "./factory-kind.ts";
-import type { RunHistoryEnd } from "./run-history.ts";
+import type { RunHistoryEnd, StageCost, StageSample } from "./run-history.ts";
 import type { RunListRow } from "./run-list.ts";
 import { numberedKey } from "./ticket-key.ts";
 
 const dayMs = 24 * 60 * 60 * 1_000;
+
+/** The days of the outcome chart, today included. */
+export const outcomeDays = 14;
+
+/** The days of run history that the stage durations and the stall rule cover. */
+export const stageDays = 30;
+
+/** The fewest completed stages that give a stage its stall rule. */
+export const stallSamples = 5;
 
 /** How often an open Factories tab checks each factory again, which also reads each hub queue. */
 export const factoryCheckMs = 15_000;
@@ -33,17 +42,50 @@ export type RunningRun = Pick<
 	/** When the run entered `stage`. */
 	stageSince?: string;
 	costUsd?: number;
+	/** Set when the run is stalled: its time in `stage` passes the p95 of that stage. */
+	stall?: { p95S: number };
 };
 
-/** A run in "Needs attention": a failed run that nothing resumed or restarted, or an open ask. */
+/**
+ * A run in "Needs attention": a failed run that nothing resumed or restarted,
+ * a stalled run, or an open ask.
+ */
 export type AttentionItem = {
-	kind: "failed" | "ask";
+	kind: "failed" | "stalled" | "ask";
 	runId: string;
 	key: string;
 	factory: string;
+	/** The failure reason, the stage of a stalled run, or the ask. */
 	reason: string;
-	/** When the run failed, or when the run asked. */
+	/** When the run failed, passed the p95 of its stage, or asked. */
 	since: string;
+	/** The p95 of the stage of a stalled run. */
+	p95S?: number;
+};
+
+/** The durations of one stage over the last `stageDays` days. */
+export type StageDuration = {
+	stage: string;
+	/** An agent stage has turns. A tool stage has none. */
+	role: "agent" | "tool";
+	/** The runs with an event of the stage. */
+	runs: number;
+	/** The completed visits of the stage, which give `p50S` and `p95S`. */
+	samples: number;
+	p50S: number;
+	p95S: number;
+	retriesPerRun: number;
+	/** Null for a stage with no turns. */
+	costPerRun: number | null;
+};
+
+/** The run results of one day of the outcome chart. */
+export type DayOutcome = {
+	/** The UTC day, such as `2026-10-25`. */
+	day: string;
+	merged: number;
+	failed: number;
+	stopped: number;
 };
 
 /** A ticket that waits in the queue of a hub source. */
@@ -72,7 +114,12 @@ export type FactoriesPage = {
 		slots: Slots | null;
 		queued: number;
 		longestWaitSince: string | null;
-		attention: { total: number; failed: number; asks: number };
+		attention: {
+			total: number;
+			failed: number;
+			stalled: number;
+			asks: number;
+		};
 		/** The runs of the last 24 hours, and of the 24 hours before. */
 		merged: { last: number; before: number };
 		failed: {
@@ -88,6 +135,13 @@ export type FactoriesPage = {
 	attention: AttentionItem[];
 	queue: QueueItem[];
 	notServed: NotServedPanel[];
+	/**
+	 * The entry graph stages of the last `stageDays` days, slowest p50 first.
+	 * The row of a stage that calls a child graph covers the child stages.
+	 */
+	stages: StageDuration[];
+	/** One entry for each of the last `outcomeDays` UTC days, oldest first. */
+	outcomes: DayOutcome[];
 };
 
 const liveKinds = new Set<FactoryRun["statusKind"]>([
@@ -124,16 +178,104 @@ function slotsOf(boxes: FactoryCard[]): Slots | null {
 			}));
 }
 
+/** The nearest-rank percentile of sorted values. */
+function percentile(sorted: number[], share: number): number {
+	return sorted[Math.max(0, Math.ceil(share * sorted.length) - 1)] ?? 0;
+}
+
+function stageDurations(
+	samples: StageSample[],
+	costs: StageCost[],
+): StageDuration[] {
+	const byStage = Map.groupBy(samples, (sample) => sample.stage);
+	const costsByStage = Map.groupBy(costs, (cost) => cost.stage);
+	return [...byStage]
+		.map(([stage, events]): StageDuration => {
+			const runs = new Set(events.map((event) => event.runId)).size;
+			const durations = events
+				.flatMap((event) =>
+					event.event === "stage.completed" && event.durationS !== null
+						? [event.durationS]
+						: [],
+				)
+				.toSorted((left, right) => left - right);
+			const retries = events.filter(
+				(event) => event.event === "stage.retrying",
+			).length;
+			const stageCosts = costsByStage.get(stage) ?? [];
+			return {
+				stage,
+				role: stageCosts.length === 0 ? "tool" : "agent",
+				runs,
+				samples: durations.length,
+				p50S: percentile(durations, 0.5),
+				p95S: percentile(durations, 0.95),
+				retriesPerRun: retries / runs,
+				costPerRun:
+					stageCosts.length === 0
+						? null
+						: stageCosts.reduce((sum, cost) => sum + cost.costUsd, 0) /
+							stageCosts.length,
+			};
+		})
+		.filter((stage) => stage.samples > 0)
+		.toSorted(
+			(left, right) =>
+				right.p50S - left.p50S || left.stage.localeCompare(right.stage),
+		);
+}
+
+/** The time that a run in `stage` since `since` passes the p95 of the stage, when it has a stall rule. */
+function stallAt(
+	stage: StageDuration | undefined,
+	since: string | undefined,
+): number | null {
+	return stage === undefined ||
+		since === undefined ||
+		stage.samples < stallSamples
+		? null
+		: Date.parse(since) + stage.p95S * 1_000;
+}
+
+const dayOf = (time: number) => new Date(time).toISOString().slice(0, 10);
+
+function outcomesOf(ended: RunHistoryEnd[], now: number): DayOutcome[] {
+	const days = new Map(
+		Array.from({ length: outcomeDays }, (_, index): [string, DayOutcome] => {
+			const day = dayOf(now - (outcomeDays - 1 - index) * dayMs);
+			return [day, { day, merged: 0, failed: 0, stopped: 0 }];
+		}),
+	);
+	for (const run of ended) {
+		const outcome = days.get(dayOf(Date.parse(run.endedAt)));
+		if (outcome === undefined) {
+			continue;
+		}
+		if (run.result === "merged") {
+			outcome.merged += 1;
+		} else if (run.result === "failed") {
+			outcome.failed += 1;
+		} else if (run.result === "cancelled") {
+			outcome.stopped += 1;
+		}
+	}
+	return [...days.values()];
+}
+
 function runningRuns(
 	runs: FactoryRun[],
 	keys: Map<string, RunListRow>,
 	floor: FactoryFloor,
+	stages: Map<string, StageDuration>,
+	now: number,
 ): RunningRun[] {
 	return runs
 		.filter((run) => liveKinds.has(run.statusKind) && run.coveredByFeed)
 		.map((run) => {
 			const row = keys.get(run.id);
 			const since = floor.stageSince.get(run.id);
+			const stage = run.stage === undefined ? undefined : stages.get(run.stage);
+			const stalled = stallAt(stage, since);
 			return {
 				id: run.id,
 				key: row?.key ?? run.key,
@@ -149,6 +291,9 @@ function runningRuns(
 				...(run.usageTotals === undefined
 					? {}
 					: { costUsd: run.usageTotals.costUsd }),
+				...(stage === undefined || stalled === null || now <= stalled
+					? {}
+					: { stall: { p95S: stage.p95S } }),
 			};
 		})
 		.toSorted(
@@ -160,6 +305,7 @@ function runningRuns(
 
 function attentionItems(
 	runs: FactoryRun[],
+	running: RunningRun[],
 	keys: Map<string, RunListRow>,
 	now: number,
 ): AttentionItem[] {
@@ -206,7 +352,26 @@ function attentionItems(
 				run.submittedAt,
 		})),
 	);
-	return [...asks, ...failed].toSorted(
+	const stalled = running.flatMap((run): AttentionItem[] =>
+		run.stall === undefined ||
+		run.stage === undefined ||
+		run.stageSince === undefined
+			? []
+			: [
+					{
+						kind: "stalled",
+						runId: run.id,
+						key: run.key,
+						factory: run.factory,
+						reason: run.stage,
+						since: new Date(
+							Date.parse(run.stageSince) + run.stall.p95S * 1_000,
+						).toISOString(),
+						p95S: run.stall.p95S,
+					},
+				],
+	);
+	return [...asks, ...stalled, ...failed].toSorted(
 		(left, right) => Date.parse(right.since) - Date.parse(left.since),
 	);
 }
@@ -302,8 +467,11 @@ export function factoriesPage(input: {
 	floor: FactoryFloor;
 	runs: FactoryRun[];
 	rows: RunListRow[];
-	/** The runs of the run history that ended in the last 48 hours. */
+	/** The runs of the run history that ended in the outcome chart's days or in the last 48 hours. */
 	ended: RunHistoryEnd[];
+	/** The stage events of the last `stageDays` days, and the turn cost of their runs. */
+	stageSamples: StageSample[];
+	stageCosts: StageCost[];
 	/** The page of each tracked ticket by its key. */
 	ticketUrls: ReadonlyMap<string, string>;
 	now: Date;
@@ -311,8 +479,17 @@ export function factoriesPage(input: {
 	const now = input.now.getTime();
 	const keys = new Map(input.rows.map((row) => [row.id, row]));
 	const boxes = cards(input.entries, input.floor);
-	const running = runningRuns(input.runs, keys, input.floor);
-	const attention = attentionItems(input.runs, keys, now);
+	const stages = stageDurations(input.stageSamples, input.stageCosts);
+	const running = runningRuns(
+		input.runs,
+		keys,
+		input.floor,
+		new Map(stages.map((stage) => [stage.stage, stage])),
+		now,
+	);
+	const attention = attentionItems(input.runs, running, keys, now);
+	const count = (kind: AttentionItem["kind"]) =>
+		attention.filter((item) => item.kind === kind).length;
 	const { queue, notServed } = queueOf(
 		input.entries,
 		input.floor,
@@ -333,8 +510,9 @@ export function factoriesPage(input: {
 				)[0] ?? null,
 			attention: {
 				total: attention.length,
-				failed: attention.filter((item) => item.kind === "failed").length,
-				asks: attention.filter((item) => item.kind === "ask").length,
+				failed: count("failed"),
+				stalled: count("stalled"),
+				asks: count("ask"),
 			},
 			...endTiles(input.ended, now),
 		},
@@ -343,5 +521,7 @@ export function factoriesPage(input: {
 		attention,
 		queue,
 		notServed,
+		stages: stages.filter((stage) => !stage.stage.includes("/")),
+		outcomes: outcomesOf(input.ended, now),
 	};
 }
