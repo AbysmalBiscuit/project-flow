@@ -296,6 +296,22 @@ export function factoryRunList(
 	);
 }
 
+/** The page of each tracked ticket by its key. */
+export function trackedTicketUrls(
+	options: PollOptions,
+	configuration: Configuration,
+): Map<string, string> {
+	return new Map(
+		trackedRows(options, configuration).rows.flatMap((project) =>
+			project.tickets.flatMap((ticket) =>
+				ticket.key === null || ticket.url === undefined
+					? []
+					: [[ticket.key, ticket.url] as const],
+			),
+		),
+	);
+}
+
 export function attentionFor(
 	options: PollOptions,
 	configuration: Configuration,

@@ -37,6 +37,7 @@ import {
 	factoryRunList,
 	overview,
 	projectViews,
+	trackedTicketUrls,
 } from "./project-views.ts";
 import { pullRoutes } from "./pull-routes.ts";
 import { replyRoutes } from "./reply-routes.ts";
@@ -704,6 +705,7 @@ export async function start(options: StartOptions): Promise<Running> {
 					history: opened.history,
 					clock,
 					runList: () => factoryRunList(pollOptions, configuration),
+					ticketUrls: () => trackedTicketUrls(pollOptions, configuration),
 					recordRuns,
 					checkFactories,
 				}),

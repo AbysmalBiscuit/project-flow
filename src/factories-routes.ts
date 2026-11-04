@@ -11,6 +11,7 @@ export type FactoriesRouteOptions = {
 	history: RunHistory;
 	clock: Clock;
 	runList: () => RunListRow[];
+	ticketUrls: () => ReadonlyMap<string, string>;
 	/** Bring the run history up to date with the run list. */
 	recordRuns: () => void;
 	/** Check each factory again: `GET /daemon`, and `GET /sources` and `GET /holds` of each hub. */
@@ -38,6 +39,7 @@ export function factoriesRoutes(options: FactoriesRouteOptions) {
 						ended: options.history.endedSince(
 							new Date(now.getTime() - twoDaysMs),
 						),
+						ticketUrls: options.ticketUrls(),
 						now,
 					}),
 				);

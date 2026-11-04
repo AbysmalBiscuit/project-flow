@@ -50,9 +50,11 @@ export type AttentionItem = {
 export type QueueItem = {
 	factory: string;
 	source: string;
-	/** The place of the ticket in the start order of its source, from 1. */
+	/** The place of the ticket in the whole queue, from 1, in the start order of each source. */
 	rank: number;
 	key: string;
+	/** The page of the ticket: the tracked ticket's page, else the GitHub issue of a GitHub source. */
+	url?: string;
 	waits: string;
 	since: string | null;
 	hold?: { failures: number; since: string };
@@ -212,6 +214,7 @@ function attentionItems(
 function queueOf(
 	entries: FactoryEntry[],
 	floor: FactoryFloor,
+	ticketUrls: ReadonlyMap<string, string>,
 ): { queue: QueueItem[]; notServed: NotServedPanel[] } {
 	const queue: QueueItem[] = [];
 	const notServed: NotServedPanel[] = [];
@@ -226,20 +229,31 @@ function queueOf(
 			continue;
 		}
 		for (const source of sources ?? []) {
-			source.tickets.forEach((ticket, index) => {
+			for (const ticket of source.tickets) {
+				const numbered =
+					source.repo !== null && /^\d+$/.test(ticket.ticket)
+						? source.repo
+						: null;
+				const key =
+					numbered === null
+						? ticket.ticket
+						: numberedKey(numbered, ticket.ticket);
+				const url =
+					ticketUrls.get(key) ??
+					(numbered !== null && source.tracker === "github"
+						? `https://github.com/${numbered}/issues/${ticket.ticket}`
+						: undefined);
 				queue.push({
 					factory: entry.name,
 					source: source.source,
-					rank: index + 1,
-					key:
-						source.repo !== null && /^\d+$/.test(ticket.ticket)
-							? numberedKey(source.repo, ticket.ticket)
-							: ticket.ticket,
+					rank: queue.length + 1,
+					key,
+					...(url === undefined ? {} : { url }),
 					waits: ticket.waits,
 					since: ticket.since,
 					...(ticket.hold === undefined ? {} : { hold: ticket.hold }),
 				});
-			});
+			}
 		}
 	}
 	return { queue, notServed };
@@ -290,6 +304,8 @@ export function factoriesPage(input: {
 	rows: RunListRow[];
 	/** The runs of the run history that ended in the last 48 hours. */
 	ended: RunHistoryEnd[];
+	/** The page of each tracked ticket by its key. */
+	ticketUrls: ReadonlyMap<string, string>;
 	now: Date;
 }): FactoriesPage {
 	const now = input.now.getTime();
@@ -297,7 +313,11 @@ export function factoriesPage(input: {
 	const boxes = cards(input.entries, input.floor);
 	const running = runningRuns(input.runs, keys, input.floor);
 	const attention = attentionItems(input.runs, keys, now);
-	const { queue, notServed } = queueOf(input.entries, input.floor);
+	const { queue, notServed } = queueOf(
+		input.entries,
+		input.floor,
+		input.ticketUrls,
+	);
 	const waits = queue.flatMap((item) =>
 		item.since === null ? [] : [item.since],
 	);

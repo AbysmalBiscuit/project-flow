@@ -228,7 +228,7 @@ describe("the Factories tab", () => {
 		}
 	});
 
-	test("the queue of a hub gives each waiting ticket with its rank, wait and reason", async () => {
+	test("the queue of a hub gives each waiting ticket with its rank across the queue, link, wait and reason", async () => {
 		const app = await serveFactories({
 			"/daemon": hubAbout,
 			"/sources": queueSources,
@@ -246,6 +246,7 @@ describe("the Factories tab", () => {
 					source: "acme-github",
 					rank: 1,
 					key: "acme/widget#46",
+					url: "https://github.com/acme/widget/issues/46",
 					waits: "held",
 					since: "2026-10-25T13:57:00+00:00",
 					hold: { failures: 3, since: "2026-10-25T14:00:13.795148+00:00" },
@@ -255,6 +256,7 @@ describe("the Factories tab", () => {
 					source: "acme-github",
 					rank: 2,
 					key: "acme/widget#47",
+					url: "https://github.com/acme/widget/issues/47",
 					waits: "blocked by #46",
 					since: "2026-10-25T14:05:00+00:00",
 				},
@@ -263,13 +265,14 @@ describe("the Factories tab", () => {
 					source: "acme-github",
 					rank: 3,
 					key: "acme/widget#48",
+					url: "https://github.com/acme/widget/issues/48",
 					waits: "comments wait",
 					since: null,
 				},
 				{
 					factory: "work hub",
 					source: "widget-launch",
-					rank: 1,
+					rank: 4,
 					key: "PF-12",
 					waits: "blocked by PF-11",
 					since: "2026-10-25T12:00:00.761000+00:00",
