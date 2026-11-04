@@ -4,6 +4,7 @@ import { turnsOf } from "./factory-run-detail.ts";
 import { runEventFrame } from "./factory-run-events.ts";
 import type { ReadRun, StatusRows } from "./factory-run-rows.ts";
 import type { Fetch } from "./fetch.ts";
+import { type RetroRecord, retroRecord } from "./retros-page.ts";
 import type { StageEvent } from "./run-history.ts";
 import type { RecordedTurn } from "./run-usage.ts";
 import {
@@ -88,6 +89,30 @@ export function runHistoryReader(deps: {
 						signal,
 					)(`/runs/${encodeURIComponent(runId)}/verification`),
 					verificationRecord,
+				);
+			} catch (error) {
+				if (error instanceof NotServed) {
+					return "not served";
+				}
+				if (error instanceof Unreachable) {
+					return null;
+				}
+				throw error;
+			}
+		},
+		retro: async (runId: string): Promise<HistoryAnswer<RetroRecord>> => {
+			const { row } = statusRowOf(runId);
+			if (row === undefined) {
+				return null;
+			}
+			try {
+				return await body(
+					await reader(
+						fetchImpl,
+						row.url,
+						signal,
+					)(`/runs/${encodeURIComponent(runId)}/retro`),
+					retroRecord,
 				);
 			} catch (error) {
 				if (error instanceof NotServed) {

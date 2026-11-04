@@ -28,6 +28,7 @@ const pages = [
 	{ path: "/runs", load: () => import("./runs.tsx") },
 	{ path: "/factories", load: () => import("./factories-tab.tsx") },
 	{ path: "/verification", load: () => import("./verification-tab.tsx") },
+	{ path: "/retros", load: () => import("./retros-tab.tsx") },
 	{ path: "/insights", load: () => import("./insights.tsx") },
 	{ path: "/settings", load: () => import("./settings.tsx") },
 ] as const;

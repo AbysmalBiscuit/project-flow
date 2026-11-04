@@ -166,6 +166,7 @@ const links = [
 	{ href: "/inbox", label: navLabel.inbox },
 	{ href: "/factories", label: navLabel.factories, afterBreak: true },
 	{ href: "/verification", label: navLabel.verification },
+	{ href: "/retros", label: navLabel.retros },
 	{ href: "/insights", label: navLabel.insights },
 ] as const;
 

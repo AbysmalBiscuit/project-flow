@@ -1,0 +1,184 @@
+{
+	"facts": {
+		"outcome": "succeeded",
+		"failure": null,
+		"duration_s": 4881.903707,
+		"cost_usd": 25.8437478,
+		"tokens": {
+			"input": 35045533,
+			"output": 186319
+		},
+		"rounds": {
+			"review": 3,
+			"pr": 2
+		},
+		"stages": {
+			"apply": {
+				"visits": 2,
+				"retries": 0
+			},
+			"branch_failed": {
+				"visits": 2,
+				"retries": 0
+			},
+			"check": {
+				"visits": 4,
+				"retries": 0
+			},
+			"conceptual": {
+				"visits": 4,
+				"retries": 0
+			},
+			"conceptual/conceptual_review": {
+				"visits": 4,
+				"retries": 0
+			},
+			"conceptual/start": {
+				"visits": 4,
+				"retries": 0
+			},
+			"fan": {
+				"visits": 4,
+				"retries": 0
+			},
+			"gate": {
+				"visits": 2,
+				"retries": 0
+			},
+			"implement": {
+				"visits": 1,
+				"retries": 0
+			},
+			"inputs": {
+				"visits": 1,
+				"retries": 0
+			},
+			"join": {
+				"visits": 4,
+				"retries": 0
+			},
+			"post_pr": {
+				"visits": 1,
+				"retries": 0
+			},
+			"post_pr/comments": {
+				"visits": 1,
+				"retries": 0
+			},
+			"post_pr/count": {
+				"visits": 2,
+				"retries": 0
+			},
+			"post_pr/draft_pr": {
+				"visits": 1,
+				"retries": 0
+			},
+			"post_pr/gate": {
+				"visits": 2,
+				"retries": 0
+			},
+			"post_pr/open": {
+				"visits": 2,
+				"retries": 0
+			},
+			"post_pr/pr_open": {
+				"visits": 1,
+				"retries": 0
+			},
+			"post_pr/rebase_gate": {
+				"visits": 1,
+				"retries": 0
+			},
+			"post_pr/rebase_held": {
+				"visits": 1,
+				"retries": 0
+			},
+			"post_pr/redraft": {
+				"visits": 1,
+				"retries": 0
+			},
+			"post_pr/report": {
+				"visits": 1,
+				"retries": 0
+			},
+			"post_pr/report/needs_human": {
+				"visits": 1,
+				"retries": 0
+			},
+			"post_pr/report/report": {
+				"visits": 1,
+				"retries": 0
+			},
+			"post_pr/report/start": {
+				"visits": 1,
+				"retries": 0
+			},
+			"post_pr/start": {
+				"visits": 1,
+				"retries": 0
+			},
+			"post_pr/triage": {
+				"visits": 1,
+				"retries": 0
+			},
+			"post_pr/wait": {
+				"visits": 2,
+				"retries": 0
+			},
+			"push": {
+				"visits": 3,
+				"retries": 0
+			},
+			"question": {
+				"visits": 2,
+				"retries": 0
+			},
+			"receive": {
+				"visits": 4,
+				"retries": 0
+			},
+			"reverify": {
+				"visits": 1,
+				"retries": 0
+			},
+			"review": {
+				"visits": 4,
+				"retries": 0
+			},
+			"settle": {
+				"visits": 2,
+				"retries": 0
+			},
+			"start": {
+				"visits": 1,
+				"retries": 0
+			},
+			"verify": {
+				"visits": 4,
+				"retries": 0
+			}
+		},
+		"questions": [
+			{
+				"node_path": "post_pr/rebase_held",
+				"asked_at": "2026-10-29T00:03:11.766528+00:00",
+				"answered_at": "2026-10-29T00:29:04.255617+00:00",
+				"wait_s": 1552.489089
+			}
+		],
+		"steers": 0,
+		"restarts": 0,
+		"resumes": 0
+	},
+	"friction": [
+		{
+			"kind": "question",
+			"stage": "post_pr/rebase_held",
+			"time_s": 1552.489089,
+			"at": "2026-10-29T00:03:11.766528+00:00",
+			"detail": ""
+		}
+	],
+	"time_lost_s": 1552.489089,
+	"smoothness": "rough"
+}
