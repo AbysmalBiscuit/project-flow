@@ -6,7 +6,7 @@ import { board } from "./board-styles.ts";
 import { textControl } from "./control-styles.ts";
 import { Dropdown, MultiDropdown } from "./dropdown.tsx";
 import { runResults, runStatusKinds } from "./kinds.ts";
-import { Loading } from "./loading.tsx";
+import { PageLoading } from "./loading.tsx";
 import { needs } from "./needs-you-styles.ts";
 import { pageQuery } from "./queries.ts";
 import type { RunListRow } from "./run-list.ts";
@@ -277,7 +277,7 @@ export function Page() {
 	const { data } = useQuery(pageQuery.runs);
 	return (
 		<PageFrame title={navLabel.runs} subtitle={runsListCopy.lead}>
-			{data === undefined ? <Loading /> : <RunsList rows={data} />}
+			{data === undefined ? <PageLoading /> : <RunsList rows={data} />}
 		</PageFrame>
 	);
 }

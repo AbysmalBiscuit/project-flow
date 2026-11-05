@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Button } from "./button.tsx";
 import { ConfirmDialog } from "./confirm-dialog.tsx";
 import { control } from "./control-styles.ts";
+import { PageLoading } from "./loading.tsx";
 import {
 	pageQuery,
 	useInsightQuery,
@@ -482,6 +483,13 @@ export function Page() {
 	const result = query.data;
 	const answer = result !== undefined && "rows" in result ? result : null;
 	const canChart = answer !== null && chartable(answer);
+	if (saved.isPending || tables.isPending) {
+		return (
+			<PageFrame title={navLabel.insights} subtitle={insightsCopy.subtitle}>
+				<PageLoading />
+			</PageFrame>
+		);
+	}
 	return (
 		<PageFrame title={navLabel.insights} subtitle={insightsCopy.subtitle}>
 			<div className={clsx(styles.grid)}>
