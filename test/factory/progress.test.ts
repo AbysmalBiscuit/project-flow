@@ -521,6 +521,67 @@ describe("factory runs", () => {
 			}
 		});
 
+		test("agents that change on each read send no overview event after their first answer", async () => {
+			let reads = 0;
+			const changing = () => {
+				reads += 1;
+				return {
+					workers: {
+						fix: { ...runWorkers.workers.fix, last_message: `step ${reads}` },
+					},
+				};
+			};
+			const feed = new EventFeed();
+			const app = await serveRuns(
+				{ ...hub, "/events": feed, [workersPath]: changing },
+				[41],
+			);
+			const url = new URL(
+				`/api/factory-runs/${encodeURIComponent(running41)}/agents`,
+				app.base,
+			);
+			try {
+				await feed.connected(1);
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41)?.statusKind === "running",
+				);
+				type Agents = { agents: { lastMessage: string }[] };
+				let shown = ((await (await settledRead(url)).json()) as Agents)
+					.agents[0]?.lastMessage;
+				const stream = openEventStream(app.base);
+				try {
+					await stream.ready;
+					for (let change = 0; change < 5; change += 1) {
+						const before = shown;
+						shown = (
+							await readWhere<Agents>(
+								url,
+								(body) => body.agents[0]?.lastMessage !== before,
+							)
+						).agents[0]?.lastMessage;
+					}
+					// The poll's progress event follows every overview event sent before it.
+					await fetch(new URL("/api/refresh", app.base), { method: "POST" });
+					let overviews = 0;
+					for await (const event of stream.events) {
+						if (event.event === "progress") {
+							break;
+						}
+						if (event.event === "overview") {
+							overviews += 1;
+						}
+					}
+					// The stream's opening state and the refresh each send one.
+					expect(overviews).toBe(2);
+				} finally {
+					stream.close();
+				}
+			} finally {
+				await app.stop();
+			}
+		});
+
 		test("a run that ends gives no agents and reads /workers no more", async () => {
 			const app = await serveRuns({ ...hub, [workersPath]: runWorkers }, [41]);
 			const stream = openEventStream(app.base);
