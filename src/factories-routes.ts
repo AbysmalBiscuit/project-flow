@@ -1,8 +1,13 @@
+import { z } from "zod";
+
 import {
 	factoriesPage,
 	factoryCheckMs,
 	outcomeDays,
+	type RangeDays,
+	rangeDays,
 	stageDays,
+	type StageWindow,
 } from "./factories-page.ts";
 import { growthSpanMs } from "./host-health.ts";
 import type { Clock, FactoryReader } from "./ports.ts";
@@ -19,6 +24,15 @@ function dayStart(now: Date, days: number): Date {
 	return start;
 }
 
+const range = z.coerce
+	.number()
+	.pipe(z.union(rangeDays.map((days) => z.literal(days))));
+
+/** The day range a query parameter picks, or `fallback` when it picks no offered range. */
+function rangeParam(url: URL, name: string, fallback: RangeDays): RangeDays {
+	return range.catch(fallback).parse(url.searchParams.get(name) ?? fallback);
+}
+
 export type FactoriesRouteOptions = {
 	factories: FactoryReader;
 	history: RunHistory;
@@ -31,28 +45,42 @@ export type FactoriesRouteOptions = {
 	checkFactories: () => void;
 };
 
-/** The route of the Factories tab. A read checks the factories again when the last check is old. */
+/**
+ * The route of the Factories tab. A read checks the factories again when the last check is old.
+ * `?outcomeDays=` and `?stageDays=` pick the days of the outcome chart and the stage durations.
+ */
 export function factoriesRoutes(options: FactoriesRouteOptions) {
 	let checkedAt: number | null = null;
+	const stagesOver = (now: Date, days: number): StageWindow => {
+		const since = new Date(now.getTime() - days * dayMs);
+		return {
+			samples: options.history.stageSamples(since),
+			costs: options.history.stageCosts(since),
+		};
+	};
 	return routeTable({
 		"/api/factories": {
-			GET: () => {
+			GET: (request) => {
 				const now = options.clock.now();
 				if (checkedAt === null || now.getTime() - checkedAt >= factoryCheckMs) {
 					checkedAt = now.getTime();
 					options.checkFactories();
 				}
 				options.recordRuns();
-				const stagesSince = new Date(now.getTime() - stageDays * dayMs);
+				const url = new URL(request.url);
+				const outcomes = rangeParam(url, "outcomeDays", outcomeDays);
+				const stages = rangeParam(url, "stageDays", stageDays);
+				const stall = stagesOver(now, stageDays);
 				return Response.json(
 					factoriesPage({
 						entries: options.factories.entries(),
 						floor: options.factories.floor(),
 						runs: options.factories.runs(),
 						rows: options.runList(),
-						ended: options.history.endedSince(dayStart(now, outcomeDays - 1)),
-						stageSamples: options.history.stageSamples(stagesSince),
-						stageCosts: options.history.stageCosts(stagesSince),
+						ended: options.history.endedSince(dayStart(now, outcomes - 1)),
+						outcomeDays: outcomes,
+						stall,
+						shown: stages === stageDays ? stall : stagesOver(now, stages),
 						hostSamples: options.history.hostSamples(
 							new Date(now.getTime() - growthSpanMs),
 						),

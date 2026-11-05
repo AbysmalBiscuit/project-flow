@@ -29,7 +29,11 @@ import type {
 	TrackerKind,
 } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
-import { type FactoriesPage, factoryCheckMs } from "./factories-page.ts";
+import {
+	type FactoriesPage,
+	factoryCheckMs,
+	type RangeDays,
+} from "./factories-page.ts";
 import type { FactoryEntry } from "./factories.ts";
 import type { ArtifactsRead } from "./factory-run-artifacts.ts";
 import type { CheckpointRead } from "./factory-run-detail.ts";
@@ -117,12 +121,16 @@ export const pageQuery = {
 		queryFn: () => fetchJson<InsightTables>("/api/insights"),
 	}),
 	/** A change in the factory feed reads the Factories tab again, and so does the factory check interval. */
-	factories: queryOptions({
-		queryKey: ["factories"],
-		queryFn: () => fetchJson<FactoriesPage>("/api/factories"),
-		refetchInterval: factoryCheckMs,
-		placeholderData: (previous: FactoriesPage | undefined) => previous,
-	}),
+	factories: (outcomeDays: RangeDays, stageDays: RangeDays) =>
+		queryOptions({
+			queryKey: ["factories", outcomeDays, stageDays],
+			queryFn: () =>
+				fetchJson<FactoriesPage>(
+					`/api/factories?outcomeDays=${outcomeDays}&stageDays=${stageDays}`,
+				),
+			refetchInterval: factoryCheckMs,
+			placeholderData: (previous: FactoriesPage | undefined) => previous,
+		}),
 	workflows: queryOptions({
 		queryKey: ["workflows"],
 		queryFn: () => fetchJson<WorkflowsPage>("/api/workflows"),
@@ -967,7 +975,7 @@ function applyOverviewEvent(body: Overview): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["transcript"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["runSettings"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
-	void pageQueryClient.invalidateQueries(pageQuery.factories);
+	void pageQueryClient.invalidateQueries({ queryKey: ["factories"] });
 	void pageQueryClient.invalidateQueries(pageQuery.workflows);
 	void pageQueryClient.invalidateQueries({ queryKey: ["workflow"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["verification"] });
@@ -992,7 +1000,7 @@ function invalidatePageQueries(): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["transcript"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["runSettings"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
-	void pageQueryClient.invalidateQueries(pageQuery.factories);
+	void pageQueryClient.invalidateQueries({ queryKey: ["factories"] });
 	void pageQueryClient.invalidateQueries(pageQuery.workflows);
 	void pageQueryClient.invalidateQueries({ queryKey: ["workflow"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["verification"] });

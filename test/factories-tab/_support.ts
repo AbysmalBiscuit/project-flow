@@ -79,9 +79,10 @@ export async function serveFactories(
 export async function factoriesWhere(
 	base: string,
 	accept: (page: FactoriesPage) => boolean,
+	search = "",
 ): Promise<FactoriesPage> {
 	while (true) {
-		const response = await fetch(new URL("/api/factories", base));
+		const response = await fetch(new URL(`/api/factories${search}`, base));
 		if (response.status === 200) {
 			const page = (await response.json()) as FactoriesPage;
 			if (accept(page)) {

@@ -959,7 +959,11 @@ export const factoriesCopy = {
 			: reasons.map(({ reason, count }) => `${count} ${reason}`).join(", "),
 	perMerged: (cost: string | null): string =>
 		cost === null ? "no merged PR" : `${cost} per merged PR`,
-	role: { hub: "hub", daemon: "factory", box: "box" },
+	role: { hub: "hub", daemon: "daemon" },
+	network: "network",
+	standalone: "Standalone",
+	networkSummary: (boxes: number, awake: number): string =>
+		`${boxes} ${boxes === 1 ? "box" : "boxes"}, ${awake} awake`,
 	heartbeat: (span: string): string => `heartbeat ${span} ago`,
 	uptime: (span: string): string => `up ${span}`,
 	noHeartbeat: "no heartbeat yet",
@@ -972,6 +976,7 @@ export const factoriesCopy = {
 		answered
 			? "The box does not answer its hub."
 			: "The box has not answered its hub yet.",
+	hubSilent: "Its hub does not answer.",
 	boxState: { asleep: "asleep", waking: "waking", stopping: "stopping" },
 	asleep: (slots: number, span: string | null): string =>
 		`Asleep with ${plural(slots, "slot", "slots")}${span === null ? "" : `, last contact ${span} ago`}. The hub wakes it when the queue needs slots.`,
@@ -1056,7 +1061,9 @@ export const factoriesCopy = {
 	kind: { failed: "failed", stalled: "stalled", ask: "question" },
 	stalledReason: (stage: string, inStage: string, p95: string): string =>
 		`${stage} ran ${inStage}, its p95 is ${p95}`,
-	outcomes: "Outcomes, last 14 days",
+	outcomes: "Outcomes",
+	range: (days: number): string => `last ${days} days`,
+	rangeLabel: (chart: string): string => `Days of ${chart}`,
 	outcome: { merged: "merged", failed: "failed", stopped: "stopped" },
 	today: "today",
 	dayOutcome: (
@@ -1064,8 +1071,9 @@ export const factoriesCopy = {
 		counts: { merged: number; failed: number; stopped: number },
 	): string =>
 		`${label}: ${counts.merged} merged, ${counts.failed} failed, ${counts.stopped} stopped`,
-	stageDurations: "Stage durations, last 30 days",
-	noStages: "No stage completed in the last 30 days.",
+	stageDurations: "Stage durations",
+	noStages: (days: number): string =>
+		`No stage completed in the last ${days} days.`,
 	allStages: (count: number): string => `Show all ${count} stages`,
 	fewerStages: "Show fewer stages",
 	stageRole: { agent: "agent", tool: "tool" },

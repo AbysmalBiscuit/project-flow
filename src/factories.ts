@@ -348,10 +348,14 @@ export function factoryReader(
 				}
 			}
 		} catch (error) {
-			if (!(error instanceof NotServed || error instanceof Unreachable)) {
+			if (error instanceof NotServed) {
+				pools.delete(factory.url);
+				return;
+			}
+			// A hub that does not answer keeps its last pool, so its box cards stay in place.
+			if (!(error instanceof Unreachable)) {
 				throw error;
 			}
-			pools.delete(factory.url);
 		}
 	};
 	const readHubSources = async (

@@ -1,7 +1,7 @@
 import type { FactoryRun } from "./domain.ts";
 import type { FactoryEntry, FactoryFloor } from "./factories.ts";
 import { type BoxState, hostRoute } from "./factory-host.ts";
-import type { Slots } from "./factory-kind.ts";
+import type { FactoryKind, Slots } from "./factory-kind.ts";
 import { localMachine } from "./factory-run-rows.ts";
 import { type HostHealth, hostHealth } from "./host-health.ts";
 import type {
@@ -16,11 +16,16 @@ import { numberedKey } from "./ticket-key.ts";
 
 const dayMs = 24 * 60 * 60 * 1_000;
 
-/** The days of the outcome chart, today included. */
-export const outcomeDays = 14;
+/** The day ranges a reader can pick for the outcome chart and the stage durations. */
+export const rangeDays = [7, 14, 30, 90] as const;
 
-/** The days of run history that the stage durations and the stall rule cover. */
-export const stageDays = 30;
+export type RangeDays = (typeof rangeDays)[number];
+
+/** The days of the outcome chart, today included, when the reader picks none. */
+export const outcomeDays: RangeDays = 14;
+
+/** The days of run history that the stall rule covers, and the stage durations when the reader picks none. */
+export const stageDays: RangeDays = 30;
 
 /** The fewest ended runs of a stage, in the last `stageDays` days, that give the stage its stall rule. */
 export const stallRuns = 10;
@@ -34,8 +39,13 @@ export const factoryCheckMs = 15_000;
 /** One factory of the Factories tab: its role, its slots and the age of its last answer. */
 export type FactoryCard = {
 	name: string;
-	/** A box is a factory whose runs a listed hub also reports. Null before the first good check. */
-	role: "hub" | "daemon" | "box" | null;
+	/**
+	 * A hub takes runs from its sources, and a daemon builds them. A hub without
+	 * boxes builds its own runs, so it is both. Empty before the first good check.
+	 */
+	roles: FactoryKind[];
+	/** The hub whose network holds this box. */
+	network?: string;
 	/** Null until the first check ends. */
 	reachable: boolean | null;
 	slots?: Slots;
@@ -189,19 +199,37 @@ function cards(
 		return host === undefined ? {} : { host };
 	};
 	const listedNames = new Set(entries.map((entry) => entry.name));
+	// The pool of a hub that does not answer is its last good one, so a box
+	// keeps its card and the page does not reflow; nothing on it is current.
 	const pools = entries.flatMap((entry) =>
-		entry.reachable === true
-			? (floor.pools.get(entry.url) ?? []).flatMap((box) =>
-					box.name === localMachine ? [] : [{ hub: entry.name, box }],
-				)
-			: [],
+		(floor.pools.get(entry.url) ?? []).flatMap((box) =>
+			box.name === localMachine
+				? []
+				: [{ hub: entry.name, hubAnswers: entry.reachable === true, box }],
+		),
 	);
-	const stateOf = new Map(pools.map(({ box }) => [box.name, box.state]));
+	const pooledIn = new Map(
+		pools.map(({ hub, box }) => [box.name, { hub, box }]),
+	);
+	const rolesOf = (entry: FactoryEntry): FactoryKind[] => {
+		if (entry.alsoReadThroughHub !== undefined || pooledIn.has(entry.name)) {
+			return ["daemon"];
+		}
+		if (entry.kind !== "hub") {
+			return entry.kind === null ? [] : [entry.kind];
+		}
+		const pool = floor.pools.get(entry.url) ?? [];
+		const buildsItself = pool.some((box) => box.name === localMachine);
+		return buildsItself ? ["hub", "daemon"] : ["hub"];
+	};
 	return entries.flatMap((entry): FactoryCard[] => {
-		const state = stateOf.get(entry.name);
+		const pooled = pooledIn.get(entry.name);
+		const state = pooled?.box.state;
+		const network = pooled?.hub ?? entry.alsoReadThroughHub;
 		const card: FactoryCard = {
 			name: entry.name,
-			role: entry.alsoReadThroughHub === undefined ? entry.kind : "box",
+			roles: rolesOf(entry),
+			...(network === undefined ? {} : { network }),
 			reachable: entry.reachable,
 			...(entry.reachable === true && entry.slots !== undefined
 				? { slots: entry.slots }
@@ -212,21 +240,26 @@ function cards(
 				: {}),
 			...(state === undefined ? {} : { state }),
 		};
-		const poolCards = pools.flatMap(({ hub, box }): FactoryCard[] =>
-			hub !== entry.name || listedNames.has(box.name)
-				? []
-				: [
-						{
-							name: box.name,
-							role: "box",
-							hub,
-							state: box.state,
-							reachable: awakeStates.has(box.state),
-							slots: box.slots,
-							heartbeatAt: box.last_contact,
-							...(awakeStates.has(box.state) ? healthOf(box.name, null) : {}),
-						},
-					],
+		const poolCards = pools.flatMap(
+			({ hub, hubAnswers, box }): FactoryCard[] => {
+				if (hub !== entry.name || listedNames.has(box.name)) {
+					return [];
+				}
+				const awake = hubAnswers && awakeStates.has(box.state);
+				return [
+					{
+						name: box.name,
+						roles: ["daemon"],
+						network: hub,
+						hub,
+						state: box.state,
+						reachable: awake,
+						...(hubAnswers ? { slots: box.slots } : {}),
+						heartbeatAt: box.last_contact,
+						...(awake ? healthOf(box.name, null) : {}),
+					},
+				];
+			},
 		);
 		return [card, ...poolCards];
 	});
@@ -235,7 +268,7 @@ function cards(
 /** The slots of every factory, with a box that a hub also reports counted once, in its hub. */
 function slotsOf(boxes: FactoryCard[]): Slots | null {
 	const counted = boxes.flatMap((box) =>
-		box.role !== "box" && box.slots !== undefined ? [box.slots] : [],
+		box.network === undefined && box.slots !== undefined ? [box.slots] : [],
 	);
 	return counted.length === 0
 		? null
@@ -298,10 +331,14 @@ function stallAt(since: string, p95S: number): number {
 
 const dayOf = (time: number) => new Date(time).toISOString().slice(0, 10);
 
-function outcomesOf(ended: RunHistoryEnd[], now: number): DayOutcome[] {
+function outcomesOf(
+	ended: RunHistoryEnd[],
+	daysShown: number,
+	now: number,
+): DayOutcome[] {
 	const days = new Map(
-		Array.from({ length: outcomeDays }, (_, index): [string, DayOutcome] => {
-			const day = dayOf(now - (outcomeDays - 1 - index) * dayMs);
+		Array.from({ length: daysShown }, (_, index): [string, DayOutcome] => {
+			const day = dayOf(now - (daysShown - 1 - index) * dayMs);
 			return [day, { day, merged: 0, failed: 0, stopped: 0 }];
 		}),
 	);
@@ -532,6 +569,9 @@ function endTiles(ended: RunHistoryEnd[], now: number) {
 	};
 }
 
+/** The stage events of some days of run history, and the turn cost of their runs. */
+export type StageWindow = { samples: StageSample[]; costs: StageCost[] };
+
 /** The Factories tab: what each factory runs now, what needs attention, and the queue. */
 export function factoriesPage(input: {
 	entries: FactoryEntry[];
@@ -540,9 +580,12 @@ export function factoriesPage(input: {
 	rows: RunListRow[];
 	/** The runs of the run history that ended in the outcome chart's days or in the last 48 hours. */
 	ended: RunHistoryEnd[];
-	/** The stage events of the last `stageDays` days, and the turn cost of their runs. */
-	stageSamples: StageSample[];
-	stageCosts: StageCost[];
+	/** The days of the outcome chart, today included. */
+	outcomeDays: number;
+	/** The stage events of the last `stageDays` days, and the turn cost of their runs, for the stall rule. */
+	stall: StageWindow;
+	/** The stage events and turn costs of the days the stage durations show. */
+	shown: StageWindow;
 	/** The host samples of the last `growthSpanMs`, oldest first. */
 	hostSamples: HostSample[];
 	/** The page of each tracked ticket by its key. */
@@ -552,7 +595,11 @@ export function factoriesPage(input: {
 	const now = input.now.getTime();
 	const keys = new Map(input.rows.map((row) => [row.id, row]));
 	const boxes = cards(input.entries, input.floor, input.hostSamples, input.now);
-	const stages = stageDurations(input.stageSamples, input.stageCosts);
+	const stages = stageDurations(input.stall.samples, input.stall.costs);
+	const shown =
+		input.shown === input.stall
+			? stages
+			: stageDurations(input.shown.samples, input.shown.costs);
 	const running = runningRuns(
 		input.runs,
 		keys,
@@ -594,9 +641,9 @@ export function factoriesPage(input: {
 		attention,
 		queue,
 		notServed,
-		stages: stages.flatMap(({ endedRuns: _, ...stage }) =>
+		stages: shown.flatMap(({ endedRuns: _, ...stage }) =>
 			stage.stage.includes("/") ? [] : [stage],
 		),
-		outcomes: outcomesOf(input.ended, now),
+		outcomes: outcomesOf(input.ended, input.outcomeDays, now),
 	};
 }
