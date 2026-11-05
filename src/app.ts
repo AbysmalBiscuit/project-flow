@@ -14,6 +14,7 @@ import {
 import { eventStream } from "./event-stream.ts";
 import { factoriesRoutes } from "./factories-routes.ts";
 import { factoryReader } from "./factories.ts";
+import { hostSampleMs } from "./factory-host.ts";
 import { factoryRunRoutes } from "./factory-run-routes.ts";
 import {
 	abortableFetch,
@@ -181,6 +182,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		{
 			stage: (runId, event) => opened.history.recordStage(runId, event),
 			asks: (runId, asks) => opened.history.recordAsks(runId, asks),
+			host: (sample) => opened.history.recordHost(sample),
 		},
 	);
 	const backfill = historyBackfill(opened.history, factories);
@@ -489,6 +491,24 @@ export async function start(options: StartOptions): Promise<Running> {
 	// the clock past the run poll interval gets the next read.
 	let runsReadAt: number | null = null;
 	let readingRuns = false;
+	let hostsSampledAt: number | null = null;
+	let samplingHosts = false;
+	const sampleHosts = (now: number) => {
+		if (
+			samplingHosts ||
+			(hostsSampledAt !== null && now - hostsSampledAt < hostSampleMs)
+		) {
+			return;
+		}
+		hostsSampledAt = now;
+		samplingHosts = true;
+		void factories
+			.sampleHosts()
+			.catch(() => {})
+			.finally(() => {
+				samplingHosts = false;
+			});
+	};
 	const pollRuns = () => {
 		if (stopped || listedFactories().length === 0) {
 			return;
@@ -497,6 +517,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			() => clock.now().getTime(),
 			(change) => readFactories(change).catch(() => {}),
 		);
+		sampleHosts(clock.now().getTime());
 		if (readingRuns) {
 			return;
 		}

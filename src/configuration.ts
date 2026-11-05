@@ -196,6 +196,8 @@ const factory = z.strictObject({
 	readyLabel: z.string().trim().min(1).optional(),
 	/** The ticket status that a hub source rule of the factory starts a run on. */
 	readyStatus: z.string().trim().min(1).optional(),
+	/** The 5-minute load average at which the factory stops taking new runs. */
+	placementGate: z.number().positive().optional(),
 });
 
 export type Factory = z.infer<typeof factory>;

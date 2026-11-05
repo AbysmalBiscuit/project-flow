@@ -10,16 +10,24 @@ import type {
 	DayOutcome,
 	FactoriesPage,
 	FactoryCard,
+	NotServedPanel,
 	QueueItem,
 	RunningRun,
 	StageDuration,
 } from "./factories-page.ts";
+import type { HostDisk, HostHealth, HostLevel } from "./host-health.ts";
 import { PageLoading } from "./loading.tsx";
 import { runPagePath } from "./page-links.ts";
 import { pageQuery } from "./queries.ts";
 import type { RunGraph, RunGraphNodeState } from "./run-domain.ts";
 import { PageFrame } from "./shell.tsx";
-import { costLabel, factoriesCopy, navLabel, spanText } from "./terms.ts";
+import {
+	costLabel,
+	factoriesCopy,
+	navLabel,
+	roughSpanText,
+	spanText,
+} from "./terms.ts";
 import { ticketLabel } from "./ticket-key.ts";
 import {
 	colours,
@@ -106,6 +114,12 @@ const styles = stylex.create({
 		borderLeftWidth: measure.boxEdge,
 		borderLeftColor: colours.awaitingMerge,
 	},
+	boxWarn: {
+		borderLeftColor: colours.warn,
+	},
+	boxBad: {
+		borderLeftColor: colours.danger,
+	},
 	boxOff: {
 		borderLeftColor: colours.inkSoft,
 		opacity: 0.6,
@@ -150,6 +164,7 @@ const styles = stylex.create({
 	},
 	sourceRow: {
 		display: "flex",
+		gap: space.xs,
 		justifyContent: "flex-end",
 		marginBottom: space.sm,
 	},
@@ -176,6 +191,10 @@ const styles = stylex.create({
 		backgroundColor: colours.warnWash,
 		color: colours.warn,
 	},
+	pillOk: {
+		backgroundColor: colours.okWash,
+		color: colours.awaitingMerge,
+	},
 	stagePill: {
 		marginLeft: space.xs,
 	},
@@ -200,6 +219,57 @@ const styles = stylex.create({
 		height: "100%",
 		backgroundColor: colours.accent,
 	}),
+	levelOk: {
+		backgroundColor: colours.awaitingMerge,
+	},
+	levelWarn: {
+		backgroundColor: colours.warn,
+	},
+	levelBad: {
+		backgroundColor: colours.danger,
+	},
+	iowait: {
+		backgroundColor: colours.done,
+	},
+	gated: {
+		position: "relative",
+	},
+	gate: (left: string) => ({
+		position: "absolute",
+		top: 0,
+		bottom: 0,
+		left,
+		width: measure.gateMark,
+		backgroundColor: colours.ink,
+	}),
+	meterSmall: {
+		color: colours.inkSoft,
+		fontSize: type.meterSmall,
+	},
+	spark: {
+		display: "block",
+		width: "100%",
+		maxWidth: measure.sparkWidth,
+		height: measure.sparkHeight,
+		overflow: "visible",
+	},
+	sparkLine: {
+		fill: "none",
+		stroke: colours.accent,
+		strokeWidth: measure.sparkStroke,
+	},
+	mono: {
+		overflow: "hidden",
+		fontFamily: font.mono,
+		textOverflow: "ellipsis",
+		whiteSpace: "nowrap",
+	},
+	worstWarn: {
+		color: colours.warn,
+	},
+	worstBad: {
+		color: colours.danger,
+	},
 	meterValue: {
 		color: colours.inkMuted,
 		textAlign: "right",
@@ -557,12 +627,261 @@ function Tiles({ page, now }: { page: FactoriesPage; now: number }) {
 	);
 }
 
-function BoxCard({ box, now }: { box: FactoryCard; now: number }) {
+const levelFill: Record<HostLevel, stylex.StyleXStyles> = {
+	ok: styles.levelOk,
+	warn: styles.levelWarn,
+	bad: styles.levelBad,
+};
+
+const levelPill: Record<HostLevel, stylex.StyleXStyles> = {
+	ok: styles.pillOk,
+	warn: styles.pillWarn,
+	bad: styles.pillBad,
+};
+
+const levelEdge: Record<HostLevel, stylex.StyleXStyles | false> = {
+	ok: false,
+	warn: styles.boxWarn,
+	bad: styles.boxBad,
+};
+
+/** The load per core that fills the load meter. */
+const fullLoadPerCore = 1.2;
+
+const percent = (share: number) =>
+	`${Math.max(0, Math.min(100, share * 100))}%`;
+
+/** Bytes as gigabytes, with one decimal under 10 GB. */
+const gigabytes = (bytes: number) => {
+	const gb = bytes / 1e9;
+	return gb < 10 ? gb.toFixed(1) : String(Math.round(gb));
+};
+
+/** A long mount path keeps its end, as the end names the folder. */
+const mountLabel = (mount: string) =>
+	mount.length > 16 ? `...${mount.slice(-13)}` : mount;
+
+function Meter({
+	label,
+	value,
+	children,
+	small = false,
+	mono = false,
+}: {
+	label: string;
+	value: string;
+	children: ReactNode;
+	small?: boolean;
+	mono?: boolean;
+}) {
+	return (
+		<div className={clsx(styles.meter, small && styles.meterSmall)}>
+			<span className={clsx(mono && styles.mono)} title={label}>
+				{label}
+			</span>
+			{children}
+			<span className={clsx(styles.meterValue)}>{value}</span>
+		</div>
+	);
+}
+
+function Fill({ share, tone }: { share: number; tone: stylex.StyleXStyles }) {
+	return <span {...stylex.props(styles.fill(percent(share)), tone)} />;
+}
+
+function Spark({ values }: { values: number[] }) {
+	const width = 120;
+	const height = 24;
+	const top = Math.max(...values, Number.MIN_VALUE);
+	const path = values
+		.map(
+			(value, index) =>
+				`${index === 0 ? "M" : "L"}${((index / Math.max(1, values.length - 1)) * width).toFixed(1)},${(height - (value / top) * height).toFixed(1)}`,
+		)
+		.join("");
+	return (
+		<svg
+			className={clsx(styles.spark)}
+			viewBox={`0 0 ${width} ${height}`}
+			preserveAspectRatio="none"
+			aria-hidden="true"
+		>
+			{values.length < 2 ? null : (
+				<path className={clsx(styles.sparkLine)} d={path} />
+			)}
+		</svg>
+	);
+}
+
+function worstNote(host: HostHealth): string | null {
+	const worst = host.worst;
+	if (worst === undefined) {
+		return null;
+	}
+	const copy = factoriesCopy.worst;
+	switch (worst.metric) {
+		case "load":
+			return copy.load(host.load.perCore.toFixed(2));
+		case "gate":
+			return copy.gate(host.load.m5.toFixed(1), String(host.load.gate ?? ""));
+		case "cpu":
+			return copy.cpu(host.cpu.busyPercent);
+		case "memory":
+			return copy.memory(gigabytes(host.memory.availableBytes));
+		case "swap":
+			return copy.swap(gigabytes(host.swap.usedBytes));
+		case "disk": {
+			const disk = host.disks.find((each) => each.mount === worst.mount);
+			if (disk === undefined) {
+				return null;
+			}
+			return disk.fullInS === null
+				? copy.diskFree(disk.mount, gigabytes(disk.freeBytes))
+				: copy.diskFull(disk.mount, roughSpanText(disk.fullInS * 1_000));
+		}
+	}
+}
+
+function DiskMeter({ disk }: { disk: HostDisk }) {
+	return (
+		<Meter
+			label={mountLabel(disk.mount)}
+			mono
+			value={factoriesCopy.diskValue(
+				gigabytes(disk.freeBytes),
+				disk.fullInS === null ? null : roughSpanText(disk.fullInS * 1_000),
+			)}
+		>
+			<span className={clsx(styles.bar)}>
+				<Fill
+					share={disk.totalBytes === 0 ? 0 : disk.usedBytes / disk.totalBytes}
+					tone={levelFill[disk.level]}
+				/>
+			</span>
+		</Meter>
+	);
+}
+
+function HostMeters({ host }: { host: HostHealth }) {
+	const { load, cpu, memory, swap } = host;
+	const gateShare =
+		load.gate === null ? null : load.gate / host.cores / fullLoadPerCore;
+	const note = worstNote(host);
+	return (
+		<>
+			<Meter
+				label={factoriesCopy.meters.loadPerCore}
+				value={factoriesCopy.loadPerCore(
+					load.perCore.toFixed(2),
+					load.m5.toFixed(1),
+				)}
+			>
+				<span className={clsx(styles.bar, styles.gated)}>
+					<Fill
+						share={load.perCore / fullLoadPerCore}
+						tone={levelFill[load.level]}
+					/>
+					{gateShare === null ? null : (
+						<span
+							{...stylex.props(styles.gate(percent(gateShare)))}
+							title={factoriesCopy.gateMark(String(load.gate))}
+						/>
+					)}
+				</span>
+			</Meter>
+			<Meter
+				label={factoriesCopy.meters.loadHour}
+				small
+				value={[load.m1, load.m5, load.m15]
+					.map((value) => value.toFixed(1))
+					.join(" / ")}
+			>
+				<Spark values={load.hour} />
+			</Meter>
+			<Meter
+				label={factoriesCopy.meters.cpu}
+				value={factoriesCopy.cpuValue(cpu.busyPercent, cpu.iowaitPercent)}
+			>
+				<span className={clsx(styles.bar)}>
+					<Fill share={cpu.busyPercent / 100} tone={levelFill[cpu.level]} />
+					<Fill share={cpu.iowaitPercent / 100} tone={styles.iowait} />
+				</span>
+			</Meter>
+			<Meter
+				label={factoriesCopy.meters.memory}
+				value={factoriesCopy.available(gigabytes(memory.availableBytes))}
+			>
+				<span className={clsx(styles.bar)}>
+					<Fill
+						share={
+							memory.totalBytes === 0
+								? 0
+								: 1 - memory.availableBytes / memory.totalBytes
+						}
+						tone={levelFill[memory.level]}
+					/>
+				</span>
+			</Meter>
+			<Meter
+				label={factoriesCopy.meters.swap}
+				value={factoriesCopy.swapValue(
+					gigabytes(swap.usedBytes),
+					gigabytes(swap.totalBytes),
+				)}
+			>
+				<span className={clsx(styles.bar)}>
+					<Fill
+						share={swap.totalBytes === 0 ? 0 : swap.usedBytes / swap.totalBytes}
+						tone={styles.levelWarn}
+					/>
+				</span>
+			</Meter>
+			{host.disks.map((disk) => (
+				<DiskMeter key={disk.mount} disk={disk} />
+			))}
+			<div className={clsx(styles.legend)}>
+				<span className={clsx(styles.legendItem)}>
+					<span className={clsx(styles.swatch, styles.iowait)} />
+					{factoriesCopy.iowait}
+				</span>
+				<span>
+					{factoriesCopy.hostSize(host.cores, gigabytes(memory.totalBytes))}
+				</span>
+			</div>
+			{note === null ? null : (
+				<p
+					className={clsx(
+						styles.note,
+						host.level === "bad" ? styles.worstBad : styles.worstWarn,
+					)}
+				>
+					{note}
+				</p>
+			)}
+		</>
+	);
+}
+
+function BoxCard({
+	box,
+	page,
+	now,
+}: {
+	box: FactoryCard;
+	page: FactoriesPage;
+	now: number;
+}) {
 	const heartbeat = since(box.heartbeatAt, now);
 	const off = box.reachable !== true;
+	const host = off ? undefined : box.host;
 	return (
 		<section
-			className={clsx(styles.card, styles.box, off && styles.boxOff)}
+			className={clsx(
+				styles.card,
+				styles.box,
+				host !== undefined && levelEdge[host.level],
+				off && styles.boxOff,
+			)}
 			aria-label={box.name}
 		>
 			<div className={clsx(styles.head)}>
@@ -576,39 +895,53 @@ function BoxCard({ box, now }: { box: FactoryCard; now: number }) {
 					<span className={clsx(styles.pill, styles.pillBad)}>
 						{factoriesCopy.noAnswer}
 					</span>
-				) : null}
+				) : host === undefined ? null : (
+					<span className={clsx(styles.pill, levelPill[host.level])}>
+						{factoriesCopy.level[host.level]}
+					</span>
+				)}
 				<span className={clsx(styles.meta)}>
 					{heartbeat === null
 						? factoriesCopy.noHeartbeat
 						: factoriesCopy.heartbeat(heartbeat)}
+					{host === undefined
+						? null
+						: `, ${factoriesCopy.uptime(spanText(host.uptimeS * 1_000))}`}
 				</span>
 			</div>
 			<div className={clsx(styles.sourceRow)}>
 				<Source>{factoriesCopy.sources.daemon}</Source>
-				<Source need>{factoriesCopy.hostSource}</Source>
+				<Source next>{factoriesCopy.hostSource}</Source>
 			</div>
 			{off ? (
 				<p className={clsx(styles.note)}>
 					{factoriesCopy.unreachable(heartbeat)}
 				</p>
-			) : box.slots === undefined ? (
-				<p className={clsx(styles.note)}>{factoriesCopy.noSlotCount}</p>
 			) : (
-				<div className={clsx(styles.meter)}>
-					<span>{factoriesCopy.slots}</span>
-					<span className={clsx(styles.bar)}>
-						<span
-							{...stylex.props(
-								styles.fill(
-									`${box.slots.total === 0 ? 0 : Math.min(100, (box.slots.used / box.slots.total) * 100)}%`,
-								),
-							)}
-						/>
-					</span>
-					<span className={clsx(styles.meterValue)}>
-						{factoriesCopy.busy(box.slots.used, box.slots.total)}
-					</span>
-				</div>
+				<>
+					{box.slots === undefined ? (
+						<p className={clsx(styles.note)}>{factoriesCopy.noSlotCount}</p>
+					) : (
+						<Meter
+							label={factoriesCopy.slots}
+							value={factoriesCopy.busy(box.slots.used, box.slots.total)}
+						>
+							<span className={clsx(styles.bar)}>
+								<Fill
+									share={
+										box.slots.total === 0 ? 0 : box.slots.used / box.slots.total
+									}
+									tone={styles.stepCurrent}
+								/>
+							</span>
+						</Meter>
+					)}
+					{host === undefined ? (
+						<NotServed page={page} panel="host" factory={box.name} />
+					) : (
+						<HostMeters host={host} />
+					)}
+				</>
 			)}
 		</section>
 	);
@@ -910,9 +1243,21 @@ function QueueTable({ items, now }: { items: QueueItem[]; now: number }) {
 	);
 }
 
-function NotServed({ page, panel }: { page: FactoriesPage; panel: "queue" }) {
+function NotServed({
+	page,
+	panel,
+	factory,
+}: {
+	page: FactoriesPage;
+	panel: NotServedPanel["panel"];
+	factory?: string;
+}) {
 	return page.notServed
-		.filter((item) => item.panel === panel)
+		.filter(
+			(item) =>
+				item.panel === panel &&
+				(factory === undefined || item.factory === factory),
+		)
 		.map((item) => (
 			<p key={item.factory} className={clsx(styles.note)}>
 				{factoriesCopy.notServed(item.factory, item.route)}
@@ -1089,7 +1434,7 @@ export function Page() {
 					<Tiles page={page} now={now} />
 					<div className={clsx(styles.grid, styles.boxes)}>
 						{page.boxes.map((box) => (
-							<BoxCard key={box.name} box={box} now={now} />
+							<BoxCard key={box.name} box={box} page={page} now={now} />
 						))}
 					</div>
 					<div className={clsx(styles.grid, styles.two)}>

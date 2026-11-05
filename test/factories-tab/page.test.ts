@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import hubEvents from "../fixtures/factory-hub-events.json";
 import holds from "../fixtures/factory-hub-holds.json";
 import queueSources from "../fixtures/factory-hub-queue-sources.json";
+import machine from "../fixtures/factory-machine.json";
 import runQuestions from "../fixtures/factory-run-questions.json";
 import { type Answers, EventFeed, laptopSocket } from "../support/factory.ts";
 import { openEventStream } from "../support/reads.ts";
@@ -234,6 +235,7 @@ describe("the Factories tab", () => {
 			"/sources": queueSources,
 			"/holds": holds,
 			"/runs": { runs: [] },
+			"/machine": machine,
 		});
 		try {
 			const page = await factoriesWhere(
@@ -290,10 +292,16 @@ describe("the Factories tab", () => {
 
 	test("a hub that serves no holds still gives its queue, and a factory with no queue route is named", async () => {
 		const app = await serveFactories(
-			{ "/daemon": hubAbout, "/sources": queueSources, "/runs": { runs: [] } },
+			{
+				"/daemon": hubAbout,
+				"/sources": queueSources,
+				"/runs": { runs: [] },
+				"/machine": machine,
+			},
 			{
 				"/daemon": { ...laptopAbout, role: "hub" },
 				"/runs": { runs: [] },
+				"/machine": machine,
 			},
 		);
 		try {

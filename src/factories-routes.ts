@@ -4,6 +4,7 @@ import {
 	outcomeDays,
 	stageDays,
 } from "./factories-page.ts";
+import { growthSpanMs } from "./host-health.ts";
 import type { Clock, FactoryReader } from "./ports.ts";
 import { routeTable } from "./route-table.ts";
 import type { RunHistory } from "./run-history.ts";
@@ -52,6 +53,9 @@ export function factoriesRoutes(options: FactoriesRouteOptions) {
 						ended: options.history.endedSince(dayStart(now, outcomeDays - 1)),
 						stageSamples: options.history.stageSamples(stagesSince),
 						stageCosts: options.history.stageCosts(stagesSince),
+						hostSamples: options.history.hostSamples(
+							new Date(now.getTime() - growthSpanMs),
+						),
 						ticketUrls: options.ticketUrls(),
 						now,
 					}),

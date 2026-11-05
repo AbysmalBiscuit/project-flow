@@ -8,6 +8,7 @@ import type {
 	ShownFactoryRun,
 	TicketState,
 } from "./domain.ts";
+import { hostRoute } from "./factory-host.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { GraphDirection } from "./view-settings.ts";
 
@@ -905,6 +906,17 @@ const minuteMs = 60_000;
 const hourMs = 60 * minuteMs;
 const dayMs = 24 * hourMs;
 
+/** A span of time in its largest whole unit, such as `40m`, `5h` or `9d`, for an estimate. */
+export function roughSpanText(ms: number): string {
+	const span = Math.max(0, ms);
+	if (span < hourMs) {
+		return `${Math.floor(span / minuteMs)}m`;
+	}
+	return span < dayMs
+		? `${Math.floor(span / hourMs)}h`
+		: `${Math.floor(span / dayMs)}d`;
+}
+
 /** A span of time as the Factories tab shows it, such as `14m`, `3h 23m` or `2d 4h`. */
 export function spanText(ms: number): string {
 	const span = Math.max(0, ms);
@@ -920,9 +932,6 @@ export function spanText(ms: number): string {
 	}
 	return `${Math.floor(span / dayMs)}d ${Math.floor((span % dayMs) / hourMs)}h`;
 }
-
-/** The workcell ticket that adds the host health route. */
-const hostHealthTicket = 1779;
 
 const plural = (count: number, one: string, many: string): string =>
 	`${count} ${count === 1 ? one : many}`;
@@ -954,6 +963,7 @@ export const factoriesCopy = {
 		cost === null ? "no merged PR" : `${cost} per merged PR`,
 	role: { hub: "hub", daemon: "factory", box: "box" },
 	heartbeat: (span: string): string => `heartbeat ${span} ago`,
+	uptime: (span: string): string => `up ${span}`,
 	noHeartbeat: "no heartbeat yet",
 	noAnswer: "does not answer",
 	unreachable: (span: string | null): string =>
@@ -972,7 +982,39 @@ export const factoriesCopy = {
 		stageEvents: "stage.completed events",
 		stageAggregate: "project-flow aggregate",
 	},
-	hostSource: `needs workcell#${hostHealthTicket}`,
+	hostSource: `GET ${hostRoute}`,
+	level: { ok: "healthy", warn: "watch", bad: "trouble" },
+	meters: {
+		loadPerCore: "Load / core, 5m",
+		loadHour: "Load 1h, 1/5/15m",
+		cpu: "CPU",
+		memory: "Memory",
+		swap: "Swap",
+	},
+	loadPerCore: (perCore: string, load: string): string =>
+		`${perCore} (${load})`,
+	cpuValue: (busy: number, iowait: number): string =>
+		`${busy}%, iowait ${iowait}%`,
+	available: (gb: string): string => `${gb} GB available`,
+	swapValue: (used: string, total: string): string => `${used} / ${total} GB`,
+	diskValue: (free: string, fullIn: string | null): string =>
+		`${free} GB free, ${fullIn === null ? "no growth" : `full in ~${fullIn}`}`,
+	iowait: "iowait",
+	hostSize: (cores: number, gb: string): string =>
+		`${plural(cores, "core", "cores")}, ${gb} GB RAM`,
+	gateMark: (gate: string): string => `placement gate ${gate}`,
+	worst: {
+		load: (perCore: string): string => `5m load per core ${perCore} is high`,
+		gate: (load: string, gate: string): string =>
+			`5m load ${load} is past the placement gate of ${gate}`,
+		cpu: (busy: number): string => `CPU is ${busy}% busy`,
+		memory: (gb: string): string => `Only ${gb} GB of memory is available`,
+		swap: (gb: string): string => `${gb} GB of swap is in use`,
+		diskFull: (mount: string, span: string): string =>
+			`${mount} fills in about ${span}`,
+		diskFree: (mount: string, gb: string): string =>
+			`${mount} has ${gb} GB free`,
+	},
 	running: "Running now",
 	runningNote:
 		"Amber: the current stage runs past its p95 over the last 30 days, and for at least 10 minutes. Longest-running first. The times count up in the page.",

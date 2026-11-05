@@ -2,6 +2,7 @@ import { Database, type SQLQueryBindings } from "bun:sqlite";
 
 import { z } from "zod";
 
+import { type HostSnapshot, hostSnapshot } from "./factory-host.ts";
 import type { RunAsks } from "./factory-run-rows.ts";
 import type { RunResult, RunStatusKind } from "./kinds.ts";
 import {
@@ -157,7 +158,18 @@ const queryableViews = [
 	"asks",
 	"verdicts",
 	"retros",
+	"host_samples",
 ];
+
+/** How long the run history keeps a host sample. */
+export const hostSampleKeepMs = 24 * 60 * 60 * 1_000;
+
+/** One sample of the host route of a factory, at the clock time `at`. */
+export type HostSample = {
+	factory: string;
+	at: string;
+	snapshot: HostSnapshot;
+};
 
 /** Whitespace, semicolons and comments: what may follow the one statement of a query. */
 const statementTail = /^(?:\s|;|--[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/)*$/;
@@ -253,6 +265,28 @@ export function runHistory(db: Database, path: string) {
 			record ->> '$.facts.restarts' as restarts, json_array_length(record, '$.friction') as friction,
 			record ->> '$.time_lost_s' as time_lost_s
 		from run_retros where record is not null
+	`);
+	db.run(`
+		create table if not exists run_host_samples (
+			factory text not null, at text not null, snapshot text not null,
+			primary key (factory, at)
+		)
+	`);
+	// The view is derived, so a store from an older launch gets the current columns.
+	db.run("drop view if exists host_samples");
+	db.run(`
+		create view host_samples as
+		select factory, at, snapshot ->> '$.taken_at' as taken_at,
+			snapshot ->> '$.uptime_seconds' as uptime_s, snapshot ->> '$.cpu.cores' as cores,
+			snapshot ->> '$.cpu.load_1m' as load_1m, snapshot ->> '$.cpu.load_5m' as load_5m,
+			snapshot ->> '$.cpu.load_15m' as load_15m, snapshot ->> '$.cpu.busy_percent' as busy_percent,
+			snapshot ->> '$.cpu.iowait_percent' as iowait_percent,
+			snapshot ->> '$.memory.total_bytes' as memory_bytes,
+			snapshot ->> '$.memory.available_bytes' as available_bytes,
+			snapshot ->> '$.memory.swap_total_bytes' as swap_bytes,
+			snapshot ->> '$.memory.swap_used_bytes' as swap_used_bytes,
+			snapshot -> '$.disks' as disks
+		from run_host_samples
 	`);
 	db.run(
 		"create table if not exists run_history_reads (run_id text not null, read text not null, ended_at text, primary key (run_id, read))",
@@ -655,6 +689,30 @@ export function runHistory(db: Database, path: string) {
 					"select stage, run_id as runId, sum(coalesce(cost_usd, 0)) as costUsd from run_turns where run_id in (select run_id from run_stages where julianday(at) >= julianday(?)) group by stage, run_id",
 				)
 				.all(since.toISOString());
+		},
+		/** Keep a host sample, and remove the samples older than `hostSampleKeepMs`. */
+		recordHost(sample: HostSample): void {
+			db.transaction(() => {
+				db.query(
+					"insert or replace into run_host_samples (factory, at, snapshot) values (?, ?, ?)",
+				).run(sample.factory, sample.at, JSON.stringify(sample.snapshot));
+				db.query(
+					"delete from run_host_samples where julianday(at) < julianday(?)",
+				).run(new Date(Date.parse(sample.at) - hostSampleKeepMs).toISOString());
+			})();
+		},
+		/** The host samples at or after `since`, oldest first. */
+		hostSamples(since: Date): HostSample[] {
+			return db
+				.query<{ factory: string; at: string; snapshot: string }, [string]>(
+					"select factory, at, snapshot from run_host_samples where julianday(at) >= julianday(?) order by julianday(at)",
+				)
+				.all(since.toISOString())
+				.map((row) => ({
+					factory: row.factory,
+					at: row.at,
+					snapshot: hostSnapshot.parse(JSON.parse(row.snapshot)),
+				}));
 		},
 		tables(): InsightTables {
 			return {
