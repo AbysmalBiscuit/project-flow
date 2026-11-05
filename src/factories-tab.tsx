@@ -748,14 +748,14 @@ const sizeText = (amount: number) =>
 
 const gigabytes = (bytes: number) => sizeText(bytes / 1e9);
 
-const diskUnits = ["GB", "TB", "PB", "EB"] as const;
+const sizeUnits = ["GB", "TB", "PB", "EB"] as const;
 
-/** Free and total bytes of a disk in the largest unit that keeps the total at 1 or more. */
-function diskSize(free: number, total: number) {
+/** Free and total bytes in the largest unit that keeps the total at 1 or more. */
+function sizeOf(free: number, total: number) {
 	const step = Math.max(
 		0,
 		Math.min(
-			diskUnits.length - 1,
+			sizeUnits.length - 1,
 			Math.floor(Math.log10(Math.max(total, 1) / 1e9) / 3),
 		),
 	);
@@ -763,7 +763,7 @@ function diskSize(free: number, total: number) {
 	return {
 		free: sizeText(free / scale),
 		total: sizeText(total / scale),
-		unit: diskUnits[step] ?? "GB",
+		unit: sizeUnits[step] ?? "GB",
 	};
 }
 
@@ -857,15 +857,13 @@ function worstNote(host: HostHealth): string | null {
 }
 
 function DiskMeter({ disk }: { disk: HostDisk }) {
-	const size = diskSize(disk.freeBytes, disk.totalBytes);
+	const size = sizeOf(disk.freeBytes, disk.totalBytes);
 	return (
 		<Meter
 			label={mountLabel(disk.mount)}
 			mono={disk.mount !== "/"}
 			value={factoriesCopy.diskValue(
-				size.free,
-				size.total,
-				size.unit,
+				size,
 				disk.fullInS === null ? null : roughSpanText(disk.fullInS * 1_000),
 			)}
 		>
@@ -974,7 +972,9 @@ function HostRows({ host }: { host: HostHealth }) {
 			</Meter>
 			<Meter
 				label={factoriesCopy.meters.memory}
-				value={factoriesCopy.available(gigabytes(memory.availableBytes))}
+				value={factoriesCopy.freeOf(
+					sizeOf(memory.availableBytes, memory.totalBytes),
+				)}
 			>
 				<span className={clsx(styles.bar)}>
 					<Fill
@@ -989,9 +989,8 @@ function HostRows({ host }: { host: HostHealth }) {
 			</Meter>
 			<Meter
 				label={factoriesCopy.meters.swap}
-				value={factoriesCopy.swapValue(
-					gigabytes(swap.usedBytes),
-					gigabytes(swap.totalBytes),
+				value={factoriesCopy.freeOf(
+					sizeOf(swap.totalBytes - swap.usedBytes, swap.totalBytes),
 				)}
 			>
 				<span className={clsx(styles.bar)}>

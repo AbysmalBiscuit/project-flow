@@ -1013,15 +1013,13 @@ export const factoriesCopy = {
 		`${perCore} (${load})`,
 	cpuValue: (busy: number, iowait: number): string =>
 		`${busy}%, iowait ${iowait}%`,
-	available: (gb: string): string => `${gb} GB available`,
-	swapValue: (used: string, total: string): string => `${used} / ${total} GB`,
+	freeOf: (size: { free: string; total: string; unit: string }): string =>
+		`${size.free} / ${size.total} ${size.unit} free`,
 	diskValue: (
-		free: string,
-		total: string,
-		unit: string,
+		size: { free: string; total: string; unit: string },
 		fullIn: string | null,
 	): string =>
-		`${free} / ${total} ${unit} free, ${fullIn === null ? "no growth" : `full in ~${fullIn}`}`,
+		`${size.free} / ${size.total} ${size.unit} free, ${fullIn === null ? "no growth" : `full in ~${fullIn}`}`,
 	iowait: "iowait",
 	hostSize: (cores: number, gb: string): string =>
 		`${plural(cores, "core", "cores")}, ${gb} GB RAM`,
