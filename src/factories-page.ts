@@ -189,12 +189,14 @@ function cards(
 		return host === undefined ? {} : { host };
 	};
 	const listedNames = new Set(entries.map((entry) => entry.name));
+	// The pool of a hub that does not answer is its last good one, so a box
+	// keeps its card and the page does not reflow; nothing on it is current.
 	const pools = entries.flatMap((entry) =>
-		entry.reachable === true
-			? (floor.pools.get(entry.url) ?? []).flatMap((box) =>
-					box.name === localMachine ? [] : [{ hub: entry.name, box }],
-				)
-			: [],
+		(floor.pools.get(entry.url) ?? []).flatMap((box) =>
+			box.name === localMachine
+				? []
+				: [{ hub: entry.name, hubAnswers: entry.reachable === true, box }],
+		),
 	);
 	const stateOf = new Map(pools.map(({ box }) => [box.name, box.state]));
 	return entries.flatMap((entry): FactoryCard[] => {
@@ -212,21 +214,25 @@ function cards(
 				: {}),
 			...(state === undefined ? {} : { state }),
 		};
-		const poolCards = pools.flatMap(({ hub, box }): FactoryCard[] =>
-			hub !== entry.name || listedNames.has(box.name)
-				? []
-				: [
-						{
-							name: box.name,
-							role: "box",
-							hub,
-							state: box.state,
-							reachable: awakeStates.has(box.state),
-							slots: box.slots,
-							heartbeatAt: box.last_contact,
-							...(awakeStates.has(box.state) ? healthOf(box.name, null) : {}),
-						},
-					],
+		const poolCards = pools.flatMap(
+			({ hub, hubAnswers, box }): FactoryCard[] => {
+				if (hub !== entry.name || listedNames.has(box.name)) {
+					return [];
+				}
+				const awake = hubAnswers && awakeStates.has(box.state);
+				return [
+					{
+						name: box.name,
+						role: "box",
+						hub,
+						state: box.state,
+						reachable: awake,
+						...(hubAnswers ? { slots: box.slots } : {}),
+						heartbeatAt: box.last_contact,
+						...(awake ? healthOf(box.name, null) : {}),
+					},
+				];
+			},
 		);
 		return [card, ...poolCards];
 	});

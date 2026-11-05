@@ -72,13 +72,6 @@ const styles = stylex.create({
 		},
 		alignItems: "start",
 	},
-	half: {
-		gridTemplateColumns: {
-			default: "minmax(0, 1fr) minmax(0, 1fr)",
-			[media.phone]: "minmax(0, 1fr)",
-		},
-		alignItems: "stretch",
-	},
 	card: {
 		boxSizing: "border-box",
 		minWidth: 0,
@@ -926,8 +919,13 @@ function BoxCard({
 	const hostNotServed = page.notServed.some(
 		(item) => item.panel === "host" && item.factory === box.name,
 	);
+	const hubSilent =
+		box.hub !== undefined &&
+		page.boxes.find((other) => other.name === box.hub)?.reachable !== true;
 	const dormant =
-		box.state === "asleep" || box.state === "waking" ? box.state : null;
+		!hubSilent && (box.state === "asleep" || box.state === "waking")
+			? box.state
+			: null;
 	const slotTotal = box.slots?.total ?? 0;
 	return (
 		<section
@@ -1002,7 +1000,9 @@ function BoxCard({
 				<p className={clsx(styles.note)}>
 					{box.hub === undefined
 						? factoriesCopy.unreachable(heartbeat !== null)
-						: factoriesCopy.boxUnreachable(heartbeat !== null)}
+						: hubSilent
+							? factoriesCopy.hubSilent
+							: factoriesCopy.boxUnreachable(heartbeat !== null)}
 				</p>
 			) : (
 				<>
@@ -1535,7 +1535,20 @@ export function Page() {
 							<AttentionList items={page.attention} now={now} />
 						</Card>
 					</div>
-					<div className={clsx(styles.grid, styles.half)}>
+					<div className={clsx(styles.grid)}>
+						<Card
+							title={factoriesCopy.outcomes}
+							aggregate={factoriesCopy.sources.outcomes}
+						>
+							<OutcomeChart days={page.outcomes} />
+						</Card>
+						<Card
+							title={factoriesCopy.stageDurations}
+							source={factoriesCopy.sources.stageEvents}
+							aggregate={factoriesCopy.sources.stageAggregate}
+						>
+							<StageTable stages={page.stages} />
+						</Card>
 						<Card
 							title={factoriesCopy.queue}
 							source={factoriesCopy.sources.queue}
@@ -1543,20 +1556,7 @@ export function Page() {
 							<QueueTable items={page.queue} now={now} />
 							<NotServed page={page} panel="queue" />
 						</Card>
-						<Card
-							title={factoriesCopy.outcomes}
-							aggregate={factoriesCopy.sources.outcomes}
-						>
-							<OutcomeChart days={page.outcomes} />
-						</Card>
 					</div>
-					<Card
-						title={factoriesCopy.stageDurations}
-						source={factoriesCopy.sources.stageEvents}
-						aggregate={factoriesCopy.sources.stageAggregate}
-					>
-						<StageTable stages={page.stages} />
-					</Card>
 				</>
 			)}
 		</PageFrame>

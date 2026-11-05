@@ -972,6 +972,7 @@ export const factoriesCopy = {
 		answered
 			? "The box does not answer its hub."
 			: "The box has not answered its hub yet.",
+	hubSilent: "Its hub does not answer.",
 	boxState: { asleep: "asleep", waking: "waking", stopping: "stopping" },
 	asleep: (slots: number, span: string | null): string =>
 		`Asleep with ${plural(slots, "slot", "slots")}${span === null ? "" : `, last contact ${span} ago`}. The hub wakes it when the queue needs slots.`,

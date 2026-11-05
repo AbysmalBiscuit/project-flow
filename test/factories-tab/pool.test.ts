@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import type { FactoriesPage, FactoryCard } from "../../src/factories-page.ts";
+import {
+	type FactoriesPage,
+	type FactoryCard,
+	factoryCheckMs,
+} from "../../src/factories-page.ts";
 import pool from "../fixtures/factory-machine-pool.json";
 import machine from "../fixtures/factory-machine.json";
 import {
@@ -19,16 +23,25 @@ if (awake === undefined || asleep === undefined) {
 
 async function serveHub(answers: Answers) {
 	const requests: FactoryRequest[] = [];
+	const factories: Record<string, Answers | "down"> = { [hubUrl]: answers };
+	let now = Date.parse(clockStart);
 	const app = await serve(
 		[],
 		{ factories: [{ name: "work hub", url: hubUrl }] },
-		factoryFetch({ [hubUrl]: answers }, requests),
+		factoryFetch(factories, requests),
 		{
 			env: { GITHUB_TOKEN: "recorded-token" },
-			now: () => new Date(clockStart),
+			now: () => new Date(now),
 		},
 	);
-	return { ...app, requests };
+	return {
+		...app,
+		requests,
+		factories,
+		advance: (ms: number) => {
+			now += ms;
+		},
+	};
 }
 
 const hubAnswers = (poolAnswer: unknown): Answers => ({
@@ -78,6 +91,30 @@ describe("the box pool of a hub", () => {
 				heartbeatAt: asleep.last_contact,
 			});
 			expect(page.tiles.slots).toEqual(hubAbout.slots);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("the boxes of a hub that stops answering keep their cards, so the page does not reflow", async () => {
+		const app = await serveHub(hubAnswers(pool));
+		try {
+			await factoriesWhere(
+				app.base,
+				(seen) => cardOf(seen, "spare-2") !== undefined,
+			);
+			app.factories[hubUrl] = "down";
+			app.advance(factoryCheckMs);
+			const page = await factoriesWhere(
+				app.base,
+				(seen) => cardOf(seen, "work hub")?.reachable === false,
+			);
+			expect(page.boxes.map((box) => box.name)).toEqual([
+				"work hub",
+				"spare",
+				"spare-2",
+			]);
+			expect(cardOf(page, "spare")?.reachable).toBe(false);
 		} finally {
 			await app.stop();
 		}
