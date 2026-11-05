@@ -136,13 +136,44 @@ function parseDot(text: string) {
 }
 
 /** The graph files that a node calls, from its `prompt_file` or `graph` attribute. */
-function callsOf(attrs: Attrs): string[] {
+export function callsOf(attrs: Readonly<Record<string, unknown>>): string[] {
 	return [attrs.prompt_file, attrs.graph].filter(
-		(value): value is string => value?.endsWith(graphFile) ?? false,
+		(value): value is string =>
+			typeof value === "string" && value.endsWith(graphFile),
 	);
 }
 
-function runGraphOf(text: string): { graph: RunGraph; calls: string[] } {
+/** A parsed graph, with the graph files that its nodes call. */
+export type CallingGraph = { graph: RunGraph; calls: string[] };
+
+/**
+ * The entry graph, then each graph that a run can call from it, in call order.
+ * `read` gives a graph by its path, or undefined when the package has no such graph.
+ */
+export function inCallOrder(
+	entry: string,
+	read: (name: string) => CallingGraph | undefined,
+): WorkflowGraph[] {
+	const graphs: WorkflowGraph[] = [];
+	const queue = [entry];
+	const seen = new Set(queue);
+	for (let name = queue.shift(); name !== undefined; name = queue.shift()) {
+		const found = read(name);
+		if (found === undefined) {
+			continue;
+		}
+		graphs.push({ name, graph: found.graph });
+		for (const call of found.calls) {
+			if (!seen.has(call)) {
+				seen.add(call);
+				queue.push(call);
+			}
+		}
+	}
+	return graphs;
+}
+
+function runGraphOf(text: string): CallingGraph {
 	const { nodes, edges } = parseDot(text);
 	return {
 		graph: {
@@ -175,22 +206,8 @@ function runGraphOf(text: string): { graph: RunGraph; calls: string[] } {
 /** The entry graph of a workflow source, then each graph that a run can call from it, in call order. */
 export function sourceGraphs(source: RunSource): WorkflowGraph[] {
 	const texts = new Map(source.graphs.map((graph) => [graph.path, graph.text]));
-	const graphs: WorkflowGraph[] = [];
-	const queue = [source.entry];
-	const seen = new Set(queue);
-	for (let name = queue.shift(); name !== undefined; name = queue.shift()) {
+	return inCallOrder(source.entry, (name) => {
 		const text = texts.get(name);
-		if (text === undefined) {
-			continue;
-		}
-		const { graph, calls } = runGraphOf(text);
-		graphs.push({ name, graph });
-		for (const call of calls) {
-			if (!seen.has(call)) {
-				seen.add(call);
-				queue.push(call);
-			}
-		}
-	}
-	return graphs;
+		return text === undefined ? undefined : runGraphOf(text);
+	});
 }

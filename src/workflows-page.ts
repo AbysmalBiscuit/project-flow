@@ -1,10 +1,16 @@
+import type { FactoryPackage, PackageDetail } from "./factory-packages.ts";
 import type { RunResult, RunStatusKind } from "./kinds.ts";
-import type { PackageRun, StageUsage, StageVisit } from "./run-history.ts";
+import type {
+	ModelUsage,
+	PackageRun,
+	StageUsage,
+	StageVisit,
+} from "./run-history.ts";
 import type { RunListRow } from "./run-list.ts";
 import { percentile } from "./stats.ts";
 import type { WorkflowGraph } from "./workflow-dot.ts";
 
-/** One workflow package at one version, from the started runs of the run history. */
+/** One workflow package at one version, from the started runs of the run history or from a factory that lists it. */
 export type WorkflowCard = {
 	package: string;
 	/** Null for runs whose `workflow.started` event the run history does not hold. */
@@ -15,7 +21,8 @@ export type WorkflowCard = {
 	/** The median wall time of the ended runs, in seconds. */
 	medianS: number | null;
 	costPerRun: number | null;
-	lastRunAt: string;
+	/** Null for a package with no started run. */
+	lastRunAt: string | null;
 };
 
 export type WorkflowsPage = {
@@ -49,14 +56,32 @@ export type WorkflowRun = {
 	costUsd: number | null;
 };
 
+/** A role of a package version: what runs it, its stages and its share of the turn cost. */
+export type WorkflowRole = {
+	role: string;
+	/** The harnesses of the turns of the role, the costliest first, else the harness of the package stylesheet. */
+	harnesses: string[];
+	/** The models of the turns of the role, the costliest first, else the model of the package stylesheet. */
+	models: string[];
+	/** The nodes of the role, in the order of the graphs. */
+	stages: string[];
+	/** The share of the turn cost of the runs. Null when no run of the version has turns. */
+	costShare: number | null;
+};
+
 export type WorkflowDetail = {
 	package: string;
 	sha: string | null;
 	/** The top-level stages only. A stage of a child graph is not in the list. */
 	stages: WorkflowStage[];
 	runs: WorkflowRun[];
-	/** The graphs of the latest run that a factory serves the source of: the entry graph first, then each graph it calls. */
-	graph: { runId: string; graphs: WorkflowGraph[] } | null;
+	/**
+	 * The graphs of the package version: the entry graph first, then each graph it calls.
+	 * They come from the factory that lists the version, else from the latest run that `runId` names.
+	 */
+	graph: { runId?: string; graphs: WorkflowGraph[] } | null;
+	/** Null when no factory lists the package version. */
+	roles: WorkflowRole[] | null;
 };
 
 const reviewerRole = "reviewer";
@@ -89,39 +114,60 @@ function durationS(run: PackageRun): number | null {
 		: (Date.parse(run.endedAt) - Date.parse(run.startedAt)) / 1_000;
 }
 
-/** One card for each package version, the version with the latest run first, and the runs with no sha last. */
+/**
+ * One card for each package version, the version with the latest run first.
+ * The listed package versions with no run follow, and the runs with no sha go last.
+ */
 export function workflowsPage(
 	runs: readonly PackageRun[],
 	reading: boolean,
+	listed: readonly FactoryPackage[],
 ): WorkflowsPage {
 	const versions = Map.groupBy(runs, versionKey);
+	const unrun = listed
+		.filter(
+			(item) =>
+				!versions.has(versionKey({ package: item.name, sha: item.version })),
+		)
+		.map((item): WorkflowCard => ({
+			package: item.name,
+			sha: item.version,
+			runs: 0,
+			mergeRate: null,
+			medianS: null,
+			costPerRun: null,
+			lastRunAt: null,
+		}));
+	const cards = [...versions.values()].flatMap((group) => {
+		const [latest] = group;
+		if (latest === undefined) {
+			return [];
+		}
+		const ended = group.filter((run) => run.result !== null);
+		return [
+			{
+				package: latest.package,
+				sha: latest.sha,
+				runs: group.length,
+				mergeRate:
+					reading || ended.length === 0
+						? null
+						: ended.filter((run) => run.result === "merged").length /
+							ended.length,
+				medianS: median(group.flatMap((run) => durationS(run) ?? [])),
+				costPerRun: mean(group.flatMap((run) => run.costUsd ?? [])),
+				lastRunAt: latest.startedAt,
+			},
+		];
+	});
 	return {
 		reading,
-		cards: [...versions.values()]
-			.flatMap((group) => {
-				const [latest] = group;
-				if (latest === undefined) {
-					return [];
-				}
-				const ended = group.filter((run) => run.result !== null);
-				return [
-					{
-						package: latest.package,
-						sha: latest.sha,
-						runs: group.length,
-						mergeRate:
-							reading || ended.length === 0
-								? null
-								: ended.filter((run) => run.result === "merged").length /
-									ended.length,
-						medianS: median(group.flatMap((run) => durationS(run) ?? [])),
-						costPerRun: mean(group.flatMap((run) => run.costUsd ?? [])),
-						lastRunAt: latest.startedAt,
-					},
-				];
-			})
-			// The runs with no known sha mix versions, so their card goes last.
-			.toSorted((a, b) => Number(a.sha === null) - Number(b.sha === null)),
+		// The runs with no known sha mix versions, so their card goes last.
+		cards: [
+			...cards.filter((card) => card.sha !== null),
+			...unrun,
+			...cards.filter((card) => card.sha === null),
+		],
 	};
 }
 
@@ -188,7 +234,69 @@ function stagesOf(
 		.map((item) => item.stage);
 }
 
-/** The detail of one package version: its stage statistics, its runs and the graph of its latest run. */
+/** The keys that `pick` gives, the costliest first. */
+function byCost(
+	rows: readonly ModelUsage[],
+	pick: (row: ModelUsage) => string | null,
+): string[] {
+	const costs = new Map<string, number>();
+	for (const row of rows) {
+		const key = pick(row);
+		if (key !== null) {
+			costs.set(key, (costs.get(key) ?? 0) + row.costUsd);
+		}
+	}
+	return [...costs].toSorted((a, b) => b[1] - a[1]).map(([key]) => key);
+}
+
+/**
+ * Each role of the package. A turn belongs to the role of the node at the end of its node path.
+ * A node id that two graphs share takes its role from the first graph.
+ */
+function rolesOf(
+	listed: PackageDetail,
+	usage: readonly ModelUsage[],
+): WorkflowRole[] {
+	const nodes = listed.graphs.flatMap((item) => item.graph.nodes);
+	const roleOf = new Map<string, string>();
+	for (const node of nodes) {
+		if (node.role !== undefined && !roleOf.has(node.id)) {
+			roleOf.set(node.id, node.role);
+		}
+	}
+	const total = sum(usage.map((row) => row.costUsd));
+	const usageOf = Map.groupBy(usage, (row) =>
+		roleOf.get(row.stage.split(childStageMark).at(-1) ?? row.stage),
+	);
+	return listed.roles.map((role) => {
+		const rows = usageOf.get(role.name) ?? [];
+		const harnesses = byCost(rows, (row) => row.harness);
+		const models = byCost(rows, (row) => row.model);
+		return {
+			role: role.name,
+			harnesses:
+				harnesses.length > 0 || role.harness === null
+					? harnesses
+					: [role.harness],
+			models: models.length > 0 || role.model === null ? models : [role.model],
+			stages: [
+				...new Set(
+					nodes
+						.filter((node) => node.role === role.name)
+						.map((node) => node.id),
+				),
+			],
+			costShare:
+				usage.length === 0
+					? null
+					: total === 0
+						? 0
+						: sum(rows.map((row) => row.costUsd)) / total,
+		};
+	});
+}
+
+/** The detail of one package version: its stage statistics, its runs, its graphs and its roles. */
 export function workflowDetail(input: {
 	name: string;
 	sha: string | null;
@@ -197,6 +305,8 @@ export function workflowDetail(input: {
 	usage: readonly StageUsage[];
 	rows: readonly Pick<RunListRow, "id" | "pull">[];
 	graph: WorkflowDetail["graph"];
+	/** The package that a factory lists at this version, and the turn cost of each stage by harness and model. */
+	listed: { detail: PackageDetail; usage: readonly ModelUsage[] } | null;
 }): WorkflowDetail {
 	const pulls = new Map(
 		input.rows.flatMap((row) =>
@@ -236,5 +346,9 @@ export function workflowDetail(input: {
 			};
 		}),
 		graph: input.graph,
+		roles:
+			input.listed === null
+				? null
+				: rolesOf(input.listed.detail, input.listed.usage),
 	};
 }

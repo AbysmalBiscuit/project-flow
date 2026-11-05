@@ -88,6 +88,11 @@ const styles = stylex.create({
 		"--xy-edge-stroke-width": measure.hairline,
 		"--xy-background-color": colours.raised,
 	},
+	diagramPane: {
+		borderWidth: 0,
+		backgroundColor: colours.surfaceMuted,
+		"--xy-background-color": colours.surfaceMuted,
+	},
 	stage: {
 		position: "relative",
 		display: "flex",
@@ -247,6 +252,24 @@ const roleOutline = stylex.create({
 const roleStrokes: ReadonlyMap<string, stylex.StyleXStyles> = new Map(
 	Object.entries(roleStroke),
 );
+
+/** The text of an agent role in the colour of its stage borders. */
+const roleInk = stylex.create({
+	implementer: { color: colours.accent },
+	verifier: { color: colours.awaitingMerge },
+	reviewer: { color: colours.done },
+	receiver: { color: colours.warn },
+	senior: { color: colours.danger },
+	manager: { color: colours.lineStrong },
+	other: { color: colours.inkMuted },
+});
+
+const roleInks: ReadonlyMap<string, stylex.StyleXStyles> = new Map(
+	Object.entries(roleInk),
+);
+
+export const roleInkOf = (role: string): stylex.StyleXStyles =>
+	roleInks.get(role) ?? roleInk.other;
 
 function roleStrokeOf(role: string | undefined): stylex.StyleXStyles {
 	return [
@@ -605,15 +628,18 @@ type RunState = {
 	onPick: (stage: string) => void;
 };
 
-/** The diagram pane fits the laid graph, up to the height of the run page pane. */
+/** The diagram pane takes the shape of the laid graph, so the whole graph fills its width. */
 const fitted = stylex.create({
-	height: (graph: number) => ({
-		height: `min(calc(${graph}px + 2 * ${space.xl}), ${measure.runGraph})`,
+	shape: (width: number, height: number) => ({
+		aspectRatio: `${width} / ${height}`,
+		// A definite width keeps the minimum height from widening the pane through the ratio.
+		boxSizing: "border-box",
+		width: "100%",
+		height: "auto",
+		minHeight: measure.workflowDiagramMin,
+		maxHeight: `min(calc(${height}px + 2 * ${space.xl}), ${measure.runGraph})`,
 	}),
 });
-
-/** The smallest zoom that keeps the diagram labels near the size of the page text. */
-const readableZoom = 0.85;
 
 /** The share of the pane that the opening view fills. */
 const paneFill = 0.92;
@@ -651,34 +677,19 @@ function laidBounds(laid: WorkflowLayout) {
 	};
 }
 
-/**
- * The whole diagram in the pane, at zoom 1 or less. When the whole diagram
- * needs a zoom under the readable zoom, the view opens on the start stage.
- */
+/** The whole diagram, centred in the pane, at zoom 1 or less. */
 function openingView(
 	bounds: ReturnType<typeof laidBounds>,
-	start: Point | undefined,
 	pane: { width: number; height: number },
 ): Viewport {
-	const zoom = Math.max(
-		readableZoom,
-		Math.min(
-			1,
-			(pane.width * paneFill) / bounds.width,
-			(pane.height * paneFill) / bounds.height,
-		),
+	const zoom = Math.min(
+		1,
+		(pane.width * paneFill) / bounds.width,
+		(pane.height * paneFill) / bounds.height,
 	);
-	const { height } = diagramStageScale.size;
-	const fits = (room: number, size: number) => size * zoom <= room;
 	return {
-		x:
-			fits(pane.width, bounds.width) || start === undefined
-				? (pane.width - bounds.width * zoom) / 2 - bounds.left * zoom
-				: (pane.width * (1 - paneFill)) / 2 - start.x * zoom,
-		y:
-			fits(pane.height, bounds.height) || start === undefined
-				? (pane.height - bounds.height * zoom) / 2 - bounds.top * zoom
-				: pane.height / 2 - (start.y + height / 2) * zoom,
+		x: (pane.width - bounds.width * zoom) / 2 - bounds.left * zoom,
+		y: (pane.height - bounds.height * zoom) / 2 - bounds.top * zoom,
 		zoom,
 	};
 }
@@ -746,8 +757,7 @@ function GraphPane({ graph, run }: { graph: Graph; run: RunState | null }) {
 	const fit = useCallback((): FitViewOptions | Viewport => {
 		const pane = document.getElementById(paneId);
 		if (bounds !== null && pane !== null) {
-			const start = graph.nodes.find((node) => node.kind === "start");
-			return openingView(bounds, laid?.stages.get(start?.id ?? ""), {
+			return openingView(bounds, {
 				width: pane.clientWidth,
 				height: pane.clientHeight,
 			});
@@ -757,7 +767,7 @@ function GraphPane({ graph, run }: { graph: Graph; run: RunState | null }) {
 			padding: 0.2,
 			...(liveId === undefined ? {} : { nodes: [{ id: liveId }] }),
 		};
-	}, [bounds, graph, laid, liveId]);
+	}, [bounds, liveId]);
 	const fitAll = useCallback(() => ({ padding: 0.1 }), []);
 	return (
 		<>
@@ -768,7 +778,8 @@ function GraphPane({ graph, run }: { graph: Graph; run: RunState | null }) {
 				id={paneId}
 				{...stylex.props(
 					styles.pane,
-					bounds !== null && fitted.height(bounds.height),
+					run === null && styles.diagramPane,
+					bounds !== null && fitted.shape(bounds.width, bounds.height),
 				)}
 				aria-label={runGraphLabel}
 				title={runGraphHelp}

@@ -1,0 +1,47 @@
+{
+	"packages": [
+		{
+			"name": "intake",
+			"repo": null,
+			"version": "247ca91520fdcc3ab261e2d2299a338e9dd7ee0a93e4058198a1d1c12a64f6fe",
+			"entry": "intake.dot",
+			"graphs": ["intake.dot", "reporting.dot"],
+			"roles": ["interviewer"],
+			"last_run": null
+		},
+		{
+			"name": "standard",
+			"repo": null,
+			"version": "a93ac3896f9c7ec299329f25dfefea1b91ff4f186f7c5afd02825dc8c4017486",
+			"entry": "pre-pr.dot",
+			"graphs": [
+				"change-risk-off.dot",
+				"change-risk.dot",
+				"conceptual.dot",
+				"fix-push.dot",
+				"merge.dot",
+				"post-pr.dot",
+				"pre-pr.dot",
+				"react.dot",
+				"rebase-push.dot",
+				"rebase.dot",
+				"report.dot",
+				"reporting.dot"
+			],
+			"roles": [
+				"implementer",
+				"verifier",
+				"reviewer",
+				"receiver",
+				"conceptual",
+				"security_reviewer",
+				"vcs_conflict_resolver",
+				"change_risk_classifier",
+				"change_risk_checker",
+				"manager",
+				"senior"
+			],
+			"last_run": null
+		}
+	]
+}

@@ -5,6 +5,9 @@ import type {
 	WorkflowsPage,
 } from "../../src/workflows-page.ts";
 import hubRuns from "../fixtures/factory-hub-runs.json";
+import intakePackage from "../fixtures/factory-package-intake.json";
+import standardPackage from "../fixtures/factory-package-standard.json";
+import packageList from "../fixtures/factory-packages.json";
 import {
 	type Answers,
 	eventLog,
@@ -19,8 +22,8 @@ if (running41 === undefined) {
 	throw new Error("the hub runs fixture lost a run");
 }
 
-const newSha =
-	"3f9c1a2e8d7b6c5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a";
+/** The version of the package that the factory serves, so a run of it matches its package. */
+const newSha = standardPackage.version;
 const oldSha =
 	"9b2c7710aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff";
 
@@ -117,9 +120,18 @@ function runLog(
 	]);
 }
 
-function turn(stage: string, input: number, output: number, costUsd: number) {
+function turn(
+	stage: string,
+	input: number,
+	output: number,
+	costUsd: number,
+	harness = "claude",
+	model = "claude-opus-5-5",
+) {
 	return {
 		node_path: stage,
+		harness,
+		model,
 		session: "5b1f7c2e-0d4a-4c1e-9b61-2f7d3e8a9c10",
 		tools: {},
 		tokens: { input, output },
@@ -171,7 +183,10 @@ const answers: Answers = {
 		},
 	]),
 	"/runs/run-40/turns": {
-		turns: [turn("implement", 1_000, 100, 2.5), turn("review", 500, 50, 1.5)],
+		turns: [
+			turn("implement", 1_000, 100, 2.5),
+			turn("review", 500, 50, 1.5, "codex", "gpt-6.1-sol"),
+		],
 	},
 	"/runs/run-40/source": {
 		entry: "pre_pr.dot",
@@ -408,6 +423,7 @@ describe("the Workflows tab", () => {
 				(seen) => seen.graph !== null,
 			);
 			expect(detail.graph?.runId).toBe("run-40");
+			expect(detail.roles).toBeNull();
 			expect(detail.graph?.graphs.map((graph) => graph.name)).toEqual([
 				"pre_pr.dot",
 				"post_pr.dot",
@@ -456,5 +472,148 @@ describe("the Workflows tab", () => {
 		} finally {
 			await app.stop();
 		}
+	});
+
+	describe("with a factory that serves its packages", () => {
+		const served: Answers = {
+			...answers,
+			"/packages": packageList,
+			"/packages/standard": standardPackage,
+			"/packages/intake": intakePackage,
+		};
+
+		test("a package with no run gets a card, and its detail gives each of its graphs, the entry graph first", async () => {
+			const app = await serveHub(served);
+			try {
+				const page = await readWhere<WorkflowsPage>(
+					app.base,
+					"/api/workflows",
+					(seen) =>
+						seen.cards.some((card) => card.package === "intake") &&
+						seen.cards.filter((card) => card.sha !== null).length === 3,
+				);
+				expect(
+					page.cards.map((card) => [card.package, card.sha, card.runs]),
+				).toEqual([
+					["standard", newSha, 2],
+					["standard", oldSha, 1],
+					["intake", intakePackage.version, 0],
+					["standard", null, 1],
+				]);
+				expect(page.cards[2]).toEqual({
+					package: "intake",
+					sha: intakePackage.version,
+					runs: 0,
+					mergeRate: null,
+					medianS: null,
+					costPerRun: null,
+					lastRunAt: null,
+				});
+				const intake = await readWhere<WorkflowDetail>(
+					app.base,
+					`/api/workflows/intake?sha=${intakePackage.version}`,
+					(seen) => seen.graph !== null,
+				);
+				expect(intake.runs).toEqual([]);
+				expect(intake.graph?.runId).toBeUndefined();
+				expect(intake.graph?.graphs.map((graph) => graph.name)).toEqual([
+					"intake.dot",
+					"reporting.dot",
+				]);
+				const interview = intake.graph?.graphs[0]?.graph.nodes.find(
+					(node) => node.id === "interview",
+				);
+				expect(interview).toMatchObject({
+					role: "interviewer",
+					kind: "codergen",
+				});
+				const standard = await readWhere<WorkflowDetail>(
+					app.base,
+					detailPath,
+					(seen) => seen.graph !== null,
+				);
+				const names = standard.graph?.graphs.map((graph) => graph.name) ?? [];
+				expect(names.slice(0, 7)).toEqual([
+					"pre-pr.dot",
+					"rebase.dot",
+					"conceptual.dot",
+					"rebase-push.dot",
+					"fix-push.dot",
+					"post-pr.dot",
+					"report.dot",
+				]);
+				expect(names.toSorted()).toEqual(
+					Object.keys(standardPackage.graphs).toSorted(),
+				);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("the roles of a package version give the harness and model of its turns, else of the package, the stages of each role and its share of the turn cost", async () => {
+			const app = await serveHub(served);
+			try {
+				const detail = await readWhere<WorkflowDetail>(
+					app.base,
+					detailPath,
+					(seen) =>
+						seen.roles?.some((role) => role.costShare !== null) ?? false,
+				);
+				const roles = new Map(detail.roles?.map((role) => [role.role, role]));
+				expect([...roles.keys()]).toEqual(
+					standardPackage.roles.map((role) => role.name),
+				);
+				expect(roles.get("implementer")).toMatchObject({
+					harnesses: ["claude"],
+					models: ["claude-opus-5-5"],
+					costShare: 0.75,
+				});
+				expect(roles.get("implementer")?.stages.slice(0, 3)).toEqual([
+					"implement",
+					"apply",
+					"repush",
+				]);
+				expect(roles.get("reviewer")).toEqual({
+					role: "reviewer",
+					harnesses: ["codex"],
+					models: ["gpt-6.1-sol"],
+					stages: ["review"],
+					costShare: 0.25,
+				});
+				expect(roles.get("verifier")).toEqual({
+					role: "verifier",
+					harnesses: ["codex"],
+					models: ["gpt-6.1-sol"],
+					stages: ["verify", "reverify"],
+					costShare: 0,
+				});
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a version that no factory lists takes its roles from the listed package of the same name, and keeps the graphs of its runs", async () => {
+			const app = await serveHub(served);
+			try {
+				const detail = await readWhere<WorkflowDetail>(
+					app.base,
+					`/api/workflows/standard?sha=${oldSha}`,
+					(seen) => seen.roles !== null && seen.runs.length === 1,
+				);
+				expect(detail.graph).toBeNull();
+				const roles = new Map(detail.roles?.map((role) => [role.role, role]));
+				expect([...roles.keys()]).toEqual(
+					standardPackage.roles.map((role) => role.name),
+				);
+				expect(roles.get("implementer")).toMatchObject({
+					harnesses: ["claude"],
+					models: ["claude-opus-5-5"],
+					costShare: 1,
+				});
+				expect(roles.get("reviewer")?.costShare).toBe(0);
+			} finally {
+				await app.stop();
+			}
+		});
 	});
 });

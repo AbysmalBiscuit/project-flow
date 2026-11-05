@@ -150,6 +150,14 @@ export type StageUsage = {
 	costUsd: number;
 };
 
+/** The cost of the turns of one stage that one harness and model ran. */
+export type ModelUsage = {
+	stage: string;
+	harness: string | null;
+	model: string | null;
+	costUsd: number;
+};
+
 /** The views that an insight query can read. */
 const queryableViews = [
 	"runs",
@@ -208,15 +216,27 @@ export function runHistory(db: Database, path: string) {
 	db.run(
 		"create view if not exists stages as select run_id, stage, event, at, duration_s, will_retry, attempt, error from run_stages",
 	);
+	const turnColumns = db
+		.query<{ name: string }, []>("pragma table_info(run_turns)")
+		.all()
+		.map((column) => column.name);
+	if (turnColumns.length > 0 && !turnColumns.includes("model")) {
+		// The turns of a store from an older launch keep their rows, with no harness or model.
+		db.run("alter table run_turns add column harness text");
+		db.run("alter table run_turns add column model text");
+	}
+	// The view is derived, so a store from an older launch gets the current columns.
+	db.run("drop view if exists turns");
 	db.run(`
 		create table if not exists run_turns (
 			run_id text not null, turn integer not null, stage text not null,
 			input_tokens integer, output_tokens integer, cost_usd real, duration_s real, tools text,
+			harness text, model text,
 			primary key (run_id, turn)
 		)
 	`);
 	db.run(
-		"create view if not exists turns as select run_id, turn, stage, input_tokens, output_tokens, cost_usd, duration_s, tools from run_turns",
+		"create view turns as select run_id, turn, stage, input_tokens, output_tokens, cost_usd, duration_s, tools, harness, model from run_turns",
 	);
 	db.run(`
 		create table if not exists run_asks (
@@ -295,7 +315,7 @@ export function runHistory(db: Database, path: string) {
 		"insert or ignore into run_stages (run_id, stage, event, at, duration_s, will_retry, attempt, error) values (?, ?, ?, ?, ?, ?, ?, ?)",
 	);
 	const insertTurn = db.query<unknown, SQLQueryBindings[]>(
-		"insert into run_turns (run_id, turn, stage, input_tokens, output_tokens, cost_usd, duration_s, tools) values (?, ?, ?, ?, ?, ?, ?, ?)",
+		"insert into run_turns (run_id, turn, stage, input_tokens, output_tokens, cost_usd, duration_s, tools, harness, model) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 	);
 	const upsertAsk = db.query<unknown, SQLQueryBindings[]>(
 		`insert into run_asks (run_id, id, stage, text, answer, sender, answered_at) values (?, ?, ?, ?, ?, ?, ?)
@@ -421,6 +441,8 @@ export function runHistory(db: Database, path: string) {
 						turn.usage.costUsd,
 						turn.usage.durationS,
 						JSON.stringify(turn.usage.tools),
+						turn.harness,
+						turn.model,
 					);
 				});
 				markRead.run(runId, "turns", endedAt);
@@ -671,6 +693,15 @@ export function runHistory(db: Database, path: string) {
 					sum(coalesce(input_tokens, 0) + coalesce(output_tokens, 0)) as tokens,
 					sum(coalesce(cost_usd, 0)) as costUsd
 					from run_turns where run_id in (select value from json_each(?)) group by run_id, stage`,
+				)
+				.all(JSON.stringify(runIds));
+		},
+		/** The turn cost of each stage of the runs, by the harness and model that ran the turns. */
+		modelUsage(runIds: readonly string[]): ModelUsage[] {
+			return db
+				.query<ModelUsage, [string]>(
+					`select stage, harness, model, sum(coalesce(cost_usd, 0)) as costUsd
+					from run_turns where run_id in (select value from json_each(?)) group by stage, harness, model`,
 				)
 				.all(JSON.stringify(runIds));
 		},

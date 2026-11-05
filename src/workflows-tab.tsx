@@ -6,7 +6,7 @@ import { textControl } from "./control-styles.ts";
 import type { RunResult } from "./kinds.ts";
 import { runPagePath } from "./page-links.ts";
 import { pageQuery } from "./queries.ts";
-import { WorkflowDiagram } from "./run-graph.tsx";
+import { roleInkOf, WorkflowDiagram } from "./run-graph.tsx";
 import { PageFrame } from "./shell.tsx";
 import {
 	costLabel,
@@ -20,6 +20,7 @@ import {
 	colours,
 	font,
 	measure,
+	media,
 	radius,
 	space,
 	type,
@@ -29,6 +30,7 @@ import { useNow } from "./use-now.ts";
 import type {
 	WorkflowCard,
 	WorkflowDetail,
+	WorkflowRole,
 	WorkflowRun,
 	WorkflowStage,
 } from "./workflows-page.ts";
@@ -36,7 +38,8 @@ import type {
 const styles = stylex.create({
 	cards: {
 		display: "grid",
-		gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, ${measure.workflowCardMin}), 1fr))`,
+		// At most three cards per row, and fewer when a card would get narrower than its minimum.
+		gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, max(${measure.workflowCardMin}, calc((100% - 2 * ${space.lg}) / 3))), 1fr))`,
 		gap: space.lg,
 		marginBottom: space.lg,
 	},
@@ -93,6 +96,27 @@ const styles = stylex.create({
 		fontWeight: type.weight,
 		whiteSpace: "nowrap",
 	},
+	rolePill: {
+		display: "inline-flex",
+		alignItems: "center",
+		padding: `${space.twoXs} ${space.sm}`,
+		borderRadius: radius.pill,
+		backgroundColor: colours.surfaceMuted,
+		fontSize: type.pill,
+		fontWeight: type.weight,
+		whiteSpace: "nowrap",
+	},
+	mono: {
+		fontFamily: font.mono,
+		fontSize: type.small,
+		whiteSpace: "nowrap",
+	},
+	paneHead: {
+		display: "flex",
+		justifyContent: "flex-end",
+		gap: space.xs,
+		marginBottom: space.sm,
+	},
 	meta: {
 		marginLeft: "auto",
 		color: colours.inkSoft,
@@ -121,8 +145,14 @@ const styles = stylex.create({
 		fontSize: type.tag,
 		whiteSpace: "nowrap",
 	},
-	sourceOwn: {
+	sourceFirst: {
 		marginLeft: "auto",
+	},
+	sourceRoute: {
+		backgroundColor: colours.surfaceMuted,
+		color: colours.inkMuted,
+	},
+	sourceOwn: {
 		backgroundColor: colours.chip,
 		color: colours.chipInk,
 	},
@@ -160,7 +190,10 @@ const styles = stylex.create({
 		margin: 0,
 		color: colours.inkSoft,
 		fontSize: type.small,
-		textAlign: "right",
+		textAlign: {
+			default: "right",
+			[media.headerStack]: "left",
+		},
 	},
 	diagramHead: {
 		display: "flex",
@@ -272,9 +305,9 @@ const resultDot: Record<RunResult, stylex.StyleXStyles> = stylex.create({
 	cancelled: { backgroundColor: colours.lineStrong },
 });
 
-const tabs = ["diagram", "stages", "runs"] as const;
+const tabs = ["diagram", "stages", "roles", "runs"] as const;
 
-/** The versions with the latest runs, one row of cards on a desktop. The older ones fold. */
+/** The versions with the latest runs, one row of cards on a desktop. The older ones fold, and a version with no run stays. */
 const newestShown = 3;
 
 type Tab = (typeof tabs)[number];
@@ -344,7 +377,9 @@ function Card({
 				<h2 className={clsx(styles.heading)}>{card.package}</h2>
 				<Sha sha={card.sha} />
 				<span className={clsx(styles.meta)}>
-					{workflowsCopy.lastRun(spanText(now - Date.parse(card.lastRunAt)))}
+					{card.lastRunAt === null
+						? workflowsCopy.noRunYet
+						: workflowsCopy.lastRun(spanText(now - Date.parse(card.lastRunAt)))}
 				</span>
 			</div>
 			<div className={clsx(styles.stats)}>
@@ -533,6 +568,60 @@ function RunsTable({ runs }: { runs: WorkflowRun[] }) {
 	);
 }
 
+function RolesTable({ roles }: { roles: WorkflowRole[] }) {
+	const { columns } = workflowsCopy;
+	return (
+		<>
+			<div className={clsx(styles.paneHead)}>
+				<span className={clsx(styles.source, styles.sourceRoute)}>
+					{workflowsCopy.packageRoute}
+				</span>
+				<span className={clsx(styles.source, styles.sourceOwn)}>
+					{workflowsCopy.source}
+				</span>
+			</div>
+			{roles.length === 0 ? (
+				<p className={clsx(styles.empty)}>{workflowsCopy.noRoles}</p>
+			) : (
+				<Table
+					columns={[
+						{ key: "role", label: columns.role },
+						{ key: "harness", label: columns.harness },
+						{ key: "model", label: columns.model },
+						{ key: "stages", label: columns.stages },
+						{ key: "share", label: columns.costShare, number: true },
+					]}
+					rows={roles.map((role) => ({
+						key: role.role,
+						cells: {
+							role: (
+								<span className={clsx(styles.rolePill, roleInkOf(role.role))}>
+									{role.role}
+								</span>
+							),
+							harness: (
+								<span className={clsx(styles.mono)}>
+									{role.harnesses.join(", ") || workflowsCopy.none}
+								</span>
+							),
+							model: (
+								<span className={clsx(styles.mono)}>
+									{role.models.join(", ") || workflowsCopy.none}
+								</span>
+							),
+							stages: role.stages.join(", ") || workflowsCopy.none,
+							share:
+								role.costShare === null
+									? workflowsCopy.none
+									: workflowsCopy.share(role.costShare),
+						},
+					}))}
+				/>
+			)}
+		</>
+	);
+}
+
 function Diagram({ graph }: { graph: WorkflowDetail["graph"] }) {
 	const [picked, setPicked] = useState<string | null>(null);
 	const shown =
@@ -556,10 +645,12 @@ function Diagram({ graph }: { graph: WorkflowDetail["graph"] }) {
 						</button>
 					))}
 				</div>
-				<p className={clsx(styles.note)}>{workflowsCopy.diagramNote}</p>
+				<p className={clsx(styles.note)}>
+					{workflowsCopy.diagramNote(graph.runId !== undefined)}
+				</p>
 			</div>
 			<WorkflowDiagram
-				key={`${graph.runId}\n${shown.name}`}
+				key={`${graph.runId ?? ""}\n${shown.name}`}
 				graph={shown.graph}
 			/>
 		</>
@@ -567,26 +658,33 @@ function Diagram({ graph }: { graph: WorkflowDetail["graph"] }) {
 }
 
 function Detail({ card }: { card: WorkflowCard }) {
-	const [tab, setTab] = useState<Tab>("diagram");
+	const [picked, setTab] = useState<Tab>("diagram");
 	const detail = useQuery(pageQuery.workflow(card.package, card.sha)).data;
+	const roles = detail?.roles ?? null;
+	const shownTabs = tabs.filter((item) => item !== "roles" || roles !== null);
+	const tab = shownTabs.includes(picked) ? picked : "diagram";
 	return (
 		<section className={clsx(styles.card)} aria-label={card.package}>
 			<div className={clsx(styles.head)}>
 				<h2 className={clsx(styles.heading)}>{card.package}</h2>
 				<Sha sha={card.sha} prefix />
-				<span className={clsx(styles.source, styles.sourceOwn)}>
+				<span
+					className={clsx(styles.source, styles.sourceOwn, styles.sourceFirst)}
+				>
 					{workflowsCopy.source}
 				</span>
-				<span className={clsx(styles.source, styles.sourceNeed)}>
-					{workflowsCopy.needsPackages}
-				</span>
+				{roles === null ? (
+					<span className={clsx(styles.source, styles.sourceNeed)}>
+						{workflowsCopy.needsPackages}
+					</span>
+				) : null}
 			</div>
 			<div
 				className={clsx(styles.tabs)}
 				role="tablist"
 				aria-label={workflowsCopy.tabsLabel}
 			>
-				{tabs.map((item) => (
+				{shownTabs.map((item) => (
 					<button
 						key={item}
 						type="button"
@@ -603,6 +701,8 @@ function Detail({ card }: { card: WorkflowCard }) {
 				<Diagram graph={detail.graph} />
 			) : tab === "stages" ? (
 				<StagesTable stages={detail.stages} />
+			) : tab === "roles" && roles !== null ? (
+				<RolesTable roles={roles} />
 			) : (
 				<RunsTable runs={detail.runs} />
 			)}
@@ -617,7 +717,11 @@ export function Page() {
 	const [picked, setPicked] = useState<string | null>(null);
 	const [older, setOlder] = useState(false);
 	const card = cards?.find((item) => versionKey(item) === picked) ?? cards?.[0];
-	const hidden = Math.max(0, (cards?.length ?? 0) - newestShown);
+	const folded = cards?.filter(
+		(item, index) => index < newestShown || item.runs === 0,
+	);
+	const hidden = (cards?.length ?? 0) - (folded?.length ?? 0);
+	const shown = older ? cards : folded;
 	return (
 		<PageFrame title={navLabel.workflows} subtitle={workflowsCopy.subtitle}>
 			{cards === undefined ? null : cards.length === 0 ? (
@@ -625,7 +729,7 @@ export function Page() {
 			) : (
 				<>
 					<div className={clsx(styles.cards)}>
-						{(older ? cards : cards.slice(0, newestShown)).map((item) => (
+						{(shown ?? cards).map((item) => (
 							<Card
 								key={versionKey(item)}
 								card={item}

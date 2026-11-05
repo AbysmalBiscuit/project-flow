@@ -151,7 +151,7 @@ test("on an empty store the backfill reads the event log and the turns of each e
 		]);
 		const turns = await answerWhere(
 			app.base,
-			"select run_id, turn, stage, input_tokens, output_tokens, cost_usd, duration_s, tools from turns order by turn",
+			"select run_id, turn, stage, input_tokens, output_tokens, cost_usd, duration_s, tools, harness, model from turns order by turn",
 			(count) => count === runTurns.turns.length,
 		);
 		expect(turns.rows[0]).toEqual([
@@ -163,6 +163,14 @@ test("on an empty store the backfill reads the event log and the turns of each e
 			0.3125,
 			94.5,
 			JSON.stringify({ Read: 6, Bash: 2 }),
+			"claude",
+			"claude-opus-5-5",
+		]);
+		expect(turns.rows.map((row) => row.slice(-2))).toEqual([
+			["claude", "claude-opus-5-5"],
+			["claude", "claude-opus-5-5"],
+			["codex", "gpt-6.1-sol"],
+			[null, null],
 		]);
 		const paths = app.paths();
 		for (const run of [failedRun, succeededRun]) {

@@ -1,0 +1,6181 @@
+{
+	"name": "standard",
+	"repo": null,
+	"version": "a93ac3896f9c7ec299329f25dfefea1b91ff4f186f7c5afd02825dc8c4017486",
+	"entry": "pre-pr.dot",
+	"graphs": {
+		"change-risk-off.dot": {
+			"name": "ChangeRiskOff",
+			"label": "",
+			"attrs": {
+				"goal": "Pass through a repo that turns change-risk review off, and keep its merge conditions",
+				"rankdir": "LR"
+			},
+			"nodes": [
+				{
+					"id": "start",
+					"attrs": {
+						"output": "change_risk_step",
+						"shape": "Mdiamond",
+						"label": "Start"
+					},
+					"classes": [],
+					"handler": "start"
+				},
+				{
+					"id": "exit",
+					"attrs": {
+						"shape": "Msquare",
+						"label": "Exit"
+					},
+					"classes": [],
+					"handler": "exit"
+				},
+				{
+					"id": "risk_off",
+					"attrs": {
+						"output": "approvals, extra_role, change_risk",
+						"shape": "parallelogram",
+						"label": "Risk off",
+						"timeout": "60s",
+						"tool_command": "workcell tool pr post risk-off",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "conditions",
+					"attrs": {
+						"output": "merge_held, merge_result, gate_unapplied",
+						"shape": "parallelogram",
+						"label": "Merge conditions",
+						"timeout": "300s",
+						"tool_command": "workcell tool pr post conditions",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				}
+			],
+			"edges": [
+				{
+					"from": "start",
+					"to": "exit",
+					"attrs": {
+						"label": "read",
+						"condition": "context.change_risk_step=open"
+					}
+				},
+				{
+					"from": "start",
+					"to": "risk_off",
+					"attrs": {
+						"condition": "context.change_risk_step=verified"
+					}
+				},
+				{
+					"from": "risk_off",
+					"to": "exit",
+					"attrs": {
+						"label": "read",
+						"condition": "outcome=success"
+					}
+				},
+				{
+					"from": "risk_off",
+					"to": "exit",
+					"attrs": {
+						"label": "risk_failed",
+						"condition": "outcome=fail"
+					}
+				},
+				{
+					"from": "start",
+					"to": "conditions",
+					"attrs": {
+						"condition": "context.change_risk_step=conditions"
+					}
+				},
+				{
+					"from": "start",
+					"to": "exit",
+					"attrs": {
+						"label": "approved",
+						"condition": "context.change_risk_step=approvals"
+					}
+				},
+				{
+					"from": "conditions",
+					"to": "exit",
+					"attrs": {
+						"label": "clear",
+						"condition": "preferred_label=clear"
+					}
+				},
+				{
+					"from": "conditions",
+					"to": "exit",
+					"attrs": {
+						"label": "held",
+						"condition": "preferred_label=held"
+					}
+				},
+				{
+					"from": "conditions",
+					"to": "exit",
+					"attrs": {
+						"label": "conditions_failed",
+						"condition": "outcome=fail"
+					}
+				}
+			]
+		},
+		"change-risk.dot": {
+			"name": "ChangeRisk",
+			"label": "",
+			"attrs": {
+				"goal": "Read the change risk of the branch, and select its approval rule and its next extra role",
+				"rankdir": "LR"
+			},
+			"nodes": [
+				{
+					"id": "start",
+					"attrs": {
+						"output": "handoff, draft, pr_url, change_risk_step, change_risk",
+						"shape": "Mdiamond",
+						"label": "Start"
+					},
+					"classes": [],
+					"handler": "start"
+				},
+				{
+					"id": "exit",
+					"attrs": {
+						"shape": "Msquare",
+						"label": "Exit"
+					},
+					"classes": [],
+					"handler": "exit"
+				},
+				{
+					"id": "floor",
+					"attrs": {
+						"output": "change_risk_floor, change_risk_kept, rubric, needs_human, checker_reason",
+						"shape": "parallelogram",
+						"label": "Path floor",
+						"timeout": "300s",
+						"max_visits": 6,
+						"tool_command": "workcell tool pr post floor",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "classify",
+					"attrs": {
+						"output": "classified, change_risk_reason",
+						"shape": "box",
+						"class": "change_risk_classifier",
+						"fidelity": "none",
+						"label": "Classify change risk",
+						"max_visits": 60,
+						"prompt": "Classify the change risk of the branch for the handoff $context.handoff. The path floor is `$context.change_risk_floor`. The rubric is `$context.rubric` in the repo. The draft $context.draft holds the Door and the Blast Radius."
+					},
+					"classes": ["change_risk_classifier"],
+					"handler": "codergen"
+				},
+				{
+					"id": "check_risk",
+					"attrs": {
+						"output": "needs_human, checker_reason",
+						"shape": "box",
+						"class": "change_risk_checker",
+						"fidelity": "none",
+						"label": "Check change risk",
+						"max_visits": 6,
+						"prompt": "The change-risk classifier gave the branch for the handoff $context.handoff the change risk `low`: $context.change_risk_reason Check whether the branch needs a human approval anyway. The rubric is `$context.rubric` in the repo. The draft $context.draft holds the Door and the Blast Radius."
+					},
+					"classes": ["change_risk_checker"],
+					"handler": "codergen"
+				},
+				{
+					"id": "risk",
+					"attrs": {
+						"output": "change_risk, approvals, merge_held, extra_role",
+						"shape": "parallelogram",
+						"label": "Risk",
+						"timeout": "300s",
+						"tool_command": "workcell tool pr post risk",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "conditions",
+					"attrs": {
+						"output": "merge_held, merge_result, gate_unapplied",
+						"shape": "parallelogram",
+						"label": "Merge conditions",
+						"timeout": "300s",
+						"tool_command": "workcell tool pr post conditions",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "extra_reviewed",
+					"attrs": {
+						"output": "extra_reviewed",
+						"shape": "parallelogram",
+						"label": "Extra reviewed",
+						"timeout": "60s",
+						"max_visits": 60,
+						"tool_command": "workcell tool pr post extra-reviewed",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "extra_review",
+					"attrs": {
+						"output": "batch",
+						"shape": "box",
+						"role": "$context.extra_role",
+						"label": "Extra review",
+						"max_visits": 20,
+						"prompt": "Review the head of the pull request $context.pr_url as the $context.extra_role role, before its final review. The approval rule of its change risk $context.change_risk names this role. Take clean when nothing must change before the merge. Otherwise write each finding as a row of a batch file, report CONTEXT: batch=<path>, and take findings. The receiver triages each row, the implementer fixes each confirmed row, and you review the new head."
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "extra_triage",
+					"attrs": {
+						"output": "batch",
+						"shape": "box",
+						"class": "receiver",
+						"label": "Extra triage",
+						"max_visits": 20,
+						"prompt": "Triage the findings of the $context.extra_role role on the head of $context.pr_url, in $context.batch, as the Extra review section of your instructions says."
+					},
+					"classes": ["receiver"],
+					"handler": "codergen"
+				},
+				{
+					"id": "approvals",
+					"attrs": {
+						"output": "stopped, approvals_needed",
+						"shape": "parallelogram",
+						"label": "Approvals",
+						"timeout": "3d",
+						"max_visits": 20,
+						"tool_command": "workcell tool pr post approvals",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "approvals_held",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "owner",
+						"label": "Approvals held",
+						"pr_review": "$context.pr_url",
+						"pr_review_choice": "recheck",
+						"timeout": "3d",
+						"human.default_choice": "remind",
+						"max_visits": 20,
+						"prompt": "The pull request $context.pr_url needs $context.approvals_needed before it merges, and its change risk names no reviewer to ask. A new approval on the PR answers recheck. Answer recheck to count the approvals again, or report to end at the final report."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "second_review",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "second_reviewer",
+						"human.reply_choice": "answered",
+						"timeout": "3d",
+						"human.default_choice": "remind",
+						"max_visits": 20,
+						"label": "Second review",
+						"prompt": "Review the pull request $context.pr_url before it merges. Its change risk is $context.change_risk, and its merge needs $context.approvals_needed. Answer approve to approve it, or say what to change."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "second_reply",
+					"attrs": {
+						"output": "batch",
+						"shape": "box",
+						"class": "manager",
+						"label": "Second reply",
+						"max_visits": 6,
+						"prompt": "The second reviewer answered the review of $context.pr_url with a reply that is not the approve option:\n\n$human.gate.text\n\nThis reply approves nothing, also when it says that the reviewer approves. When it asks for changes, write each change as a row of a batch file, report CONTEXT: batch=<path>, and take changes. Otherwise take ask_again, and the reviewer gets the review again."
+					},
+					"classes": ["manager"],
+					"handler": "codergen"
+				},
+				{
+					"id": "second_approved",
+					"attrs": {
+						"output": "stopped",
+						"shape": "parallelogram",
+						"label": "Second approved",
+						"max_visits": 6,
+						"tool_command": "workcell tool pr post second-review",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "risk_failed",
+					"attrs": {
+						"output": "stopped",
+						"shape": "parallelogram",
+						"label": "Risk failed",
+						"timeout": "60s",
+						"tool_command": "workcell tool pr post risk-failed",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				}
+			],
+			"edges": [
+				{
+					"from": "start",
+					"to": "floor",
+					"attrs": {
+						"condition": "context.change_risk_step=open && context.unclassified!=yes"
+					}
+				},
+				{
+					"from": "start",
+					"to": "classify",
+					"attrs": {
+						"label": "unclassified",
+						"condition": "context.change_risk_step=open && context.unclassified=yes"
+					}
+				},
+				{
+					"from": "start",
+					"to": "risk",
+					"attrs": {
+						"condition": "context.change_risk_step=verified"
+					}
+				},
+				{
+					"from": "start",
+					"to": "conditions",
+					"attrs": {
+						"condition": "context.change_risk_step=conditions"
+					}
+				},
+				{
+					"from": "start",
+					"to": "approvals",
+					"attrs": {
+						"condition": "context.change_risk_step=approvals"
+					}
+				},
+				{
+					"from": "floor",
+					"to": "exit",
+					"attrs": {
+						"label": "read",
+						"condition": "outcome=success && context.change_risk_floor=\"\""
+					}
+				},
+				{
+					"from": "floor",
+					"to": "classify",
+					"attrs": {
+						"condition": "outcome=success && context.change_risk_floor!=\"\""
+					}
+				},
+				{
+					"from": "floor",
+					"to": "exit",
+					"attrs": {
+						"label": "read",
+						"condition": "outcome=fail"
+					}
+				},
+				{
+					"from": "classify",
+					"to": "check_risk",
+					"attrs": {
+						"label": "low",
+						"weight": 1,
+						"condition": "context.change_risk_step=open && context.needs_human=unchecked && context.change_risk_floor=low && context.classified=low && context.change_risk_reason!=\"\""
+					}
+				},
+				{
+					"from": "classify",
+					"to": "exit",
+					"attrs": {
+						"label": "read",
+						"condition": "context.change_risk_step=open"
+					}
+				},
+				{
+					"from": "classify",
+					"to": "risk",
+					"attrs": {
+						"label": "classified",
+						"condition": "context.change_risk_step=verified"
+					}
+				},
+				{
+					"from": "check_risk",
+					"to": "exit",
+					"attrs": {
+						"label": "read"
+					}
+				},
+				{
+					"from": "risk",
+					"to": "classify",
+					"attrs": {
+						"label": "classify",
+						"condition": "preferred_label=classify"
+					}
+				},
+				{
+					"from": "risk",
+					"to": "extra_review",
+					"attrs": {
+						"label": "extra_review",
+						"condition": "outcome=success && preferred_label!=classify && context.verify=passed && context.verify_at_head=yes && context.extra_role!=\"\""
+					}
+				},
+				{
+					"from": "risk",
+					"to": "exit",
+					"attrs": {
+						"label": "read",
+						"condition": "outcome=success && preferred_label!=classify && context.verify!=passed"
+					}
+				},
+				{
+					"from": "risk",
+					"to": "exit",
+					"attrs": {
+						"label": "read",
+						"condition": "outcome=success && preferred_label!=classify && context.verify_at_head!=yes"
+					}
+				},
+				{
+					"from": "risk",
+					"to": "exit",
+					"attrs": {
+						"label": "read",
+						"condition": "outcome=success && preferred_label!=classify && context.extra_role=\"\""
+					}
+				},
+				{
+					"from": "risk",
+					"to": "risk_failed",
+					"attrs": {
+						"condition": "outcome=fail"
+					}
+				},
+				{
+					"from": "risk_failed",
+					"to": "exit",
+					"attrs": {
+						"label": "risk_failed"
+					}
+				},
+				{
+					"from": "extra_review",
+					"to": "extra_reviewed",
+					"attrs": {
+						"label": "clean",
+						"condition": "preferred_label=clean"
+					}
+				},
+				{
+					"from": "extra_review",
+					"to": "extra_triage",
+					"attrs": {
+						"label": "findings",
+						"condition": "preferred_label=findings"
+					}
+				},
+				{
+					"from": "extra_review",
+					"to": "exit",
+					"attrs": {
+						"label": "risk_failed",
+						"condition": "outcome=fail"
+					}
+				},
+				{
+					"from": "extra_triage",
+					"to": "exit",
+					"attrs": {
+						"label": "apply",
+						"condition": "preferred_label=apply"
+					}
+				},
+				{
+					"from": "extra_triage",
+					"to": "extra_reviewed",
+					"attrs": {
+						"label": "done",
+						"condition": "preferred_label=done"
+					}
+				},
+				{
+					"from": "extra_reviewed",
+					"to": "risk",
+					"attrs": {}
+				},
+				{
+					"from": "conditions",
+					"to": "exit",
+					"attrs": {
+						"label": "clear",
+						"condition": "preferred_label=clear"
+					}
+				},
+				{
+					"from": "conditions",
+					"to": "exit",
+					"attrs": {
+						"label": "held",
+						"condition": "preferred_label=held"
+					}
+				},
+				{
+					"from": "conditions",
+					"to": "exit",
+					"attrs": {
+						"label": "conditions_failed",
+						"condition": "outcome=fail"
+					}
+				},
+				{
+					"from": "approvals",
+					"to": "exit",
+					"attrs": {
+						"label": "approved",
+						"condition": "preferred_label=approved"
+					}
+				},
+				{
+					"from": "approvals",
+					"to": "second_review",
+					"attrs": {
+						"label": "second",
+						"condition": "preferred_label=second"
+					}
+				},
+				{
+					"from": "approvals",
+					"to": "approvals_held",
+					"attrs": {
+						"label": "held",
+						"condition": "preferred_label=held"
+					}
+				},
+				{
+					"from": "approvals_held",
+					"to": "approvals",
+					"attrs": {
+						"label": "recheck"
+					}
+				},
+				{
+					"from": "approvals_held",
+					"to": "exit",
+					"attrs": {
+						"label": "report"
+					}
+				},
+				{
+					"from": "approvals_held",
+					"to": "approvals_held",
+					"attrs": {
+						"label": "remind",
+						"condition": "preferred_label=remind"
+					}
+				},
+				{
+					"from": "approvals",
+					"to": "exit",
+					"attrs": {
+						"label": "failed",
+						"condition": "outcome=fail"
+					}
+				},
+				{
+					"from": "second_review",
+					"to": "second_approved",
+					"attrs": {
+						"label": "approve"
+					}
+				},
+				{
+					"from": "second_review",
+					"to": "second_reply",
+					"attrs": {
+						"label": "answered"
+					}
+				},
+				{
+					"from": "second_review",
+					"to": "second_review",
+					"attrs": {
+						"label": "remind",
+						"condition": "preferred_label=remind"
+					}
+				},
+				{
+					"from": "second_reply",
+					"to": "second_review",
+					"attrs": {
+						"label": "ask_again",
+						"condition": "preferred_label=ask_again"
+					}
+				},
+				{
+					"from": "second_reply",
+					"to": "exit",
+					"attrs": {
+						"label": "changes",
+						"condition": "preferred_label=changes"
+					}
+				},
+				{
+					"from": "second_approved",
+					"to": "approvals",
+					"attrs": {
+						"label": "approved",
+						"condition": "preferred_label=approved"
+					}
+				},
+				{
+					"from": "second_approved",
+					"to": "exit",
+					"attrs": {
+						"label": "failed",
+						"condition": "outcome=fail"
+					}
+				}
+			]
+		},
+		"conceptual.dot": {
+			"name": "Conceptual",
+			"label": "",
+			"attrs": {
+				"goal": "Name each concept that the branch adds, changes or removes, and the concepts it overlaps",
+				"rankdir": "LR"
+			},
+			"nodes": [
+				{
+					"id": "start",
+					"attrs": {
+						"output": "handoff, resolution, settled",
+						"shape": "Mdiamond",
+						"label": "Start"
+					},
+					"classes": [],
+					"handler": "start"
+				},
+				{
+					"id": "exit",
+					"attrs": {
+						"shape": "Msquare",
+						"label": "Exit"
+					},
+					"classes": [],
+					"handler": "exit"
+				},
+				{
+					"id": "conceptual_review",
+					"attrs": {
+						"output": "conceptual",
+						"shape": "box",
+						"class": "conceptual",
+						"label": "Conceptual review",
+						"prompt": "Write the Conceptual Changes section of the branch. The handoff $context.handoff is the issue of the brief. The conflict resolutions of the latest rebase: $context.resolution. When that names a file, review each resolution in it.\n\n$context.settled"
+					},
+					"classes": ["conceptual"],
+					"handler": "codergen"
+				}
+			],
+			"edges": [
+				{
+					"from": "start",
+					"to": "conceptual_review",
+					"attrs": {}
+				},
+				{
+					"from": "conceptual_review",
+					"to": "exit",
+					"attrs": {}
+				}
+			]
+		},
+		"fix-push.dot": {
+			"name": "FixPush",
+			"label": "",
+			"attrs": {
+				"goal": "Push the commits of an implementer turn to the open pull request",
+				"rankdir": "LR"
+			},
+			"nodes": [
+				{
+					"id": "start",
+					"attrs": {
+						"shape": "Mdiamond",
+						"label": "Start"
+					},
+					"classes": [],
+					"handler": "start"
+				},
+				{
+					"id": "exit",
+					"attrs": {
+						"shape": "Msquare",
+						"label": "Exit"
+					},
+					"classes": [],
+					"handler": "exit"
+				},
+				{
+					"id": "push",
+					"attrs": {
+						"output": "tool_error",
+						"shape": "parallelogram",
+						"label": "Push",
+						"timeout": "900s",
+						"tool_command": "workcell tool branch push --root . --with-pr"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "push_tries",
+					"attrs": {
+						"output": "stopped, merge_result",
+						"shape": "parallelogram",
+						"label": "Push tries",
+						"timeout": "60s",
+						"tool_command": "workcell tool pr post push-tries",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "repush",
+					"attrs": {
+						"shape": "box",
+						"class": "implementer",
+						"thread_id": "implementer",
+						"label": "Repush",
+						"prompt": "The engine could not push the branch of the open pull request. The tail of its push output is:\n\n$context.tool_error\n\nFind the cause, such as a failed pre-push hook or a refused file, and fix it on the branch. Commit the fix. Do not push. Report done, with no LABEL line."
+					},
+					"classes": ["implementer"],
+					"handler": "codergen"
+				}
+			],
+			"edges": [
+				{
+					"from": "start",
+					"to": "push",
+					"attrs": {}
+				},
+				{
+					"from": "push",
+					"to": "exit",
+					"attrs": {
+						"condition": "outcome=success"
+					}
+				},
+				{
+					"from": "push",
+					"to": "push_tries",
+					"attrs": {
+						"label": "push_failed",
+						"condition": "outcome=fail"
+					}
+				},
+				{
+					"from": "push_tries",
+					"to": "repush",
+					"attrs": {
+						"condition": "preferred_label!=limit_reached"
+					}
+				},
+				{
+					"from": "push_tries",
+					"to": "exit",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "repush",
+					"to": "push",
+					"attrs": {}
+				}
+			]
+		},
+		"merge.dot": {
+			"name": "Merge",
+			"label": "",
+			"attrs": {
+				"goal": "Land the verified head of the open pull request",
+				"rankdir": "LR"
+			},
+			"nodes": [
+				{
+					"id": "start",
+					"attrs": {
+						"output": "issue",
+						"shape": "Mdiamond",
+						"label": "Start"
+					},
+					"classes": [],
+					"handler": "start"
+				},
+				{
+					"id": "exit",
+					"attrs": {
+						"shape": "Msquare",
+						"label": "Exit"
+					},
+					"classes": [],
+					"handler": "exit"
+				},
+				{
+					"id": "republish",
+					"attrs": {
+						"output": "report_fields",
+						"shape": "box",
+						"class": "manager",
+						"fidelity": "full",
+						"thread_id": "publish",
+						"label": "Republish",
+						"max_visits": 3,
+						"prompt": "workcell tool run report refused the report fields file $context.report_fields. It printed:\n\n$context.publish_error\n\nFix the fields the error names, do not run workcell tool run report, and report CONTEXT: report_fields=<path of the JSON file>."
+					},
+					"classes": ["manager"],
+					"handler": "codergen"
+				},
+				{
+					"id": "ready",
+					"attrs": {
+						"output": "merge_result",
+						"shape": "parallelogram",
+						"label": "Ready",
+						"timeout": "300s",
+						"tool_command": "workcell tool pr post ready",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "post_report",
+					"attrs": {
+						"output": "merge_result, publish_error",
+						"shape": "parallelogram",
+						"label": "Post report",
+						"timeout": "300s",
+						"tool_command": "workcell tool pr post publish",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "land",
+					"attrs": {
+						"output": "merge_sha, merge_result, stopped",
+						"shape": "parallelogram",
+						"label": "Land",
+						"timeout": "3600s",
+						"max_retries": 3,
+						"tool_command": "workcell tool pr post land",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				}
+			],
+			"edges": [
+				{
+					"from": "start",
+					"to": "ready",
+					"attrs": {}
+				},
+				{
+					"from": "ready",
+					"to": "post_report",
+					"attrs": {
+						"label": "ready",
+						"condition": "preferred_label=ready"
+					}
+				},
+				{
+					"from": "ready",
+					"to": "exit",
+					"attrs": {
+						"label": "merge_off",
+						"condition": "preferred_label=merge_off"
+					}
+				},
+				{
+					"from": "ready",
+					"to": "exit",
+					"attrs": {
+						"label": "not_green",
+						"condition": "preferred_label=not_green"
+					}
+				},
+				{
+					"from": "post_report",
+					"to": "land",
+					"attrs": {
+						"label": "posted",
+						"condition": "preferred_label=posted"
+					}
+				},
+				{
+					"from": "post_report",
+					"to": "exit",
+					"attrs": {
+						"label": "publish_failed",
+						"condition": "preferred_label=publish_failed"
+					}
+				},
+				{
+					"from": "post_report",
+					"to": "republish",
+					"attrs": {
+						"label": "refused",
+						"condition": "preferred_label=refused"
+					}
+				},
+				{
+					"from": "republish",
+					"to": "ready",
+					"attrs": {}
+				},
+				{
+					"from": "land",
+					"to": "exit",
+					"attrs": {
+						"label": "merged",
+						"condition": "preferred_label=merged"
+					}
+				},
+				{
+					"from": "land",
+					"to": "exit",
+					"attrs": {
+						"label": "base_moved",
+						"condition": "preferred_label=base_moved"
+					}
+				},
+				{
+					"from": "land",
+					"to": "exit",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "land",
+					"to": "exit",
+					"attrs": {
+						"label": "head_moved",
+						"condition": "preferred_label=head_moved"
+					}
+				},
+				{
+					"from": "land",
+					"to": "exit",
+					"attrs": {
+						"label": "open_threads",
+						"condition": "preferred_label=open_threads"
+					}
+				},
+				{
+					"from": "land",
+					"to": "exit",
+					"attrs": {
+						"label": "dequeued",
+						"condition": "preferred_label=dequeued"
+					}
+				},
+				{
+					"from": "land",
+					"to": "exit",
+					"attrs": {
+						"label": "not_mergeable",
+						"condition": "preferred_label=not_mergeable"
+					}
+				},
+				{
+					"from": "land",
+					"to": "exit",
+					"attrs": {
+						"label": "transient",
+						"condition": "preferred_label=transient"
+					}
+				}
+			]
+		},
+		"post-pr.dot": {
+			"name": "PostPr",
+			"label": "",
+			"attrs": {
+				"goal": "Open the pull request, review it until it is ready, and land it",
+				"rankdir": "LR"
+			},
+			"nodes": [
+				{
+					"id": "start",
+					"attrs": {
+						"output": "issue, handoff, verdicts, through, ticket_kind, pr_state, pr_url, stopped, verify_line",
+						"shape": "Mdiamond",
+						"label": "Start"
+					},
+					"classes": [],
+					"handler": "start"
+				},
+				{
+					"id": "exit",
+					"attrs": {
+						"shape": "Msquare",
+						"label": "Exit"
+					},
+					"classes": [],
+					"handler": "exit"
+				},
+				{
+					"id": "draft_pr",
+					"attrs": {
+						"output": "draft, decision",
+						"shape": "box",
+						"class": "implementer",
+						"thread_id": "implementer",
+						"label": "Draft PR",
+						"prompt": "Stage 4. Draft the pull request for the handoff $context.handoff, as the pr skill says. Pass the evidence of each Done when item and the verifier's verdicts in $context.verdicts. Write the draft as a JSON file of `title`, `body` and `vars`, and report CONTEXT: draft=<path>. `body` is the summary text that the template takes as input, not the rendered body. `vars` holds a text value for each variable that `workcell tool pr open --template` marks required. Add `attach`, a list of paths under `.devkit/proof/`, when you have proof media. Embed each file under the line it proves, as an image or a link of its attach path, or leave it out of `attach`. Never commit proof media. The PR draft section of your instructions says how. When the branch holds no commit because a human entry of the decision record decides to change no code, draft nothing: report LABEL: no_code and CONTEXT: decision=D<n>, the id of that entry."
+					},
+					"classes": ["implementer"],
+					"handler": "codergen"
+				},
+				{
+					"id": "no_code",
+					"attrs": {
+						"output": "stopped, open_error",
+						"shape": "parallelogram",
+						"label": "No code",
+						"timeout": "300s",
+						"max_visits": 6,
+						"tool_command": "workcell tool pr post no-code",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "no_code_close",
+					"attrs": {
+						"output": "stopped",
+						"shape": "parallelogram",
+						"label": "No code close",
+						"timeout": "300s",
+						"max_visits": 6,
+						"tool_command": "workcell tool pr post no-code-close",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "gate",
+					"attrs": {
+						"output": "gate_task, gate_output, gate_head, stopped",
+						"shape": "parallelogram",
+						"class": "gate",
+						"label": "Required task",
+						"timeout": "3600s",
+						"max_visits": 6,
+						"tool_command": "workcell tool pr post gate --end-at-cap",
+						"context": "context"
+					},
+					"classes": ["gate"],
+					"handler": "tool"
+				},
+				{
+					"id": "gate_fix",
+					"attrs": {
+						"shape": "box",
+						"class": "implementer",
+						"thread_id": "implementer",
+						"label": "Fix required task",
+						"prompt": "The push gate needs the required task $context.gate_task to pass at the head of the branch before the pull request opens. devrun task $context.gate_task failed at the head. It printed:\n\n$context.gate_output\n\nFix the cause on the branch. Commit every change, so the tree is clean. The open stage pushes the branch. Then report done. Do not wait for a low machine load or for other suites to stop."
+					},
+					"classes": ["implementer"],
+					"handler": "codergen"
+				},
+				{
+					"id": "open_risk",
+					"attrs": {
+						"output": "change_risk_floor, change_risk_kept, rubric, needs_human, checker_reason, classified, change_risk_reason",
+						"shape": "box",
+						"label": "Open risk",
+						"child_input": "context.change_risk_step=open",
+						"shared_visits": "true",
+						"prompt": "Read the change risk before the pull request opens.",
+						"prompt_file": "change-risk.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "open",
+					"attrs": {
+						"output": "pr_url, open_error, change_risk, unclassified, stopped",
+						"shape": "parallelogram",
+						"label": "Open PR",
+						"timeout": "300s",
+						"max_visits": 6,
+						"tool_command": "workcell tool pr post open",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "section",
+					"attrs": {
+						"shape": "parallelogram",
+						"label": "PR section",
+						"timeout": "300s",
+						"max_visits": 12,
+						"tool_command": "workcell tool pr post section",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "redraft",
+					"attrs": {
+						"output": "draft, decision",
+						"shape": "box",
+						"class": "implementer",
+						"thread_id": "implementer",
+						"label": "Redraft PR",
+						"prompt": "The open step of workcell tool pr open did not finish for your draft $context.draft. The pull request can be open already. It printed:\n\n$context.open_error\n\nFix the cause in the draft or on the branch, and report CONTEXT: draft=<path>."
+					},
+					"classes": ["implementer"],
+					"handler": "codergen"
+				},
+				{
+					"id": "test_changes",
+					"attrs": {
+						"output": "draft",
+						"shape": "box",
+						"class": "implementer",
+						"thread_id": "implementer",
+						"label": "Explain test changes",
+						"prompt": "devkit did not open the pull request from your draft $context.draft, because the branch weakens tests. It printed:\n\n$context.open_error\n\nFor each flag, restore the test on the branch and commit it, or explain it in the `Test changes:` departure bullet of the draft, as the PR draft section of your instructions says. Commit every change, so the tree is clean. Report CONTEXT: draft=<path>."
+					},
+					"classes": ["implementer"],
+					"handler": "codergen"
+				},
+				{
+					"id": "open_help",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "operator",
+						"label": "The open step of workcell tool pr open failed on a rejected push or a missing devkit. The pull request can be open already. It printed:\n\n$context.open_error\n\nFix the cause, then answer retry, or answer report to stop."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "redraft_help",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "operator",
+						"label": "The open step of workcell tool pr open failed again after the implementer redrafted the PR. The pull request can be open already. It printed:\n\n$context.open_error\n\nAnswer retry to send this error to the implementer for another redraft. Write what the implementer must change on the lines after retry. Answer reopen to run the open again with the same draft, when the error needs no draft change, such as a GitHub outage. Answer report to stop."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "retry_redraft",
+					"attrs": {
+						"output": "draft, decision",
+						"shape": "box",
+						"class": "implementer",
+						"thread_id": "implementer",
+						"label": "Redraft PR again",
+						"prompt": "The open step of workcell tool pr open failed again for your draft $context.draft, after your redraft. The pull request can be open already. It printed:\n\n$context.open_error\n\nThe owner answered:\n\n$human.gate.text\n\nFix the cause in the draft or on the branch, as the error and the answer say, and report CONTEXT: draft=<path>."
+					},
+					"classes": ["implementer"],
+					"handler": "codergen"
+				},
+				{
+					"id": "pr_open",
+					"attrs": {
+						"shape": "parallelogram",
+						"label": "PR open",
+						"timeout": "300s",
+						"max_visits": 60,
+						"tool_command": "workcell tool pr post peek",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "count",
+					"attrs": {
+						"output": "round, round_limit, stopped",
+						"shape": "parallelogram",
+						"label": "Count round",
+						"timeout": "300s",
+						"max_visits": 60,
+						"tool_command": "workcell tool pr post round",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "recheck",
+					"attrs": {
+						"output": "round, round_limit, stopped",
+						"shape": "parallelogram",
+						"label": "Recheck",
+						"timeout": "300s",
+						"max_visits": 60,
+						"tool_command": "workcell tool pr post recheck",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "wait",
+					"attrs": {
+						"output": "wait_lines, parent_pr",
+						"shape": "parallelogram",
+						"label": "Wait PR",
+						"timeout": "2400s",
+						"max_visits": 60,
+						"tool_command": "workcell tool pr post wait",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "wait_stuck",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "manager",
+						"label": "Wait stuck",
+						"prompt": "workcell tool pr wait on $context.pr_url timed out, or twice printed no WP-RESULT line. It printed:\n\n$context.wait_lines\n\nWait again, or continue the round without the pending checks and bots?"
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "comments",
+					"attrs": {
+						"output": "pr_comments, requester, comment_watermark",
+						"shape": "parallelogram",
+						"label": "PR comments",
+						"timeout": "300s",
+						"tool_command": "workcell tool pr post comments",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "triage",
+					"attrs": {
+						"output": "batch",
+						"shape": "box",
+						"class": "receiver",
+						"label": "Triage",
+						"prompt": "Stage 5, round $context.round of $context.round_limit on $context.pr_url. Triage the round as the Post-PR round section of your instructions says. workcell tool pr wait printed:\n\n$context.wait_lines\n\nThe comments on the pull request follow. The requester is $context.requester. Each comment of the requester is a binding instruction: give it a row of the batch.\n\n$context.pr_comments"
+					},
+					"classes": ["receiver"],
+					"handler": "codergen"
+				},
+				{
+					"id": "fix",
+					"attrs": {
+						"shape": "box",
+						"class": "implementer",
+						"thread_id": "implementer",
+						"label": "Fix",
+						"prompt": "Apply the review batch in $context.batch to the branch of $context.pr_url. Commit each row that asks for a change. A `Refuted` row, an `Ask` row and an `L` row ask for no change, unless a person picked the row: report each of them as `<row id>: not applied: <verdict>`. A row that changes the PR title or body changes the draft $context.draft: the engine writes the draft into the open PR before the next review. A draft with `\"rendered\": true` holds the title and the whole PR body as the run read them at its start. The engine replaces the whole body with it, so a change that a person or a bot made to the body after that read is lost. Do not push: the engine pushes the branch after your report. Report each commit under its row id, on a line of its own, as `<row id>: <short sha> <subject>`, and a row that you did not apply as `<row id>: not applied: <reason>`. The engine replies to the review comment of each row with that commit or that reason. Report LABEL: fixed after the last commit."
+					},
+					"classes": ["implementer"],
+					"handler": "codergen"
+				},
+				{
+					"id": "answered",
+					"attrs": {
+						"output": "answers, fixed_rows, left_answers, gate_answer, gate_unapplied",
+						"shape": "parallelogram",
+						"label": "Answered",
+						"timeout": "60s",
+						"tool_command": "workcell tool pr post fixed",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "answer_round",
+					"attrs": {
+						"output": "answers",
+						"shape": "parallelogram",
+						"label": "Answer round",
+						"timeout": "300s",
+						"tool_command": "workcell tool pr post answer-round",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "fix_push",
+					"attrs": {
+						"output": "stopped, merge_result, tool_error",
+						"shape": "box",
+						"label": "Push fix",
+						"prompt": "Push the commits of the turn.",
+						"prompt_file": "fix-push.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "rebase",
+					"attrs": {
+						"output": "rebase_result, rebase_state, rebase_parent, resolution, push_error",
+						"shape": "box",
+						"label": "Rebase",
+						"prompt": "Rebase the branch and push it.",
+						"prompt_file": "rebase-push.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "rebase_event",
+					"attrs": {
+						"shape": "parallelogram",
+						"label": "Rebase event",
+						"timeout": "60s",
+						"tool_command": "workcell tool pr post rebase-event",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "rebase_failed",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "manager",
+						"label": "Rebase failed",
+						"max_visits": 6,
+						"prompt": "The rebase of the branch of $context.pr_url onto its base failed with the rebase result $context.rebase_result, and the engine pushed nothing. $context.rebase_state Origin keeps its old head. Take retry to rebase again once the cause is gone. Take skip to continue the run without the rebase."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "push_failed",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "operator",
+						"label": "Push failed",
+						"max_visits": 6,
+						"prompt": "The rebase of the branch of $context.pr_url onto its base finished, but origin refused the push. The local branch holds the rebased commits, and origin keeps its old head, because the push uses a lease. The push printed:\n\n$context.push_error\n\nTake retry to rebase and push again once the cause is gone. Take skip to continue the run, and origin keeps its old head."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "push_fix",
+					"attrs": {
+						"shape": "box",
+						"class": "implementer",
+						"thread_id": "implementer",
+						"label": "Fix push hook",
+						"prompt": "The rebase of the branch of $context.pr_url onto its base finished, but a hook of the checkout refused the push of the rebased branch. Origin keeps its old head. The push printed:\n\n$context.push_error\n\nFix the cause on the branch, such as code from the base that uses a name the branch moved, and commit every change. Do not push: the engine pushes the branch after your report. Then report done. Do not wait for a low machine load or for other suites to stop."
+					},
+					"classes": ["implementer"],
+					"handler": "codergen"
+				},
+				{
+					"id": "push_fix_push",
+					"attrs": {
+						"output": "stopped, merge_result, tool_error",
+						"shape": "box",
+						"label": "Push hook fix",
+						"prompt": "Push the commits of the turn.",
+						"prompt_file": "fix-push.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "rebase_skip",
+					"attrs": {
+						"shape": "parallelogram",
+						"label": "Rebase skip",
+						"timeout": "300s",
+						"tool_command": "workcell tool pr post rebase-skip",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "rebase_stacked",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "manager",
+						"label": "Rebase stacked",
+						"max_visits": 6,
+						"prompt": "The branch of $context.pr_url conflicts with its base, but the rebase result is $context.rebase_result: the branch holds the tip of another unmerged branch with an open PR. A rebase onto the base replays the parent's commits under new SHAs, so the engine did not rebase. The push left origin at the same head, which still conflicts. Take retry to rebase again once the parent merges. Take report to end at the final report."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "rebase_gate",
+					"attrs": {
+						"output": "gate_task, gate_output, gate_head, rebase_event",
+						"shape": "parallelogram",
+						"class": "gate",
+						"label": "Rebase task",
+						"timeout": "3600s",
+						"max_visits": 6,
+						"tool_command": "workcell tool pr post gate --after-rebase",
+						"context": "context"
+					},
+					"classes": ["gate"],
+					"handler": "tool"
+				},
+				{
+					"id": "rebase_fix",
+					"attrs": {
+						"shape": "box",
+						"class": "implementer",
+						"thread_id": "implementer",
+						"label": "Fix rebase task",
+						"prompt": "The required task $context.gate_task must pass at the head of the rebased branch of $context.pr_url before the next round. devrun task $context.gate_task failed at the head. It printed:\n\n$context.gate_output\n\nFix the cause on the branch, and commit every change. Do not push: the engine pushes the branch after your report. Then report done. Do not wait for a low machine load or for other suites to stop."
+					},
+					"classes": ["implementer"],
+					"handler": "codergen"
+				},
+				{
+					"id": "rebase_fix_push",
+					"attrs": {
+						"output": "stopped, merge_result, tool_error",
+						"shape": "box",
+						"label": "Push rebase fix",
+						"prompt": "Push the commits of the turn.",
+						"prompt_file": "fix-push.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "unreviewed",
+					"attrs": {
+						"output": "wait_lines, parent_pr",
+						"shape": "parallelogram",
+						"label": "Unreviewed",
+						"timeout": "2400s",
+						"max_visits": 60,
+						"tool_command": "workcell tool pr post wait --bots none",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "unreviewed_stuck",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "manager",
+						"label": "Unreviewed stuck",
+						"prompt": "workcell tool pr wait --bots none on $context.pr_url timed out, or twice printed no WP-RESULT line. It printed:\n\n$context.wait_lines\n\nWait again, or continue to the verify without the pending checks?"
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "react",
+					"attrs": {
+						"shape": "box",
+						"label": "React",
+						"prompt": "Run one reaction.",
+						"prompt_file": "react.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "verify",
+					"attrs": {
+						"output": "verify_line, verify_batch, verify_sha",
+						"shape": "parallelogram",
+						"label": "Verify",
+						"timeout": "3600s",
+						"proof": "ci",
+						"tool_command": "workcell tool pr post verify",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "verified",
+					"attrs": {
+						"output": "change_risk, approvals, merge_held, extra_role, batch",
+						"shape": "box",
+						"label": "Verified",
+						"child_input": "context.change_risk_step=verified",
+						"shared_visits": "true",
+						"prompt": "Read the change risk of the verified head, and run its extra roles.",
+						"prompt_file": "change-risk.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "merge_gate",
+					"attrs": {
+						"output": "merge_held, merge_result, gate_unapplied",
+						"shape": "box",
+						"label": "Merge gate",
+						"child_input": "context.change_risk_step=conditions",
+						"shared_visits": "true",
+						"prompt": "Check the merge conditions of the change risk.",
+						"prompt_file": "change-risk.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "approval_wait",
+					"attrs": {
+						"output": "stopped, batch",
+						"shape": "box",
+						"label": "Approval wait",
+						"child_input": "context.change_risk_step=approvals",
+						"shared_visits": "true",
+						"prompt": "Wait for the approvals of the change risk.",
+						"prompt_file": "change-risk.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "publish",
+					"attrs": {
+						"output": "report_fields",
+						"shape": "box",
+						"class": "manager",
+						"fidelity": "full",
+						"thread_id": "publish",
+						"label": "Publish",
+						"prompt": "Stage 6. Write the final report fields of issue $context.issue as the Final report section of your instructions says, but do not run workcell tool run report. Leave out the merge field. Write pr, rounds, ci, verification and stopped as strings: write the lines of ci as one string. Write auto_applied, auto_dismissed, rebased and deferred as lists of strings, and left_for_you and noted as lists of row objects. Write the fields for the verified head $context.verify_sha, in a new file: leave out each row that a commit of the branch fixed at that head, also when an earlier publish turn or the file of context.held_rows lists it. A Left for you row of the earlier final report beside the handoff holds the merge until you name it in auto_applied as `<finding>: <short sha> <subject>`, with its finding text unchanged. Name it there only when a commit of the branch fixed it at that head. Report CONTEXT: report_fields=<path of the JSON file>."
+					},
+					"classes": ["manager"],
+					"handler": "codergen"
+				},
+				{
+					"id": "body",
+					"attrs": {
+						"output": "stopped, body_error",
+						"shape": "parallelogram",
+						"label": "PR body",
+						"timeout": "300s",
+						"max_visits": 60,
+						"tool_command": "workcell tool pr post body",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "body_redraft",
+					"attrs": {
+						"output": "draft",
+						"shape": "box",
+						"class": "implementer",
+						"thread_id": "implementer",
+						"label": "Redraft PR body",
+						"prompt": "The engine could not write your draft $context.draft into the open pull request $context.pr_url. It printed:\n\n$context.body_error\n\nFix the cause in the draft. Embed each file of the draft's attach under the line it proves, as an image or a link of its attach path, or leave the file out of attach and remove each link to it. Do not push. Report CONTEXT: draft=<path>. A second failed write ends the run at the final report."
+					},
+					"classes": ["implementer"],
+					"handler": "codergen"
+				},
+				{
+					"id": "body_failed",
+					"attrs": {
+						"output": "stopped",
+						"shape": "parallelogram",
+						"label": "PR body failed",
+						"timeout": "60s",
+						"tool_command": "workcell tool pr post body-failed",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "extra_count",
+					"attrs": {
+						"output": "round, round_limit, stopped",
+						"shape": "parallelogram",
+						"label": "Count extra round",
+						"timeout": "300s",
+						"max_visits": 60,
+						"tool_command": "workcell tool pr post round --keep-wait",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "approve_proof",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "requester",
+						"human.reply_choice": "answered",
+						"timeout": "3d",
+						"human.default_choice": "remind",
+						"max_visits": 20,
+						"label": "Approve proof",
+						"prompt": "The pull request $context.pr_url shows the proof of your request: the evidence for each item of its Done when. Does the change do what you asked? Answer approve to approve it, or say what to change."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "proof_reply",
+					"attrs": {
+						"output": "batch",
+						"shape": "box",
+						"class": "manager",
+						"label": "Proof reply",
+						"max_visits": 6,
+						"prompt": "The requester answered the proof on $context.pr_url with a reply that is not the approve option:\n\n$human.gate.text\n\nThis reply approves nothing, also when it says that the requester approves. When it asks for changes, write each change as a row of a batch file, report CONTEXT: batch=<path>, and take changes. Otherwise take ask_again, and the requester gets the proof again."
+					},
+					"classes": ["manager"],
+					"handler": "codergen"
+				},
+				{
+					"id": "final_review",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "owner",
+						"pr_review": "$context.pr_url",
+						"pr_review_pick": "approve",
+						"human.reply_choice": "answered",
+						"timeout": "3d",
+						"human.default_choice": "remind",
+						"max_visits": 20,
+						"label": "Final review",
+						"prompt": "$context.gate_unapplied\n\nReview the pull request $context.pr_url before it merges. $context.merge_held\n\nAnswer approve to approve it, or say what to change."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "review_reply",
+					"attrs": {
+						"output": "batch",
+						"shape": "box",
+						"class": "manager",
+						"label": "Review reply",
+						"max_visits": 6,
+						"prompt": "The owner answered the final review of $context.pr_url with a reply that is not the approve option:\n\n$human.gate.text\n\nThis reply approves nothing, also when it says that the owner approves. When it asks for changes, write each change as a row of a batch file, report CONTEXT: batch=<path>, and take changes. Otherwise take ask_again, and the owner gets the final review again. The final review asked:\n\n$context.merge_held\n\nStart the row of a change that fixes a row left for you with the `H` id of that row, as `H<n>. <change>`. Start each other row with a `G` id, as `G<n>. <change>`."
+					},
+					"classes": ["manager"],
+					"handler": "codergen"
+				},
+				{
+					"id": "review_again",
+					"attrs": {
+						"output": "gate_unapplied",
+						"shape": "parallelogram",
+						"label": "Review again",
+						"timeout": "60s",
+						"max_visits": 6,
+						"tool_command": "workcell tool pr post review-again",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "review_changes",
+					"attrs": {
+						"output": "gate_answer",
+						"shape": "parallelogram",
+						"label": "Review changes",
+						"timeout": "60s",
+						"max_visits": 6,
+						"tool_command": "workcell tool pr post review-changes",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "review_approved",
+					"attrs": {
+						"output": "stopped, merge_held, merge_result, gate_unapplied",
+						"shape": "parallelogram",
+						"label": "Review approved",
+						"max_visits": 6,
+						"tool_command": "workcell tool pr post final-review",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "merge_ask",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "owner",
+						"label": "Merge?",
+						"timeout": "3d",
+						"human.default_choice": "remind",
+						"max_visits": 20,
+						"prompt": "The pull request $context.pr_url passed its review and the required task at its head. $context.merge_held\n\nAnswer merge to land it, or hold to leave it open for the final report."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "merge_hold",
+					"attrs": {
+						"output": "through, left_answers",
+						"shape": "parallelogram",
+						"label": "Merge hold",
+						"timeout": "60s",
+						"max_visits": 20,
+						"tool_command": "workcell tool pr post merge-hold",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "merge_answer",
+					"attrs": {
+						"output": "left_answers",
+						"shape": "parallelogram",
+						"label": "Merge answer",
+						"timeout": "60s",
+						"max_visits": 20,
+						"tool_command": "workcell tool pr post merge-answer",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "parent_held",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "owner",
+						"label": "Parent held",
+						"timeout": "3d",
+						"human.default_choice": "remind",
+						"max_visits": 20,
+						"prompt": "The parent PR $context.parent_pr of $context.pr_url merged, and the repo never rebases. The branch still holds the commits of the parent branch, so it cannot land. Rebase the branch onto the base of the parent PR, so that it holds only its own commits, and answer resolved. Answer stop to end at the final report."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "rebase_held",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "owner",
+						"label": "Rebase held",
+						"timeout": "3d",
+						"human.default_choice": "remind",
+						"max_visits": 20,
+						"prompt": "The branch of $context.pr_url needs a rebase, and the repo never rebases. It conflicts with its base, or its checks failed and pass at the tip of its base. Rebase the branch, or resolve the conflict on it, and answer resolved. Answer stop to end at the final report."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "repair_gate",
+					"attrs": {
+						"output": "repairs, stopped, merge_result",
+						"shape": "parallelogram",
+						"class": "gate",
+						"label": "Repair gate",
+						"timeout": "60s",
+						"max_visits": 60,
+						"tool_command": "workcell tool pr post repair-gate",
+						"context": "context"
+					},
+					"classes": ["gate"],
+					"handler": "tool"
+				},
+				{
+					"id": "repair",
+					"attrs": {
+						"shape": "box",
+						"class": "implementer",
+						"thread_id": "implementer",
+						"label": "Repair",
+						"prompt": "The required task did not pass at the head of $context.pr_url. Repair the branch from this batch: $context.verify_batch. Commit every change. Do not push: the engine pushes the branch after your report. Report LABEL: repaired after the last commit."
+					},
+					"classes": ["implementer"],
+					"handler": "codergen"
+				},
+				{
+					"id": "repair_push",
+					"attrs": {
+						"output": "stopped, merge_result, tool_error",
+						"shape": "box",
+						"label": "Push repair",
+						"prompt": "Push the commits of the turn.",
+						"prompt_file": "fix-push.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "pick_count_push",
+					"attrs": {
+						"output": "stopped, merge_result, tool_error",
+						"shape": "box",
+						"label": "Push before the round",
+						"prompt": "Push the commits that the report turn or a limit stop left.",
+						"prompt_file": "fix-push.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "pick_recheck_push",
+					"attrs": {
+						"output": "stopped, merge_result, tool_error",
+						"shape": "box",
+						"label": "Push before the recheck",
+						"prompt": "Push the commits that the report turn or a limit stop left.",
+						"prompt_file": "fix-push.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "pick_rebase_push",
+					"attrs": {
+						"output": "stopped, merge_result, tool_error",
+						"shape": "box",
+						"label": "Push before the rebase",
+						"prompt": "Push the commits that the report turn or a limit stop left.",
+						"prompt_file": "fix-push.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "pick_wait_push",
+					"attrs": {
+						"output": "stopped, merge_result, tool_error",
+						"shape": "box",
+						"label": "Push before the wait",
+						"prompt": "Push the commits that the report turn or a limit stop left.",
+						"prompt_file": "fix-push.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "pick_verify_push",
+					"attrs": {
+						"output": "stopped, merge_result, tool_error",
+						"shape": "box",
+						"label": "Push before the verify",
+						"prompt": "Push the commits that the report turn or a limit stop left.",
+						"prompt_file": "fix-push.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "pick_rerun_push",
+					"attrs": {
+						"output": "stopped, merge_result, tool_error",
+						"shape": "box",
+						"label": "Push before the review",
+						"prompt": "Push the commits that the report turn or a limit stop left.",
+						"prompt_file": "fix-push.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "merge",
+					"attrs": {
+						"output": "merge_sha, merge_result, stopped",
+						"shape": "box",
+						"label": "Merge",
+						"prompt": "Land the pull request.",
+						"prompt_file": "merge.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "report",
+					"attrs": {
+						"output": "through, batch",
+						"shape": "box",
+						"label": "Report",
+						"max_visits": 6,
+						"prompt": "Write the final report.",
+						"prompt_file": "report.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "merged",
+					"attrs": {
+						"shape": "box",
+						"class": "manager",
+						"label": "Merged",
+						"prompt": "The pull request $context.pr_url merged. Tell the human, and record workcell tool run status report $context.issue --through merge --pr $context.pr_url."
+					},
+					"classes": ["manager"],
+					"handler": "codergen"
+				},
+				{
+					"id": "closed",
+					"attrs": {
+						"shape": "box",
+						"class": "manager",
+						"label": "Closed",
+						"prompt": "The pull request $context.pr_url closed without a merge. Tell the human, and record workcell tool run status report $context.issue --stopped with the reason."
+					},
+					"classes": ["manager"],
+					"handler": "codergen"
+				}
+			],
+			"edges": [
+				{
+					"from": "start",
+					"to": "section",
+					"attrs": {
+						"label": "pr_open",
+						"condition": "context.pr_state=open"
+					}
+				},
+				{
+					"from": "section",
+					"to": "pr_open",
+					"attrs": {
+						"condition": "context.through!=pr && context.through!=implement"
+					}
+				},
+				{
+					"from": "section",
+					"to": "report",
+					"attrs": {
+						"label": "past_stop",
+						"condition": "context.through=pr"
+					}
+				},
+				{
+					"from": "section",
+					"to": "report",
+					"attrs": {
+						"label": "past_stop",
+						"condition": "context.through=implement"
+					}
+				},
+				{
+					"from": "start",
+					"to": "merged",
+					"attrs": {
+						"label": "pr_merged",
+						"condition": "context.pr_state=merged"
+					}
+				},
+				{
+					"from": "start",
+					"to": "closed",
+					"attrs": {
+						"label": "pr_closed",
+						"condition": "context.pr_state=closed"
+					}
+				},
+				{
+					"from": "start",
+					"to": "draft_pr",
+					"attrs": {
+						"condition": "context.pr_state!=open && context.pr_state!=merged && context.pr_state!=closed"
+					}
+				},
+				{
+					"from": "draft_pr",
+					"to": "no_code",
+					"attrs": {
+						"label": "no_code",
+						"condition": "preferred_label=no_code"
+					}
+				},
+				{
+					"from": "draft_pr",
+					"to": "gate",
+					"attrs": {
+						"condition": "preferred_label!=no_code"
+					}
+				},
+				{
+					"from": "no_code",
+					"to": "no_code_close",
+					"attrs": {
+						"label": "decided",
+						"condition": "preferred_label=decided"
+					}
+				},
+				{
+					"from": "no_code_close",
+					"to": "report",
+					"attrs": {
+						"label": "closed",
+						"condition": "preferred_label=closed"
+					}
+				},
+				{
+					"from": "no_code",
+					"to": "redraft",
+					"attrs": {
+						"label": "refused",
+						"condition": "preferred_label=refused"
+					}
+				},
+				{
+					"from": "gate",
+					"to": "open_risk",
+					"attrs": {
+						"label": "passed",
+						"condition": "preferred_label=passed"
+					}
+				},
+				{
+					"from": "gate",
+					"to": "open_risk",
+					"attrs": {
+						"label": "absent",
+						"condition": "preferred_label=absent"
+					}
+				},
+				{
+					"from": "open_risk",
+					"to": "open",
+					"attrs": {
+						"label": "read",
+						"condition": "preferred_label=read"
+					}
+				},
+				{
+					"from": "open_risk",
+					"to": "report",
+					"attrs": {
+						"label": "risk_failed",
+						"condition": "outcome=fail"
+					}
+				},
+				{
+					"from": "gate",
+					"to": "gate_fix",
+					"attrs": {
+						"label": "failed",
+						"condition": "preferred_label=failed"
+					}
+				},
+				{
+					"from": "gate",
+					"to": "report",
+					"attrs": {
+						"label": "capped",
+						"condition": "preferred_label=capped"
+					}
+				},
+				{
+					"from": "gate_fix",
+					"to": "gate",
+					"attrs": {}
+				},
+				{
+					"from": "open",
+					"to": "report",
+					"attrs": {
+						"label": "opened",
+						"condition": "preferred_label=opened && context.through=pr"
+					}
+				},
+				{
+					"from": "open",
+					"to": "pr_open",
+					"attrs": {
+						"label": "opened",
+						"condition": "preferred_label=opened && context.through!=pr"
+					}
+				},
+				{
+					"from": "open",
+					"to": "redraft",
+					"attrs": {
+						"label": "failed",
+						"condition": "preferred_label=failed"
+					}
+				},
+				{
+					"from": "open",
+					"to": "test_changes",
+					"attrs": {
+						"label": "weakened",
+						"condition": "preferred_label=weakened"
+					}
+				},
+				{
+					"from": "open",
+					"to": "report",
+					"attrs": {
+						"label": "weakened_again",
+						"condition": "preferred_label=weakened_again"
+					}
+				},
+				{
+					"from": "test_changes",
+					"to": "gate",
+					"attrs": {}
+				},
+				{
+					"from": "open",
+					"to": "open_risk",
+					"attrs": {
+						"label": "unclassified",
+						"condition": "preferred_label=unclassified"
+					}
+				},
+				{
+					"from": "open",
+					"to": "report",
+					"attrs": {
+						"label": "unclassified_again",
+						"condition": "preferred_label=unclassified_again"
+					}
+				},
+				{
+					"from": "open",
+					"to": "redraft_help",
+					"attrs": {
+						"label": "failed_again",
+						"condition": "preferred_label=failed_again"
+					}
+				},
+				{
+					"from": "open",
+					"to": "open_help",
+					"attrs": {
+						"label": "push_rejected",
+						"condition": "preferred_label=push_rejected"
+					}
+				},
+				{
+					"from": "open",
+					"to": "open_help",
+					"attrs": {
+						"label": "no_devkit",
+						"condition": "preferred_label=no_devkit"
+					}
+				},
+				{
+					"from": "redraft",
+					"to": "no_code",
+					"attrs": {
+						"label": "no_code",
+						"condition": "preferred_label=no_code"
+					}
+				},
+				{
+					"from": "redraft",
+					"to": "gate",
+					"attrs": {
+						"condition": "preferred_label!=no_code"
+					}
+				},
+				{
+					"from": "retry_redraft",
+					"to": "no_code",
+					"attrs": {
+						"label": "no_code",
+						"condition": "preferred_label=no_code"
+					}
+				},
+				{
+					"from": "retry_redraft",
+					"to": "gate",
+					"attrs": {
+						"condition": "preferred_label!=no_code"
+					}
+				},
+				{
+					"from": "open_help",
+					"to": "open",
+					"attrs": {
+						"label": "retry"
+					}
+				},
+				{
+					"from": "open_help",
+					"to": "report",
+					"attrs": {
+						"label": "report"
+					}
+				},
+				{
+					"from": "redraft_help",
+					"to": "retry_redraft",
+					"attrs": {
+						"label": "retry"
+					}
+				},
+				{
+					"from": "redraft_help",
+					"to": "open",
+					"attrs": {
+						"label": "reopen"
+					}
+				},
+				{
+					"from": "redraft_help",
+					"to": "report",
+					"attrs": {
+						"label": "report"
+					}
+				},
+				{
+					"from": "pr_open",
+					"to": "count",
+					"attrs": {
+						"label": "review",
+						"condition": "preferred_label=review"
+					}
+				},
+				{
+					"from": "pr_open",
+					"to": "react",
+					"attrs": {
+						"label": "react",
+						"condition": "preferred_label=react"
+					}
+				},
+				{
+					"from": "pr_open",
+					"to": "merged",
+					"attrs": {
+						"label": "pr_merged",
+						"condition": "preferred_label=pr_merged"
+					}
+				},
+				{
+					"from": "pr_open",
+					"to": "closed",
+					"attrs": {
+						"label": "pr_closed",
+						"condition": "preferred_label=pr_closed"
+					}
+				},
+				{
+					"from": "count",
+					"to": "wait",
+					"attrs": {
+						"label": "round",
+						"condition": "preferred_label=round"
+					}
+				},
+				{
+					"from": "count",
+					"to": "unreviewed",
+					"attrs": {
+						"label": "zero_rounds",
+						"condition": "preferred_label=zero_rounds"
+					}
+				},
+				{
+					"from": "count",
+					"to": "report",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "count",
+					"to": "report",
+					"attrs": {
+						"label": "repeated",
+						"condition": "preferred_label=repeated"
+					}
+				},
+				{
+					"from": "count",
+					"to": "merged",
+					"attrs": {
+						"label": "pr_merged",
+						"condition": "preferred_label=pr_merged"
+					}
+				},
+				{
+					"from": "count",
+					"to": "closed",
+					"attrs": {
+						"label": "pr_closed",
+						"condition": "preferred_label=pr_closed"
+					}
+				},
+				{
+					"from": "recheck",
+					"to": "wait",
+					"attrs": {
+						"label": "wait",
+						"condition": "preferred_label=wait"
+					}
+				},
+				{
+					"from": "recheck",
+					"to": "unreviewed",
+					"attrs": {
+						"label": "zero_rounds",
+						"condition": "preferred_label=zero_rounds"
+					}
+				},
+				{
+					"from": "recheck",
+					"to": "count",
+					"attrs": {
+						"label": "review",
+						"condition": "preferred_label=review"
+					}
+				},
+				{
+					"from": "recheck",
+					"to": "report",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "recheck",
+					"to": "merged",
+					"attrs": {
+						"label": "pr_merged",
+						"condition": "preferred_label=pr_merged"
+					}
+				},
+				{
+					"from": "recheck",
+					"to": "closed",
+					"attrs": {
+						"label": "pr_closed",
+						"condition": "preferred_label=pr_closed"
+					}
+				},
+				{
+					"from": "wait",
+					"to": "comments",
+					"attrs": {
+						"label": "green",
+						"condition": "preferred_label=green"
+					}
+				},
+				{
+					"from": "wait",
+					"to": "comments",
+					"attrs": {
+						"label": "red",
+						"condition": "preferred_label=red"
+					}
+				},
+				{
+					"from": "wait",
+					"to": "report",
+					"attrs": {
+						"label": "base_red",
+						"condition": "preferred_label=base_red"
+					}
+				},
+				{
+					"from": "wait",
+					"to": "rebase",
+					"attrs": {
+						"label": "parent_moved",
+						"condition": "preferred_label=parent_moved"
+					}
+				},
+				{
+					"from": "wait",
+					"to": "parent_held",
+					"attrs": {
+						"label": "parent_held",
+						"condition": "preferred_label=parent_held"
+					}
+				},
+				{
+					"from": "wait",
+					"to": "rebase",
+					"attrs": {
+						"label": "conflicting",
+						"condition": "preferred_label=conflicting && context.graph.merge_rebase!=never"
+					}
+				},
+				{
+					"from": "wait",
+					"to": "rebase_held",
+					"attrs": {
+						"label": "conflicting",
+						"condition": "preferred_label=conflicting && context.graph.merge_rebase=never"
+					}
+				},
+				{
+					"from": "wait",
+					"to": "rebase",
+					"attrs": {
+						"label": "base_fixed",
+						"condition": "preferred_label=base_fixed && context.graph.merge_rebase!=never"
+					}
+				},
+				{
+					"from": "wait",
+					"to": "rebase_held",
+					"attrs": {
+						"label": "base_fixed",
+						"condition": "preferred_label=base_fixed && context.graph.merge_rebase=never"
+					}
+				},
+				{
+					"from": "wait",
+					"to": "comments",
+					"attrs": {
+						"label": "skipped_conflict",
+						"condition": "preferred_label=skipped_conflict"
+					}
+				},
+				{
+					"from": "wait",
+					"to": "wait",
+					"attrs": {
+						"label": "missing",
+						"condition": "preferred_label=missing"
+					}
+				},
+				{
+					"from": "wait",
+					"to": "wait_stuck",
+					"attrs": {
+						"label": "missing_again",
+						"condition": "preferred_label=missing_again"
+					}
+				},
+				{
+					"from": "wait",
+					"to": "wait_stuck",
+					"attrs": {
+						"label": "timeout",
+						"condition": "preferred_label=timeout"
+					}
+				},
+				{
+					"from": "wait",
+					"to": "comments",
+					"attrs": {
+						"label": "stalled",
+						"condition": "preferred_label=stalled"
+					}
+				},
+				{
+					"from": "wait_stuck",
+					"to": "wait",
+					"attrs": {
+						"label": "wait_again"
+					}
+				},
+				{
+					"from": "wait_stuck",
+					"to": "comments",
+					"attrs": {
+						"label": "continue"
+					}
+				},
+				{
+					"from": "comments",
+					"to": "triage",
+					"attrs": {}
+				},
+				{
+					"from": "triage",
+					"to": "fix",
+					"attrs": {
+						"label": "apply",
+						"condition": "preferred_label=apply && context.round_free!=yes"
+					}
+				},
+				{
+					"from": "triage",
+					"to": "extra_count",
+					"attrs": {
+						"label": "apply",
+						"condition": "preferred_label=apply && context.round_free=yes"
+					}
+				},
+				{
+					"from": "triage",
+					"to": "answer_round",
+					"attrs": {
+						"label": "done",
+						"condition": "preferred_label=done"
+					}
+				},
+				{
+					"from": "fix",
+					"to": "answered",
+					"attrs": {
+						"condition": "outcome!=fail"
+					}
+				},
+				{
+					"from": "answered",
+					"to": "fix_push",
+					"attrs": {}
+				},
+				{
+					"from": "fix_push",
+					"to": "answer_round",
+					"attrs": {
+						"label": "round_done",
+						"condition": "preferred_label!=limit_reached"
+					}
+				},
+				{
+					"from": "fix_push",
+					"to": "report",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "answer_round",
+					"to": "verify",
+					"attrs": {
+						"condition": "context.through=merge"
+					}
+				},
+				{
+					"from": "answer_round",
+					"to": "report",
+					"attrs": {
+						"label": "reviewed",
+						"condition": "context.through!=merge"
+					}
+				},
+				{
+					"from": "rebase",
+					"to": "rebase_failed",
+					"attrs": {
+						"label": "fail",
+						"condition": "preferred_label=fail"
+					}
+				},
+				{
+					"from": "rebase",
+					"to": "push_failed",
+					"attrs": {
+						"label": "push_failed",
+						"condition": "preferred_label=push_failed"
+					}
+				},
+				{
+					"from": "rebase",
+					"to": "rebase_stacked",
+					"attrs": {
+						"label": "skipped",
+						"condition": "preferred_label=skipped"
+					}
+				},
+				{
+					"from": "rebase",
+					"to": "push_fix",
+					"attrs": {
+						"label": "hook_failed",
+						"condition": "preferred_label=hook_failed"
+					}
+				},
+				{
+					"from": "rebase",
+					"to": "rebase_event",
+					"attrs": {
+						"condition": "preferred_label!=fail && preferred_label!=push_failed && preferred_label!=hook_failed && preferred_label!=skipped"
+					}
+				},
+				{
+					"from": "push_fix",
+					"to": "push_fix_push",
+					"attrs": {
+						"condition": "outcome!=fail"
+					}
+				},
+				{
+					"from": "push_fix_push",
+					"to": "rebase_event",
+					"attrs": {
+						"condition": "preferred_label!=limit_reached"
+					}
+				},
+				{
+					"from": "push_fix_push",
+					"to": "report",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "rebase_failed",
+					"to": "rebase",
+					"attrs": {
+						"label": "retry"
+					}
+				},
+				{
+					"from": "rebase_failed",
+					"to": "rebase_skip",
+					"attrs": {
+						"label": "skip"
+					}
+				},
+				{
+					"from": "push_failed",
+					"to": "rebase",
+					"attrs": {
+						"label": "retry"
+					}
+				},
+				{
+					"from": "push_failed",
+					"to": "rebase_skip",
+					"attrs": {
+						"label": "skip"
+					}
+				},
+				{
+					"from": "rebase_skip",
+					"to": "count",
+					"attrs": {
+						"label": "skip",
+						"condition": "preferred_label=skip"
+					}
+				},
+				{
+					"from": "rebase_skip",
+					"to": "report",
+					"attrs": {
+						"label": "base_moved",
+						"condition": "preferred_label=base_moved"
+					}
+				},
+				{
+					"from": "rebase_stacked",
+					"to": "rebase",
+					"attrs": {
+						"label": "retry"
+					}
+				},
+				{
+					"from": "rebase_stacked",
+					"to": "report",
+					"attrs": {
+						"label": "report"
+					}
+				},
+				{
+					"from": "rebase_event",
+					"to": "rebase_gate",
+					"attrs": {
+						"label": "rebased",
+						"condition": "preferred_label=rebased && context.through!=merge"
+					}
+				},
+				{
+					"from": "rebase_event",
+					"to": "rebase_gate",
+					"attrs": {
+						"label": "fixed",
+						"condition": "preferred_label=fixed && context.through!=merge"
+					}
+				},
+				{
+					"from": "rebase_event",
+					"to": "count",
+					"attrs": {
+						"label": "rebased",
+						"condition": "preferred_label=rebased && context.through=merge"
+					}
+				},
+				{
+					"from": "rebase_event",
+					"to": "recheck",
+					"attrs": {
+						"label": "clean",
+						"condition": "preferred_label=clean"
+					}
+				},
+				{
+					"from": "rebase_gate",
+					"to": "count",
+					"attrs": {
+						"label": "rebased",
+						"condition": "preferred_label=rebased"
+					}
+				},
+				{
+					"from": "rebase_gate",
+					"to": "count",
+					"attrs": {
+						"label": "fixed",
+						"condition": "preferred_label=fixed"
+					}
+				},
+				{
+					"from": "rebase_gate",
+					"to": "count",
+					"attrs": {
+						"label": "resolved",
+						"condition": "preferred_label=resolved"
+					}
+				},
+				{
+					"from": "rebase_gate",
+					"to": "rebase_fix",
+					"attrs": {
+						"label": "failed",
+						"condition": "preferred_label=failed"
+					}
+				},
+				{
+					"from": "rebase_fix",
+					"to": "rebase_fix_push",
+					"attrs": {
+						"condition": "outcome!=fail"
+					}
+				},
+				{
+					"from": "rebase_fix_push",
+					"to": "rebase_gate",
+					"attrs": {
+						"condition": "preferred_label!=limit_reached"
+					}
+				},
+				{
+					"from": "rebase_fix_push",
+					"to": "report",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "unreviewed",
+					"to": "verify",
+					"attrs": {
+						"label": "green",
+						"condition": "preferred_label=green"
+					}
+				},
+				{
+					"from": "unreviewed",
+					"to": "verify",
+					"attrs": {
+						"label": "red",
+						"condition": "preferred_label=red"
+					}
+				},
+				{
+					"from": "unreviewed",
+					"to": "report",
+					"attrs": {
+						"label": "base_red",
+						"condition": "preferred_label=base_red"
+					}
+				},
+				{
+					"from": "unreviewed",
+					"to": "rebase",
+					"attrs": {
+						"label": "parent_moved",
+						"condition": "preferred_label=parent_moved"
+					}
+				},
+				{
+					"from": "unreviewed",
+					"to": "parent_held",
+					"attrs": {
+						"label": "parent_held",
+						"condition": "preferred_label=parent_held"
+					}
+				},
+				{
+					"from": "unreviewed",
+					"to": "rebase",
+					"attrs": {
+						"label": "conflicting",
+						"condition": "preferred_label=conflicting && context.graph.merge_rebase!=never"
+					}
+				},
+				{
+					"from": "unreviewed",
+					"to": "rebase_held",
+					"attrs": {
+						"label": "conflicting",
+						"condition": "preferred_label=conflicting && context.graph.merge_rebase=never"
+					}
+				},
+				{
+					"from": "unreviewed",
+					"to": "rebase",
+					"attrs": {
+						"label": "base_fixed",
+						"condition": "preferred_label=base_fixed && context.graph.merge_rebase!=never"
+					}
+				},
+				{
+					"from": "unreviewed",
+					"to": "rebase_held",
+					"attrs": {
+						"label": "base_fixed",
+						"condition": "preferred_label=base_fixed && context.graph.merge_rebase=never"
+					}
+				},
+				{
+					"from": "rebase_held",
+					"to": "rebase_gate",
+					"attrs": {
+						"label": "resolved"
+					}
+				},
+				{
+					"from": "parent_held",
+					"to": "rebase_gate",
+					"attrs": {
+						"label": "resolved"
+					}
+				},
+				{
+					"from": "parent_held",
+					"to": "report",
+					"attrs": {
+						"label": "stop"
+					}
+				},
+				{
+					"from": "parent_held",
+					"to": "parent_held",
+					"attrs": {
+						"label": "remind",
+						"condition": "preferred_label=remind"
+					}
+				},
+				{
+					"from": "rebase_held",
+					"to": "report",
+					"attrs": {
+						"label": "stop"
+					}
+				},
+				{
+					"from": "rebase_held",
+					"to": "rebase_held",
+					"attrs": {
+						"label": "remind",
+						"condition": "preferred_label=remind"
+					}
+				},
+				{
+					"from": "unreviewed",
+					"to": "verify",
+					"attrs": {
+						"label": "skipped_conflict",
+						"condition": "preferred_label=skipped_conflict"
+					}
+				},
+				{
+					"from": "unreviewed",
+					"to": "unreviewed",
+					"attrs": {
+						"label": "missing",
+						"condition": "preferred_label=missing"
+					}
+				},
+				{
+					"from": "unreviewed",
+					"to": "unreviewed_stuck",
+					"attrs": {
+						"label": "missing_again",
+						"condition": "preferred_label=missing_again"
+					}
+				},
+				{
+					"from": "unreviewed",
+					"to": "unreviewed_stuck",
+					"attrs": {
+						"label": "timeout",
+						"condition": "preferred_label=timeout"
+					}
+				},
+				{
+					"from": "unreviewed",
+					"to": "verify",
+					"attrs": {
+						"label": "stalled",
+						"condition": "preferred_label=stalled"
+					}
+				},
+				{
+					"from": "unreviewed_stuck",
+					"to": "unreviewed",
+					"attrs": {
+						"label": "wait_again"
+					}
+				},
+				{
+					"from": "unreviewed_stuck",
+					"to": "verify",
+					"attrs": {
+						"label": "continue"
+					}
+				},
+				{
+					"from": "react",
+					"to": "pr_open",
+					"attrs": {
+						"label": "quiet",
+						"condition": "preferred_label=quiet"
+					}
+				},
+				{
+					"from": "react",
+					"to": "pr_open",
+					"attrs": {
+						"label": "handled",
+						"condition": "preferred_label=handled"
+					}
+				},
+				{
+					"from": "react",
+					"to": "count",
+					"attrs": {
+						"label": "fixed",
+						"condition": "preferred_label=fixed"
+					}
+				},
+				{
+					"from": "react",
+					"to": "rebase_gate",
+					"attrs": {
+						"label": "rebased",
+						"condition": "preferred_label=rebased && context.through!=merge"
+					}
+				},
+				{
+					"from": "react",
+					"to": "count",
+					"attrs": {
+						"label": "rebased",
+						"condition": "preferred_label=rebased && context.through=merge"
+					}
+				},
+				{
+					"from": "react",
+					"to": "report",
+					"attrs": {
+						"label": "report",
+						"condition": "preferred_label=report"
+					}
+				},
+				{
+					"from": "react",
+					"to": "report",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "react",
+					"to": "rebase",
+					"attrs": {
+						"label": "conflicts",
+						"condition": "preferred_label=conflicts"
+					}
+				},
+				{
+					"from": "verify",
+					"to": "verified",
+					"attrs": {
+						"label": "skip"
+					}
+				},
+				{
+					"from": "verify",
+					"to": "verified",
+					"attrs": {}
+				},
+				{
+					"from": "publish",
+					"to": "body",
+					"attrs": {
+						"label": "published",
+						"condition": "outcome!=fail"
+					}
+				},
+				{
+					"from": "body",
+					"to": "merge_gate",
+					"attrs": {
+						"label": "kept",
+						"condition": "preferred_label=kept"
+					}
+				},
+				{
+					"from": "body",
+					"to": "merge_gate",
+					"attrs": {
+						"label": "edited",
+						"condition": "preferred_label=edited"
+					}
+				},
+				{
+					"from": "body",
+					"to": "report",
+					"attrs": {
+						"label": "failed",
+						"condition": "preferred_label=failed"
+					}
+				},
+				{
+					"from": "body",
+					"to": "body_redraft",
+					"attrs": {
+						"label": "refused",
+						"condition": "preferred_label=refused"
+					}
+				},
+				{
+					"from": "body_redraft",
+					"to": "body",
+					"attrs": {}
+				},
+				{
+					"from": "body",
+					"to": "body_failed",
+					"attrs": {
+						"condition": "outcome=fail"
+					}
+				},
+				{
+					"from": "body_failed",
+					"to": "report",
+					"attrs": {
+						"label": "failed"
+					}
+				},
+				{
+					"from": "merge_gate",
+					"to": "approve_proof",
+					"attrs": {
+						"label": "clear",
+						"condition": "preferred_label=clear && context.ticket_kind=requester_ask"
+					}
+				},
+				{
+					"from": "merge_gate",
+					"to": "approve_proof",
+					"attrs": {
+						"label": "held",
+						"condition": "preferred_label=held && context.ticket_kind=requester_ask"
+					}
+				},
+				{
+					"from": "merge_gate",
+					"to": "final_review",
+					"attrs": {
+						"label": "clear",
+						"condition": "preferred_label=clear && context.ticket_kind!=requester_ask && context.approvals!=0"
+					}
+				},
+				{
+					"from": "merge_gate",
+					"to": "final_review",
+					"attrs": {
+						"label": "held",
+						"condition": "preferred_label=held && context.ticket_kind!=requester_ask && context.approvals!=0"
+					}
+				},
+				{
+					"from": "merge_gate",
+					"to": "merge",
+					"attrs": {
+						"label": "clear",
+						"condition": "preferred_label=clear && context.ticket_kind!=requester_ask && context.approvals=0 && context.graph.merge_auto=yes"
+					}
+				},
+				{
+					"from": "merge_gate",
+					"to": "merge_ask",
+					"attrs": {
+						"label": "clear",
+						"condition": "preferred_label=clear && context.ticket_kind!=requester_ask && context.approvals=0 && context.graph.merge_auto!=yes"
+					}
+				},
+				{
+					"from": "merge_gate",
+					"to": "merge_ask",
+					"attrs": {
+						"label": "held",
+						"condition": "preferred_label=held && context.ticket_kind!=requester_ask && context.approvals=0"
+					}
+				},
+				{
+					"from": "merge_gate",
+					"to": "report",
+					"attrs": {
+						"label": "conditions_failed",
+						"condition": "preferred_label=conditions_failed"
+					}
+				},
+				{
+					"from": "merge_gate",
+					"to": "report",
+					"attrs": {
+						"label": "failed",
+						"condition": "outcome=fail"
+					}
+				},
+				{
+					"from": "publish",
+					"to": "report",
+					"attrs": {
+						"label": "publish_failed",
+						"condition": "outcome=fail"
+					}
+				},
+				{
+					"from": "repair_gate",
+					"to": "repair",
+					"attrs": {
+						"label": "repair",
+						"condition": "preferred_label=repair"
+					}
+				},
+				{
+					"from": "repair_gate",
+					"to": "report",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "repair",
+					"to": "repair_push",
+					"attrs": {
+						"label": "repaired",
+						"condition": "outcome!=fail && preferred_label=repaired"
+					}
+				},
+				{
+					"from": "repair_push",
+					"to": "recheck",
+					"attrs": {
+						"label": "repaired",
+						"condition": "preferred_label!=limit_reached"
+					}
+				},
+				{
+					"from": "repair_push",
+					"to": "report",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "verified",
+					"to": "publish",
+					"attrs": {
+						"label": "read",
+						"condition": "preferred_label=read && context.verify=passed && context.verify_at_head=yes"
+					}
+				},
+				{
+					"from": "verified",
+					"to": "extra_count",
+					"attrs": {
+						"label": "apply",
+						"condition": "preferred_label=apply"
+					}
+				},
+				{
+					"from": "verified",
+					"to": "report",
+					"attrs": {
+						"label": "read",
+						"condition": "preferred_label=read && context.verify=check_missing"
+					}
+				},
+				{
+					"from": "verified",
+					"to": "repair_gate",
+					"attrs": {
+						"label": "read",
+						"condition": "preferred_label=read && context.verify_at_head=no && context.verify!=check_missing"
+					}
+				},
+				{
+					"from": "verified",
+					"to": "report",
+					"attrs": {
+						"label": "risk_failed",
+						"condition": "preferred_label=risk_failed"
+					}
+				},
+				{
+					"from": "verified",
+					"to": "report",
+					"attrs": {
+						"label": "failed",
+						"condition": "outcome=fail"
+					}
+				},
+				{
+					"from": "extra_count",
+					"to": "fix",
+					"attrs": {
+						"label": "round",
+						"condition": "preferred_label=round"
+					}
+				},
+				{
+					"from": "extra_count",
+					"to": "report",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "extra_count",
+					"to": "report",
+					"attrs": {
+						"label": "repeated",
+						"condition": "preferred_label=repeated"
+					}
+				},
+				{
+					"from": "extra_count",
+					"to": "merged",
+					"attrs": {
+						"label": "pr_merged",
+						"condition": "preferred_label=pr_merged"
+					}
+				},
+				{
+					"from": "extra_count",
+					"to": "closed",
+					"attrs": {
+						"label": "pr_closed",
+						"condition": "preferred_label=pr_closed"
+					}
+				},
+				{
+					"from": "approve_proof",
+					"to": "final_review",
+					"attrs": {
+						"label": "approve"
+					}
+				},
+				{
+					"from": "approve_proof",
+					"to": "proof_reply",
+					"attrs": {
+						"label": "answered"
+					}
+				},
+				{
+					"from": "approve_proof",
+					"to": "approve_proof",
+					"attrs": {
+						"label": "remind",
+						"condition": "preferred_label=remind"
+					}
+				},
+				{
+					"from": "proof_reply",
+					"to": "approve_proof",
+					"attrs": {
+						"label": "ask_again",
+						"condition": "preferred_label=ask_again"
+					}
+				},
+				{
+					"from": "proof_reply",
+					"to": "fix",
+					"attrs": {
+						"label": "changes",
+						"condition": "preferred_label=changes"
+					}
+				},
+				{
+					"from": "final_review",
+					"to": "review_approved",
+					"attrs": {
+						"label": "approve"
+					}
+				},
+				{
+					"from": "final_review",
+					"to": "review_reply",
+					"attrs": {
+						"label": "answered"
+					}
+				},
+				{
+					"from": "final_review",
+					"to": "final_review",
+					"attrs": {
+						"label": "remind",
+						"condition": "preferred_label=remind"
+					}
+				},
+				{
+					"from": "review_reply",
+					"to": "review_again",
+					"attrs": {
+						"label": "ask_again",
+						"condition": "preferred_label=ask_again"
+					}
+				},
+				{
+					"from": "review_again",
+					"to": "final_review",
+					"attrs": {}
+				},
+				{
+					"from": "review_approved",
+					"to": "approval_wait",
+					"attrs": {
+						"label": "approved",
+						"condition": "preferred_label=approved"
+					}
+				},
+				{
+					"from": "approval_wait",
+					"to": "merge",
+					"attrs": {
+						"label": "approved",
+						"condition": "preferred_label=approved && context.graph.merge_auto!=no"
+					}
+				},
+				{
+					"from": "approval_wait",
+					"to": "merge_ask",
+					"attrs": {
+						"label": "approved",
+						"condition": "preferred_label=approved && context.graph.merge_auto=no"
+					}
+				},
+				{
+					"from": "approval_wait",
+					"to": "fix",
+					"attrs": {
+						"label": "changes",
+						"condition": "preferred_label=changes"
+					}
+				},
+				{
+					"from": "approval_wait",
+					"to": "report",
+					"attrs": {
+						"label": "failed",
+						"condition": "preferred_label=failed"
+					}
+				},
+				{
+					"from": "approval_wait",
+					"to": "report",
+					"attrs": {
+						"label": "report",
+						"condition": "preferred_label=report"
+					}
+				},
+				{
+					"from": "approval_wait",
+					"to": "report",
+					"attrs": {
+						"label": "failed",
+						"condition": "outcome=fail"
+					}
+				},
+				{
+					"from": "review_approved",
+					"to": "report",
+					"attrs": {
+						"label": "failed",
+						"condition": "outcome=fail"
+					}
+				},
+				{
+					"from": "merge_ask",
+					"to": "merge_answer",
+					"attrs": {
+						"label": "merge"
+					}
+				},
+				{
+					"from": "merge_answer",
+					"to": "merge",
+					"attrs": {}
+				},
+				{
+					"from": "merge_ask",
+					"to": "merge_hold",
+					"attrs": {
+						"label": "hold"
+					}
+				},
+				{
+					"from": "merge_hold",
+					"to": "report",
+					"attrs": {
+						"label": "held"
+					}
+				},
+				{
+					"from": "merge_ask",
+					"to": "merge_ask",
+					"attrs": {
+						"label": "remind",
+						"condition": "preferred_label=remind"
+					}
+				},
+				{
+					"from": "review_reply",
+					"to": "review_changes",
+					"attrs": {
+						"label": "changes",
+						"condition": "preferred_label=changes"
+					}
+				},
+				{
+					"from": "review_changes",
+					"to": "fix",
+					"attrs": {}
+				},
+				{
+					"from": "merge",
+					"to": "report",
+					"attrs": {
+						"label": "merged",
+						"condition": "preferred_label=merged"
+					}
+				},
+				{
+					"from": "merge",
+					"to": "report",
+					"attrs": {
+						"label": "merge_off",
+						"condition": "preferred_label=merge_off"
+					}
+				},
+				{
+					"from": "merge",
+					"to": "report",
+					"attrs": {
+						"label": "not_green",
+						"condition": "preferred_label=not_green"
+					}
+				},
+				{
+					"from": "merge",
+					"to": "report",
+					"attrs": {
+						"label": "publish_failed",
+						"condition": "preferred_label=publish_failed"
+					}
+				},
+				{
+					"from": "merge",
+					"to": "rebase",
+					"attrs": {
+						"label": "base_moved",
+						"condition": "preferred_label=base_moved && context.graph.merge_rebase!=never"
+					}
+				},
+				{
+					"from": "merge",
+					"to": "rebase_held",
+					"attrs": {
+						"label": "base_moved",
+						"condition": "preferred_label=base_moved && context.graph.merge_rebase=never"
+					}
+				},
+				{
+					"from": "merge",
+					"to": "report",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "merge",
+					"to": "count",
+					"attrs": {
+						"label": "head_moved",
+						"condition": "preferred_label=head_moved"
+					}
+				},
+				{
+					"from": "merge",
+					"to": "count",
+					"attrs": {
+						"label": "open_threads",
+						"condition": "preferred_label=open_threads"
+					}
+				},
+				{
+					"from": "merge",
+					"to": "report",
+					"attrs": {
+						"label": "dequeued",
+						"condition": "preferred_label=dequeued"
+					}
+				},
+				{
+					"from": "merge",
+					"to": "report",
+					"attrs": {
+						"label": "not_mergeable",
+						"condition": "preferred_label=not_mergeable"
+					}
+				},
+				{
+					"from": "merge",
+					"to": "report",
+					"attrs": {
+						"label": "transient",
+						"condition": "preferred_label=transient"
+					}
+				},
+				{
+					"from": "report",
+					"to": "pick_count_push",
+					"attrs": {
+						"label": "rounds_raised",
+						"condition": "preferred_label=rounds_raised"
+					}
+				},
+				{
+					"from": "report",
+					"to": "pick_count_push",
+					"attrs": {
+						"label": "raised_review",
+						"condition": "preferred_label=raised_review"
+					}
+				},
+				{
+					"from": "report",
+					"to": "pick_recheck_push",
+					"attrs": {
+						"label": "retry",
+						"condition": "preferred_label=retry"
+					}
+				},
+				{
+					"from": "report",
+					"to": "pick_rebase_push",
+					"attrs": {
+						"label": "rebased",
+						"condition": "preferred_label=rebased"
+					}
+				},
+				{
+					"from": "report",
+					"to": "pick_wait_push",
+					"attrs": {
+						"label": "rerun_skills",
+						"condition": "preferred_label=rerun_skills"
+					}
+				},
+				{
+					"from": "report",
+					"to": "pick_verify_push",
+					"attrs": {
+						"label": "raised_merge",
+						"condition": "preferred_label=raised_merge"
+					}
+				},
+				{
+					"from": "report",
+					"to": "pick_rerun_push",
+					"attrs": {
+						"label": "rerun_review",
+						"condition": "preferred_label=rerun_review"
+					}
+				},
+				{
+					"from": "pick_count_push",
+					"to": "count",
+					"attrs": {
+						"condition": "preferred_label!=limit_reached"
+					}
+				},
+				{
+					"from": "pick_recheck_push",
+					"to": "recheck",
+					"attrs": {
+						"condition": "preferred_label!=limit_reached"
+					}
+				},
+				{
+					"from": "pick_rebase_push",
+					"to": "rebase_gate",
+					"attrs": {
+						"condition": "preferred_label!=limit_reached && context.through!=merge"
+					}
+				},
+				{
+					"from": "pick_rebase_push",
+					"to": "count",
+					"attrs": {
+						"condition": "preferred_label!=limit_reached && context.through=merge"
+					}
+				},
+				{
+					"from": "pick_wait_push",
+					"to": "wait",
+					"attrs": {
+						"condition": "preferred_label!=limit_reached"
+					}
+				},
+				{
+					"from": "pick_verify_push",
+					"to": "verify",
+					"attrs": {
+						"condition": "preferred_label!=limit_reached"
+					}
+				},
+				{
+					"from": "pick_rerun_push",
+					"to": "exit",
+					"attrs": {
+						"condition": "preferred_label!=limit_reached"
+					}
+				},
+				{
+					"from": "pick_count_push",
+					"to": "report",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "pick_recheck_push",
+					"to": "report",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "pick_rebase_push",
+					"to": "report",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "pick_wait_push",
+					"to": "report",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "pick_verify_push",
+					"to": "report",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "pick_rerun_push",
+					"to": "report",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "report",
+					"to": "fix",
+					"attrs": {
+						"label": "squash",
+						"condition": "preferred_label=squash"
+					}
+				},
+				{
+					"from": "report",
+					"to": "fix",
+					"attrs": {
+						"label": "decided",
+						"condition": "preferred_label=decided"
+					}
+				},
+				{
+					"from": "report",
+					"to": "exit",
+					"attrs": {
+						"label": "raised_pr",
+						"condition": "preferred_label=raised_pr"
+					}
+				},
+				{
+					"from": "report",
+					"to": "exit",
+					"attrs": {
+						"label": "rounds_noted",
+						"condition": "preferred_label=rounds_noted"
+					}
+				},
+				{
+					"from": "report",
+					"to": "exit",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "report",
+					"to": "exit",
+					"attrs": {
+						"label": "done",
+						"condition": "preferred_label=done"
+					}
+				},
+				{
+					"from": "merged",
+					"to": "exit",
+					"attrs": {}
+				},
+				{
+					"from": "closed",
+					"to": "exit",
+					"attrs": {}
+				}
+			]
+		},
+		"pre-pr.dot": {
+			"name": "PrePr",
+			"label": "",
+			"attrs": {
+				"goal": "Build the ticket until its Done when holds, then open its pull request and land it",
+				"merge_auto": "ask",
+				"merge_rebase": "every-push",
+				"merge_rebase_limit": "10",
+				"merge_repair_limit": "10",
+				"merge_resolved_limit": "3",
+				"merge_push_limit": "1",
+				"through": "",
+				"base": "",
+				"extra": "",
+				"change_risk": "",
+				"merge_conditions": "",
+				"rankdir": "LR"
+			},
+			"nodes": [
+				{
+					"id": "start",
+					"attrs": {
+						"shape": "Mdiamond",
+						"label": "Start"
+					},
+					"classes": [],
+					"handler": "start"
+				},
+				{
+					"id": "exit",
+					"attrs": {
+						"shape": "Msquare",
+						"label": "Exit"
+					},
+					"classes": [],
+					"handler": "exit"
+				},
+				{
+					"id": "inputs",
+					"attrs": {
+						"output": "issue, handoff, through, ticket_kind, pr_state, pr_url, stopped, verify_line, merge_sha, merge_result, conceptual_answers, comment_watermark, resolution, left_answers",
+						"shape": "parallelogram",
+						"label": "Inputs",
+						"timeout": "60s",
+						"max_visits": 3,
+						"tool_command": "workcell tool pr pre inputs",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "handoff_missing",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "operator",
+						"timeout": "3d",
+						"human.default_choice": "remind",
+						"max_visits": 20,
+						"label": "The run has no handoff file. Place the handoff, then answer retry."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "draft",
+					"attrs": {
+						"shape": "box",
+						"class": "manager",
+						"label": "Draft",
+						"max_visits": 3,
+						"prompt": "The handoff $context.handoff has no Done when. Read the tracker issue $context.issue. Write a numbered Done when section into the handoff, one item for each outcome the issue asks for. End each item in (proof: ...). Report LABEL: settled when the list only numbers the acceptance criteria of the issue. Report LABEL: ask for any other list, so that a human approves it."
+					},
+					"classes": ["manager"],
+					"handler": "codergen"
+				},
+				{
+					"id": "approve",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "operator",
+						"timeout": "3d",
+						"human.default_choice": "remind",
+						"max_visits": 20,
+						"label": "Approve the drafted Done when in the run's handoff, or send it back to draft?"
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "implement",
+					"attrs": {
+						"output": "evidence",
+						"shape": "box",
+						"class": "implementer",
+						"thread_id": "implementer",
+						"label": "Implement",
+						"prompt": "Build the ticket. The handoff is $context.handoff. Read it in full, and work until every item of its Done when holds. Continue from the commits already on the branch."
+					},
+					"classes": ["implementer"],
+					"handler": "codergen"
+				},
+				{
+					"id": "apply",
+					"attrs": {
+						"output": "evidence",
+						"shape": "box",
+						"class": "implementer",
+						"thread_id": "implementer",
+						"label": "Apply",
+						"max_visits": 5,
+						"prompt": "Apply the batch in $context.batch. Each row is a verifier rejection or a review finding. Commit each row, and give each rejected item fresh evidence."
+					},
+					"classes": ["implementer"],
+					"handler": "codergen"
+				},
+				{
+					"id": "round_rebase",
+					"attrs": {
+						"output": "rebase_result, resolution",
+						"shape": "box",
+						"label": "Round rebase",
+						"prompt": "Rebase the branch onto the latest base before the review round.",
+						"prompt_file": "rebase.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "round_rebase_failed",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "manager",
+						"label": "Round rebase failed",
+						"max_visits": 4,
+						"prompt": "The rebase of the branch onto the latest base failed before a review round, with the status $context.rebase_result. Fix the cause and take retry to rebase again. Take skip to review the branch on its current base. Abort any rebase in progress before you take skip."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "push",
+					"attrs": {
+						"output": "tool_error",
+						"shape": "parallelogram",
+						"label": "Push",
+						"timeout": "900s",
+						"tool_command": "workcell tool branch push --root . --with-pr"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "push_tries",
+					"attrs": {
+						"output": "stopped",
+						"shape": "parallelogram",
+						"label": "Push tries",
+						"timeout": "60s",
+						"max_visits": 60,
+						"tool_command": "workcell tool pr pre visits repush --limit merge_push_limit",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "repush",
+					"attrs": {
+						"shape": "box",
+						"class": "implementer",
+						"thread_id": "implementer",
+						"label": "Repush",
+						"prompt": "The engine could not push the branch. The tail of its push output is:\n\n$context.tool_error\n\nFind the cause, such as a failed pre-push hook, and fix it on the branch. Commit the fix. Do not push."
+					},
+					"classes": ["implementer"],
+					"handler": "codergen"
+				},
+				{
+					"id": "push_failed",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "operator",
+						"label": "The push failed again after one more implementer attempt. The tail of its push output is:\n\n$context.tool_error\n\nFix the cause, then answer retry, or answer stop."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "settled",
+					"attrs": {
+						"output": "settled",
+						"shape": "parallelogram",
+						"label": "Settled items",
+						"timeout": "120s",
+						"tool_command": "workcell tool pr pre settled",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "final_settled",
+					"attrs": {
+						"output": "settled",
+						"shape": "parallelogram",
+						"label": "Settled items",
+						"timeout": "120s",
+						"tool_command": "workcell tool pr pre settled",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "fan",
+					"attrs": {
+						"shape": "component",
+						"label": "Review round",
+						"max_visits": 12
+					},
+					"classes": [],
+					"handler": "parallel"
+				},
+				{
+					"id": "refan",
+					"attrs": {
+						"shape": "component",
+						"label": "Review round",
+						"max_visits": 12
+					},
+					"classes": [],
+					"handler": "parallel"
+				},
+				{
+					"id": "verify",
+					"attrs": {
+						"output": "verdicts",
+						"shape": "box",
+						"class": "verifier",
+						"label": "Verify",
+						"prompt": "Verify the Done when of the handoff $context.handoff against the branch. The implementer's evidence is in $context.evidence.\n\n$context.settled"
+					},
+					"classes": ["verifier"],
+					"handler": "codergen"
+				},
+				{
+					"id": "review",
+					"attrs": {
+						"output": "review",
+						"shape": "box",
+						"class": "reviewer",
+						"label": "Review",
+						"prompt": "Review the branch against the repo's standards and against the handoff $context.handoff as its spec. The conflict resolutions of the latest rebase: $context.resolution. When that names a file, review each resolution in it.\n\n$context.settled"
+					},
+					"classes": ["reviewer"],
+					"handler": "codergen"
+				},
+				{
+					"id": "conceptual",
+					"attrs": {
+						"output": "conceptual",
+						"shape": "box",
+						"label": "Conceptual review",
+						"prompt": "Write the Conceptual Changes section.",
+						"prompt_file": "conceptual.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "join",
+					"attrs": {
+						"shape": "tripleoctagon",
+						"label": "Join"
+					},
+					"classes": [],
+					"handler": "parallel.fan_in"
+				},
+				{
+					"id": "check",
+					"attrs": {
+						"output": "review_check, conceptual_round, conceptual_section, conceptual_answers, branch_failure, feedback_pass",
+						"shape": "parallelogram",
+						"label": "Review check",
+						"timeout": "120s",
+						"tool_command": "workcell tool pr pre check",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "final_conceptual",
+					"attrs": {
+						"output": "conceptual",
+						"shape": "box",
+						"label": "Final conceptual review",
+						"max_visits": 3,
+						"prompt": "Write the Conceptual Changes section of the whole branch.",
+						"prompt_file": "conceptual.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "final_check",
+					"attrs": {
+						"output": "review_check, conceptual_round, conceptual_section, conceptual_answers, final_pass",
+						"shape": "parallelogram",
+						"label": "Final check",
+						"timeout": "120s",
+						"tool_command": "workcell tool pr pre final",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "finished",
+					"attrs": {
+						"shape": "diamond",
+						"label": "Finished"
+					},
+					"classes": [],
+					"handler": "conditional"
+				},
+				{
+					"id": "asks",
+					"attrs": {
+						"output": "batch, held_rows, question_number, question",
+						"shape": "parallelogram",
+						"label": "Asks",
+						"timeout": "60s",
+						"max_visits": 12,
+						"tool_command": "workcell tool pr pre asks",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "question",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "senior",
+						"human.question_type": "freeform",
+						"label": "Important Question",
+						"prompt": "Important Question $context.question_number of the conceptual review $context.conceptual_section:\n\n$context.question\n\nAnswer it from the handoff $context.handoff and the branch. Start the answer with change: and a <file>:<line> when the branch must change."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "branch_failed",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "manager",
+						"label": "Reviewer failed",
+						"max_visits": 4,
+						"prompt": "A reviewer of this round failed: $context.branch_failure. Take retry to run the review round again once the cause is gone. Take skip to receive the round without that reviewer. Take fix when the code must change, and write the change after the choice: the receiver adds the failure and your reply to the round's batch, and the review round runs on the new commit."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "skipped",
+					"attrs": {
+						"shape": "parallelogram",
+						"label": "Skip",
+						"timeout": "60s",
+						"tool_command": "workcell tool pr pre skip",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "fixing",
+					"attrs": {
+						"output": "branch_fix",
+						"shape": "parallelogram",
+						"label": "Fix",
+						"timeout": "60s",
+						"tool_command": "workcell tool pr pre fix",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "settle",
+					"attrs": {
+						"output": "batch",
+						"shape": "parallelogram",
+						"label": "Settle",
+						"timeout": "60s",
+						"tool_command": "workcell tool pr pre settle",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "receive",
+					"attrs": {
+						"output": "batch, refuted",
+						"shape": "box",
+						"class": "receiver",
+						"label": "Receive",
+						"prompt": "Receive the gate of this round. The verifier's verdicts are in $context.verdicts. The code review is in $context.review. The review check is in $context.review_check. The conceptual review of this round is in $context.conceptual_round, and the answers to earlier Important Questions are in $context.conceptual_answers. The handoff is $context.handoff. The conflict resolutions of the latest rebase: $context.resolution. When that names a file, review each resolution in it. The F rows of a failed reviewer: $context.branch_fix. When that names a file, copy each of its rows into the batch unchanged.\n\n$context.settled"
+					},
+					"classes": ["receiver"],
+					"handler": "codergen"
+				},
+				{
+					"id": "judge",
+					"attrs": {
+						"output": "verdicts, rejected_twice",
+						"shape": "parallelogram",
+						"label": "Judge verdicts",
+						"timeout": "120s",
+						"tool_command": "workcell tool pr pre judge",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "reverify",
+					"attrs": {
+						"output": "verdicts",
+						"shape": "box",
+						"class": "verifier",
+						"label": "Verify again",
+						"max_visits": 3,
+						"prompt": "The receiver refuted verdicts of the verifier in $context.refuted. Verify each of those Done when items of the handoff $context.handoff again, with fresh evidence. The implementer's evidence is in $context.evidence.\n\n$context.settled"
+					},
+					"classes": ["verifier"],
+					"handler": "codergen"
+				},
+				{
+					"id": "rejected_twice",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "owner",
+						"human.question_type": "freeform",
+						"label": "Settled verdict rejected twice",
+						"prompt": "The judge rejected the same settled verdict twice, and the decision record did not change. Decide each Done when item:\n\n$context.rejected_twice\n\nYour answer joins the decision record, and the verifier cites it."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "owner_settled",
+					"attrs": {
+						"output": "settled",
+						"shape": "parallelogram",
+						"label": "Settled items",
+						"timeout": "120s",
+						"tool_command": "workcell tool pr pre settled",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "gate",
+					"attrs": {
+						"output": "stopped, through, left_rows",
+						"shape": "parallelogram",
+						"class": "gate",
+						"label": "Gate",
+						"timeout": "60s",
+						"tool_command": "workcell tool pr pre gate --rounds 3 --open-at-cap",
+						"context": "context"
+					},
+					"classes": ["gate"],
+					"handler": "tool"
+				},
+				{
+					"id": "final_gate",
+					"attrs": {
+						"output": "stopped, through, left_rows",
+						"shape": "parallelogram",
+						"class": "gate",
+						"label": "Final gate",
+						"timeout": "60s",
+						"tool_command": "workcell tool pr pre final-gate --rounds 3 --open-at-cap",
+						"context": "context"
+					},
+					"classes": ["gate"],
+					"handler": "tool"
+				},
+				{
+					"id": "draft_rebase",
+					"attrs": {
+						"output": "rebase_result, rebase_state, resolution, push_error",
+						"shape": "box",
+						"label": "Pre-draft rebase",
+						"prompt": "Rebase the branch onto the latest base before the PR draft, and push it.",
+						"prompt_file": "rebase-push.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "draft_rebase_failed",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "manager",
+						"label": "Pre-draft rebase failed",
+						"max_visits": 4,
+						"prompt": "The rebase of the branch onto the latest base failed before the PR draft, with the rebase result $context.rebase_result, and the engine pushed nothing. $context.rebase_state Take retry to rebase again once the cause is gone. Take skip to draft the PR on the current base."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "draft_push_failed",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "operator",
+						"label": "Pre-draft push failed",
+						"max_visits": 4,
+						"prompt": "The rebase of the branch onto the latest base finished before the PR draft, but origin refused the push. The local branch holds the rebased commits, and origin keeps its old head, because the push uses a lease. The push printed:\n\n$context.push_error\n\nTake retry to rebase and push again once the cause is gone. Take skip to draft the PR without the push."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "draft_push_fix",
+					"attrs": {
+						"shape": "box",
+						"class": "implementer",
+						"thread_id": "implementer",
+						"label": "Fix pre-draft push hook",
+						"max_visits": 4,
+						"prompt": "The rebase of the branch onto the latest base finished before the PR draft, but a hook of the checkout refused the push of the rebased branch. Origin keeps its old head. The push printed:\n\n$context.push_error\n\nFix the cause on the branch, such as code from the base that uses a name the branch moved, and commit every change. Do not push: the engine pushes the branch after your report. Then report done. Do not wait for a low machine load or for other suites to stop."
+					},
+					"classes": ["implementer"],
+					"handler": "codergen"
+				},
+				{
+					"id": "draft_push_fix_push",
+					"attrs": {
+						"output": "stopped, merge_result, tool_error",
+						"shape": "box",
+						"label": "Push pre-draft hook fix",
+						"prompt": "Push the commits of the turn.",
+						"prompt_file": "fix-push.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "draft_rebase_stacked",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "manager",
+						"label": "Pre-draft rebase stacked",
+						"max_visits": 4,
+						"prompt": "The rebase of the branch onto the latest base before the PR draft did not run, with the rebase result $context.rebase_result: the branch holds the tip of another unmerged branch with an open PR. A rebase onto the base replays the parent's commits under new SHAs, so the engine did not rebase, and the branch is still on the base that it forked from. Take retry to rebase again once the parent merges. Take report to end at the final report."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "draft_gate",
+					"attrs": {
+						"output": "stopped, through, left_rows",
+						"shape": "parallelogram",
+						"class": "gate",
+						"label": "Pre-draft gate",
+						"timeout": "60s",
+						"max_visits": 12,
+						"tool_command": "workcell tool pr pre visits receive --rounds 3 --open-at-cap",
+						"context": "context"
+					},
+					"classes": ["gate"],
+					"handler": "tool"
+				},
+				{
+					"id": "post_pr",
+					"attrs": {
+						"shape": "box",
+						"label": "Post PR",
+						"prompt": "Open the pull request and land it.",
+						"prompt_file": "post-pr.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "report",
+					"attrs": {
+						"output": "through, batch, resolution",
+						"shape": "box",
+						"label": "Report",
+						"prompt": "Write the final report.",
+						"prompt_file": "report.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				}
+			],
+			"edges": [
+				{
+					"from": "start",
+					"to": "inputs",
+					"attrs": {}
+				},
+				{
+					"from": "inputs",
+					"to": "handoff_missing",
+					"attrs": {
+						"condition": "preferred_label=no_handoff"
+					}
+				},
+				{
+					"from": "inputs",
+					"to": "draft",
+					"attrs": {
+						"condition": "preferred_label=draft"
+					}
+				},
+				{
+					"from": "inputs",
+					"to": "implement",
+					"attrs": {
+						"condition": "preferred_label=build"
+					}
+				},
+				{
+					"from": "inputs",
+					"to": "post_pr",
+					"attrs": {
+						"label": "pr_open",
+						"condition": "preferred_label=pr_open"
+					}
+				},
+				{
+					"from": "inputs",
+					"to": "post_pr",
+					"attrs": {
+						"label": "pr_merged",
+						"condition": "preferred_label=pr_merged"
+					}
+				},
+				{
+					"from": "inputs",
+					"to": "post_pr",
+					"attrs": {
+						"label": "pr_closed",
+						"condition": "preferred_label=pr_closed"
+					}
+				},
+				{
+					"from": "handoff_missing",
+					"to": "inputs",
+					"attrs": {
+						"label": "retry"
+					}
+				},
+				{
+					"from": "handoff_missing",
+					"to": "handoff_missing",
+					"attrs": {
+						"label": "remind",
+						"condition": "preferred_label=remind"
+					}
+				},
+				{
+					"from": "draft",
+					"to": "implement",
+					"attrs": {
+						"label": "settled",
+						"condition": "preferred_label=settled"
+					}
+				},
+				{
+					"from": "draft",
+					"to": "approve",
+					"attrs": {
+						"label": "ask",
+						"condition": "preferred_label=ask"
+					}
+				},
+				{
+					"from": "approve",
+					"to": "implement",
+					"attrs": {
+						"label": "approved"
+					}
+				},
+				{
+					"from": "approve",
+					"to": "draft",
+					"attrs": {
+						"label": "redraft"
+					}
+				},
+				{
+					"from": "approve",
+					"to": "approve",
+					"attrs": {
+						"label": "remind",
+						"condition": "preferred_label=remind"
+					}
+				},
+				{
+					"from": "implement",
+					"to": "round_rebase",
+					"attrs": {
+						"label": "every_push",
+						"condition": "outcome!=fail && context.graph.merge_rebase=every-push"
+					}
+				},
+				{
+					"from": "implement",
+					"to": "push",
+					"attrs": {
+						"condition": "outcome!=fail && context.graph.merge_rebase!=every-push"
+					}
+				},
+				{
+					"from": "apply",
+					"to": "round_rebase",
+					"attrs": {
+						"label": "every_push",
+						"condition": "outcome!=fail && context.graph.merge_rebase=every-push"
+					}
+				},
+				{
+					"from": "apply",
+					"to": "push",
+					"attrs": {
+						"condition": "outcome!=fail && context.graph.merge_rebase!=every-push"
+					}
+				},
+				{
+					"from": "round_rebase",
+					"to": "round_rebase_failed",
+					"attrs": {
+						"label": "fail",
+						"condition": "preferred_label=fail"
+					}
+				},
+				{
+					"from": "round_rebase",
+					"to": "push",
+					"attrs": {}
+				},
+				{
+					"from": "round_rebase_failed",
+					"to": "round_rebase",
+					"attrs": {
+						"label": "retry"
+					}
+				},
+				{
+					"from": "round_rebase_failed",
+					"to": "push",
+					"attrs": {
+						"label": "skip"
+					}
+				},
+				{
+					"from": "push",
+					"to": "settled",
+					"attrs": {
+						"label": "pushed",
+						"condition": "outcome=success"
+					}
+				},
+				{
+					"from": "push",
+					"to": "push_tries",
+					"attrs": {
+						"label": "push_failed",
+						"condition": "outcome=fail"
+					}
+				},
+				{
+					"from": "push_tries",
+					"to": "repush",
+					"attrs": {
+						"label": "below",
+						"condition": "preferred_label=below"
+					}
+				},
+				{
+					"from": "push_tries",
+					"to": "push_failed",
+					"attrs": {
+						"label": "reached",
+						"condition": "preferred_label=reached"
+					}
+				},
+				{
+					"from": "repush",
+					"to": "push",
+					"attrs": {}
+				},
+				{
+					"from": "push_failed",
+					"to": "push",
+					"attrs": {
+						"label": "retry"
+					}
+				},
+				{
+					"from": "push_failed",
+					"to": "report",
+					"attrs": {
+						"label": "stop"
+					}
+				},
+				{
+					"from": "settled",
+					"to": "fan",
+					"attrs": {
+						"condition": "context.feedback_pass!=done"
+					}
+				},
+				{
+					"from": "settled",
+					"to": "refan",
+					"attrs": {
+						"condition": "context.feedback_pass=done"
+					}
+				},
+				{
+					"from": "fan",
+					"to": "verify",
+					"attrs": {}
+				},
+				{
+					"from": "fan",
+					"to": "review",
+					"attrs": {}
+				},
+				{
+					"from": "fan",
+					"to": "conceptual",
+					"attrs": {}
+				},
+				{
+					"from": "refan",
+					"to": "verify",
+					"attrs": {}
+				},
+				{
+					"from": "refan",
+					"to": "review",
+					"attrs": {}
+				},
+				{
+					"from": "verify",
+					"to": "join",
+					"attrs": {}
+				},
+				{
+					"from": "review",
+					"to": "join",
+					"attrs": {}
+				},
+				{
+					"from": "conceptual",
+					"to": "join",
+					"attrs": {}
+				},
+				{
+					"from": "join",
+					"to": "report",
+					"attrs": {
+						"label": "past_stop",
+						"condition": "outcome!=fail && context.through=implement"
+					}
+				},
+				{
+					"from": "join",
+					"to": "check",
+					"attrs": {
+						"condition": "context.through!=implement"
+					}
+				},
+				{
+					"from": "check",
+					"to": "receive",
+					"attrs": {
+						"label": "receive",
+						"condition": "preferred_label=receive"
+					}
+				},
+				{
+					"from": "check",
+					"to": "branch_failed",
+					"attrs": {
+						"label": "branch_failed",
+						"condition": "preferred_label=branch_failed"
+					}
+				},
+				{
+					"from": "branch_failed",
+					"to": "settled",
+					"attrs": {
+						"label": "retry",
+						"condition": "preferred_label=retry"
+					}
+				},
+				{
+					"from": "branch_failed",
+					"to": "skipped",
+					"attrs": {
+						"label": "skip"
+					}
+				},
+				{
+					"from": "branch_failed",
+					"to": "fixing",
+					"attrs": {
+						"label": "fix"
+					}
+				},
+				{
+					"from": "skipped",
+					"to": "receive",
+					"attrs": {}
+				},
+				{
+					"from": "fixing",
+					"to": "receive",
+					"attrs": {}
+				},
+				{
+					"from": "receive",
+					"to": "reverify",
+					"attrs": {
+						"label": "reverify",
+						"condition": "preferred_label=reverify"
+					}
+				},
+				{
+					"from": "reverify",
+					"to": "judge",
+					"attrs": {}
+				},
+				{
+					"from": "judge",
+					"to": "rejected_twice",
+					"attrs": {
+						"label": "rejected_twice",
+						"condition": "preferred_label=rejected_twice"
+					}
+				},
+				{
+					"from": "judge",
+					"to": "receive",
+					"attrs": {}
+				},
+				{
+					"from": "rejected_twice",
+					"to": "owner_settled",
+					"attrs": {}
+				},
+				{
+					"from": "owner_settled",
+					"to": "reverify",
+					"attrs": {}
+				},
+				{
+					"from": "receive",
+					"to": "asks",
+					"attrs": {
+						"label": "apply",
+						"condition": "preferred_label=apply"
+					}
+				},
+				{
+					"from": "receive",
+					"to": "finished",
+					"attrs": {
+						"label": "done",
+						"condition": "preferred_label=done && context.branch_fix=\"\""
+					}
+				},
+				{
+					"from": "receive",
+					"to": "asks",
+					"attrs": {
+						"label": "done",
+						"condition": "preferred_label=done && context.branch_fix!=\"\""
+					}
+				},
+				{
+					"from": "asks",
+					"to": "question",
+					"attrs": {
+						"label": "question",
+						"condition": "preferred_label=question"
+					}
+				},
+				{
+					"from": "question",
+					"to": "settle",
+					"attrs": {}
+				},
+				{
+					"from": "settle",
+					"to": "asks",
+					"attrs": {}
+				},
+				{
+					"from": "asks",
+					"to": "gate",
+					"attrs": {
+						"label": "apply",
+						"condition": "preferred_label=apply && context.final_pass!=done"
+					}
+				},
+				{
+					"from": "asks",
+					"to": "final_gate",
+					"attrs": {
+						"label": "apply",
+						"condition": "preferred_label=apply && context.final_pass=done"
+					}
+				},
+				{
+					"from": "asks",
+					"to": "finished",
+					"attrs": {
+						"label": "done",
+						"condition": "preferred_label=done"
+					}
+				},
+				{
+					"from": "final_settled",
+					"to": "final_conceptual",
+					"attrs": {}
+				},
+				{
+					"from": "final_conceptual",
+					"to": "final_check",
+					"attrs": {}
+				},
+				{
+					"from": "final_check",
+					"to": "receive",
+					"attrs": {}
+				},
+				{
+					"from": "finished",
+					"to": "final_settled",
+					"attrs": {
+						"label": "final_pass",
+						"condition": "context.final_pass!=done"
+					}
+				},
+				{
+					"from": "finished",
+					"to": "draft_rebase",
+					"attrs": {
+						"label": "open_pr",
+						"condition": "context.final_pass=done && context.graph.merge_rebase!=never && context.graph.merge_rebase!=on-conflict"
+					}
+				},
+				{
+					"from": "finished",
+					"to": "post_pr",
+					"attrs": {
+						"label": "open_pr",
+						"condition": "context.final_pass=done && context.graph.merge_rebase=never"
+					}
+				},
+				{
+					"from": "finished",
+					"to": "post_pr",
+					"attrs": {
+						"label": "open_pr",
+						"condition": "context.final_pass=done && context.graph.merge_rebase=on-conflict"
+					}
+				},
+				{
+					"from": "draft_rebase",
+					"to": "draft_rebase_failed",
+					"attrs": {
+						"label": "fail",
+						"condition": "preferred_label=fail"
+					}
+				},
+				{
+					"from": "draft_rebase",
+					"to": "draft_push_failed",
+					"attrs": {
+						"label": "push_failed",
+						"condition": "preferred_label=push_failed"
+					}
+				},
+				{
+					"from": "draft_rebase",
+					"to": "draft_push_fix",
+					"attrs": {
+						"label": "hook_failed",
+						"condition": "preferred_label=hook_failed"
+					}
+				},
+				{
+					"from": "draft_push_fix",
+					"to": "draft_push_fix_push",
+					"attrs": {
+						"condition": "outcome!=fail"
+					}
+				},
+				{
+					"from": "draft_push_fix_push",
+					"to": "draft_gate",
+					"attrs": {
+						"label": "resolved",
+						"condition": "preferred_label!=limit_reached && context.resolution!=none"
+					}
+				},
+				{
+					"from": "draft_push_fix_push",
+					"to": "post_pr",
+					"attrs": {
+						"condition": "preferred_label!=limit_reached && context.resolution=none"
+					}
+				},
+				{
+					"from": "draft_push_fix_push",
+					"to": "report",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "draft_rebase",
+					"to": "draft_gate",
+					"attrs": {
+						"label": "resolved",
+						"condition": "preferred_label=resolved"
+					}
+				},
+				{
+					"from": "draft_rebase",
+					"to": "draft_rebase_stacked",
+					"attrs": {
+						"label": "skipped",
+						"condition": "preferred_label=skipped"
+					}
+				},
+				{
+					"from": "draft_rebase",
+					"to": "post_pr",
+					"attrs": {
+						"condition": "preferred_label!=fail && preferred_label!=push_failed && preferred_label!=hook_failed && preferred_label!=resolved && preferred_label!=skipped"
+					}
+				},
+				{
+					"from": "draft_rebase_failed",
+					"to": "draft_rebase",
+					"attrs": {
+						"label": "retry"
+					}
+				},
+				{
+					"from": "draft_rebase_failed",
+					"to": "post_pr",
+					"attrs": {
+						"label": "skip"
+					}
+				},
+				{
+					"from": "draft_push_failed",
+					"to": "draft_rebase",
+					"attrs": {
+						"label": "retry"
+					}
+				},
+				{
+					"from": "draft_push_failed",
+					"to": "post_pr",
+					"attrs": {
+						"label": "skip"
+					}
+				},
+				{
+					"from": "draft_rebase_stacked",
+					"to": "draft_rebase",
+					"attrs": {
+						"label": "retry"
+					}
+				},
+				{
+					"from": "draft_rebase_stacked",
+					"to": "report",
+					"attrs": {
+						"label": "report"
+					}
+				},
+				{
+					"from": "draft_gate",
+					"to": "settled",
+					"attrs": {
+						"label": "below",
+						"condition": "preferred_label=below"
+					}
+				},
+				{
+					"from": "draft_gate",
+					"to": "post_pr",
+					"attrs": {
+						"label": "reached",
+						"condition": "preferred_label=reached"
+					}
+				},
+				{
+					"from": "gate",
+					"to": "apply",
+					"attrs": {
+						"label": "below",
+						"condition": "preferred_label=below"
+					}
+				},
+				{
+					"from": "gate",
+					"to": "finished",
+					"attrs": {
+						"label": "reached",
+						"condition": "preferred_label=reached"
+					}
+				},
+				{
+					"from": "final_gate",
+					"to": "apply",
+					"attrs": {
+						"label": "below",
+						"condition": "preferred_label=below"
+					}
+				},
+				{
+					"from": "final_gate",
+					"to": "finished",
+					"attrs": {
+						"label": "reached",
+						"condition": "preferred_label=reached"
+					}
+				},
+				{
+					"from": "report",
+					"to": "finished",
+					"attrs": {
+						"label": "raised_pr",
+						"condition": "preferred_label=raised_pr"
+					}
+				},
+				{
+					"from": "report",
+					"to": "finished",
+					"attrs": {
+						"label": "raised_review",
+						"condition": "preferred_label=raised_review"
+					}
+				},
+				{
+					"from": "report",
+					"to": "finished",
+					"attrs": {
+						"label": "raised_merge",
+						"condition": "preferred_label=raised_merge"
+					}
+				},
+				{
+					"from": "report",
+					"to": "apply",
+					"attrs": {
+						"label": "squash",
+						"condition": "preferred_label=squash"
+					}
+				},
+				{
+					"from": "report",
+					"to": "apply",
+					"attrs": {
+						"label": "decided",
+						"condition": "preferred_label=decided"
+					}
+				},
+				{
+					"from": "report",
+					"to": "push",
+					"attrs": {
+						"label": "rebased",
+						"condition": "preferred_label=rebased"
+					}
+				},
+				{
+					"from": "report",
+					"to": "exit",
+					"attrs": {
+						"label": "rounds_raised",
+						"condition": "preferred_label=rounds_raised"
+					}
+				},
+				{
+					"from": "report",
+					"to": "exit",
+					"attrs": {
+						"label": "rounds_noted",
+						"condition": "preferred_label=rounds_noted"
+					}
+				},
+				{
+					"from": "report",
+					"to": "exit",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "report",
+					"to": "exit",
+					"attrs": {
+						"label": "done",
+						"condition": "preferred_label=done"
+					}
+				},
+				{
+					"from": "report",
+					"to": "settled",
+					"attrs": {
+						"label": "rerun_review",
+						"condition": "preferred_label=rerun_review"
+					}
+				},
+				{
+					"from": "post_pr",
+					"to": "settled",
+					"attrs": {
+						"label": "rerun_review",
+						"condition": "preferred_label=rerun_review"
+					}
+				},
+				{
+					"from": "post_pr",
+					"to": "exit",
+					"attrs": {}
+				}
+			]
+		},
+		"react.dot": {
+			"name": "React",
+			"label": "",
+			"attrs": {
+				"goal": "Run one reaction on the open pull request",
+				"rankdir": "LR"
+			},
+			"nodes": [
+				{
+					"id": "start",
+					"attrs": {
+						"output": "pr_url",
+						"shape": "Mdiamond",
+						"label": "Start"
+					},
+					"classes": [],
+					"handler": "start"
+				},
+				{
+					"id": "exit",
+					"attrs": {
+						"shape": "Msquare",
+						"label": "Exit"
+					},
+					"classes": [],
+					"handler": "exit"
+				},
+				{
+					"id": "reaction",
+					"attrs": {
+						"output": "react_kind, react_subject, react_lines",
+						"shape": "parallelogram",
+						"label": "Reaction",
+						"timeout": "300s",
+						"tool_command": "workcell tool pr post react",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "react_work",
+					"attrs": {
+						"shape": "box",
+						"class": "implementer",
+						"label": "React",
+						"prompt": "A $context.react_kind reaction is due on $context.pr_url. Its subject is $context.react_subject. Act on it as the Reactions section of your instructions says. Do not push: the engine pushes the branch after your report. A turn that committed a fix takes fixed. A subject that is not actionable takes handled. A turn that ends with no commit takes ended. An answer that hands the pull request to the human takes report."
+					},
+					"classes": ["implementer"],
+					"handler": "codergen"
+				},
+				{
+					"id": "react_push",
+					"attrs": {
+						"output": "stopped, merge_result, tool_error",
+						"shape": "box",
+						"label": "Push reaction",
+						"prompt": "Push the commits of the turn.",
+						"prompt_file": "fix-push.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "react_fixed",
+					"attrs": {
+						"shape": "parallelogram",
+						"label": "Fixed",
+						"timeout": "300s",
+						"tool_command": "workcell tool pr post react --fixed",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "record_handled",
+					"attrs": {
+						"shape": "parallelogram",
+						"label": "Handled",
+						"timeout": "300s",
+						"tool_command": "workcell tool pr post react --handled",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "record_ended",
+					"attrs": {
+						"shape": "parallelogram",
+						"label": "Ended",
+						"timeout": "300s",
+						"tool_command": "workcell tool pr post react --ended",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "escalated",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "owner",
+						"label": "Reaction escalated",
+						"timeout": "3d",
+						"human.default_choice": "remind",
+						"max_visits": 20,
+						"prompt": "A $context.react_kind reaction on $context.pr_url needs you. Its triage escalated it, or its turn budget is spent. Its subject is $context.react_subject. The reaction printed:\n\n$context.react_lines\n\nAct on the pull request. Then answer handled to return to the pull request, or report to stop at the final report."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				}
+			],
+			"edges": [
+				{
+					"from": "start",
+					"to": "reaction",
+					"attrs": {}
+				},
+				{
+					"from": "reaction",
+					"to": "exit",
+					"attrs": {
+						"label": "quiet",
+						"condition": "preferred_label=quiet"
+					}
+				},
+				{
+					"from": "reaction",
+					"to": "exit",
+					"attrs": {
+						"label": "handled",
+						"condition": "preferred_label=handled"
+					}
+				},
+				{
+					"from": "reaction",
+					"to": "escalated",
+					"attrs": {
+						"label": "escalate",
+						"condition": "preferred_label=escalate"
+					}
+				},
+				{
+					"from": "reaction",
+					"to": "react_work",
+					"attrs": {
+						"label": "checks",
+						"condition": "preferred_label=checks"
+					}
+				},
+				{
+					"from": "reaction",
+					"to": "react_work",
+					"attrs": {
+						"label": "review",
+						"condition": "preferred_label=review"
+					}
+				},
+				{
+					"from": "reaction",
+					"to": "exit",
+					"attrs": {
+						"label": "conflicts",
+						"condition": "preferred_label=conflicts"
+					}
+				},
+				{
+					"from": "react_work",
+					"to": "react_fixed",
+					"attrs": {
+						"label": "fixed",
+						"condition": "outcome!=fail && preferred_label=fixed"
+					}
+				},
+				{
+					"from": "react_fixed",
+					"to": "react_push",
+					"attrs": {}
+				},
+				{
+					"from": "react_work",
+					"to": "react_push",
+					"attrs": {
+						"label": "rebased",
+						"condition": "outcome!=fail && preferred_label=rebased"
+					}
+				},
+				{
+					"from": "react_push",
+					"to": "exit",
+					"attrs": {
+						"label": "limit_reached",
+						"condition": "preferred_label=limit_reached"
+					}
+				},
+				{
+					"from": "react_push",
+					"to": "exit",
+					"attrs": {
+						"condition": "preferred_label!=limit_reached"
+					}
+				},
+				{
+					"from": "react_work",
+					"to": "exit",
+					"attrs": {
+						"label": "report",
+						"condition": "preferred_label=report"
+					}
+				},
+				{
+					"from": "react_work",
+					"to": "record_handled",
+					"attrs": {
+						"label": "handled",
+						"condition": "preferred_label=handled"
+					}
+				},
+				{
+					"from": "react_work",
+					"to": "record_ended",
+					"attrs": {
+						"label": "ended",
+						"condition": "preferred_label=ended"
+					}
+				},
+				{
+					"from": "record_handled",
+					"to": "exit",
+					"attrs": {}
+				},
+				{
+					"from": "record_ended",
+					"to": "exit",
+					"attrs": {}
+				},
+				{
+					"from": "escalated",
+					"to": "exit",
+					"attrs": {
+						"label": "handled"
+					}
+				},
+				{
+					"from": "escalated",
+					"to": "exit",
+					"attrs": {
+						"label": "report"
+					}
+				},
+				{
+					"from": "escalated",
+					"to": "escalated",
+					"attrs": {
+						"label": "remind",
+						"condition": "preferred_label=remind"
+					}
+				}
+			]
+		},
+		"rebase-push.dot": {
+			"name": "RebasePush",
+			"label": "",
+			"attrs": {
+				"goal": "Rebase the branch onto the latest base of the run, and push it",
+				"base": "",
+				"rankdir": "LR"
+			},
+			"nodes": [
+				{
+					"id": "start",
+					"attrs": {
+						"shape": "Mdiamond",
+						"label": "Start"
+					},
+					"classes": [],
+					"handler": "start"
+				},
+				{
+					"id": "exit",
+					"attrs": {
+						"shape": "Msquare",
+						"label": "Exit"
+					},
+					"classes": [],
+					"handler": "exit"
+				},
+				{
+					"id": "rebase",
+					"attrs": {
+						"output": "rebase_result, rebase_state, rebase_parent, resolution",
+						"shape": "box",
+						"label": "Rebase",
+						"prompt": "Rebase the branch.",
+						"prompt_file": "rebase.dot"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "push",
+					"attrs": {
+						"output": "push_error",
+						"shape": "parallelogram",
+						"label": "Push",
+						"timeout": "900s",
+						"tool_command": "workcell tool branch push --root . --with-pr --node"
+					},
+					"classes": [],
+					"handler": "tool"
+				}
+			],
+			"edges": [
+				{
+					"from": "start",
+					"to": "rebase",
+					"attrs": {}
+				},
+				{
+					"from": "rebase",
+					"to": "exit",
+					"attrs": {
+						"label": "fail",
+						"condition": "preferred_label=fail"
+					}
+				},
+				{
+					"from": "rebase",
+					"to": "push",
+					"attrs": {
+						"condition": "preferred_label!=fail"
+					}
+				},
+				{
+					"from": "push",
+					"to": "exit",
+					"attrs": {
+						"label": "push_failed",
+						"condition": "outcome=success && preferred_label=push_failed"
+					}
+				},
+				{
+					"from": "push",
+					"to": "exit",
+					"attrs": {
+						"label": "hook_failed",
+						"condition": "outcome=success && preferred_label=hook_failed"
+					}
+				},
+				{
+					"from": "push",
+					"to": "exit",
+					"attrs": {
+						"condition": "outcome=success && preferred_label!=push_failed && preferred_label!=hook_failed"
+					}
+				}
+			]
+		},
+		"rebase.dot": {
+			"name": "Rebase",
+			"label": "",
+			"attrs": {
+				"goal": "Rebase the branch onto the latest base of the run",
+				"base": "",
+				"rankdir": "LR"
+			},
+			"nodes": [
+				{
+					"id": "start",
+					"attrs": {
+						"shape": "Mdiamond",
+						"label": "Start"
+					},
+					"classes": [],
+					"handler": "start"
+				},
+				{
+					"id": "exit",
+					"attrs": {
+						"shape": "Msquare",
+						"label": "Exit"
+					},
+					"classes": [],
+					"handler": "exit"
+				},
+				{
+					"id": "rebase",
+					"attrs": {
+						"output": "rebase_result, rebase_state, rebase_parent, resolution",
+						"shape": "parallelogram",
+						"label": "Rebase",
+						"timeout": "1800s",
+						"tool_command": "workcell tool branch rebase --node",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "resolve",
+					"attrs": {
+						"output": "resolution",
+						"shape": "box",
+						"class": "vcs_conflict_resolver",
+						"label": "Resolve",
+						"max_visits": 3,
+						"prompt": "The rebase of the branch stopped on a conflict, and it is still in progress. Resolve each conflict in place and finish the rebase."
+					},
+					"classes": ["vcs_conflict_resolver"],
+					"handler": "codergen"
+				},
+				{
+					"id": "confirm",
+					"attrs": {
+						"output": "rebase_result, rebase_state, rebase_parent",
+						"shape": "parallelogram",
+						"label": "Confirm",
+						"timeout": "1800s",
+						"tool_command": "workcell tool branch rebase --node --resolved 3",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				}
+			],
+			"edges": [
+				{
+					"from": "start",
+					"to": "rebase",
+					"attrs": {}
+				},
+				{
+					"from": "rebase",
+					"to": "exit",
+					"attrs": {
+						"label": "up_to_date",
+						"condition": "preferred_label=up_to_date"
+					}
+				},
+				{
+					"from": "rebase",
+					"to": "exit",
+					"attrs": {
+						"label": "rebased",
+						"condition": "preferred_label=rebased"
+					}
+				},
+				{
+					"from": "rebase",
+					"to": "exit",
+					"attrs": {
+						"label": "skipped",
+						"condition": "preferred_label=skipped"
+					}
+				},
+				{
+					"from": "rebase",
+					"to": "exit",
+					"attrs": {
+						"label": "fail",
+						"condition": "preferred_label=fail"
+					}
+				},
+				{
+					"from": "rebase",
+					"to": "resolve",
+					"attrs": {
+						"label": "conflict",
+						"condition": "preferred_label=conflict"
+					}
+				},
+				{
+					"from": "resolve",
+					"to": "confirm",
+					"attrs": {}
+				},
+				{
+					"from": "confirm",
+					"to": "exit",
+					"attrs": {
+						"label": "resolved",
+						"condition": "preferred_label=resolved"
+					}
+				},
+				{
+					"from": "confirm",
+					"to": "exit",
+					"attrs": {
+						"label": "fail",
+						"condition": "preferred_label=fail"
+					}
+				},
+				{
+					"from": "confirm",
+					"to": "resolve",
+					"attrs": {
+						"label": "conflict",
+						"condition": "preferred_label=conflict"
+					}
+				}
+			]
+		},
+		"report.dot": {
+			"name": "Report",
+			"label": "",
+			"attrs": {
+				"goal": "Write the final report, and act on the human's picks",
+				"rankdir": "LR"
+			},
+			"nodes": [
+				{
+					"id": "start",
+					"attrs": {
+						"output": "issue, pr_url, verify_line, stopped, merge_sha, merge_result, rebase_result, conceptual_answers, left_rows, left_answers",
+						"shape": "Mdiamond",
+						"label": "Start"
+					},
+					"classes": [],
+					"handler": "start"
+				},
+				{
+					"id": "exit",
+					"attrs": {
+						"shape": "Msquare",
+						"label": "Exit"
+					},
+					"classes": [],
+					"handler": "exit"
+				},
+				{
+					"id": "answer",
+					"attrs": {
+						"output": "answers, left_answers",
+						"shape": "parallelogram",
+						"label": "Answer",
+						"timeout": "300s",
+						"tool_command": "workcell tool pr post answer",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "report",
+					"attrs": {
+						"shape": "box",
+						"class": "manager",
+						"label": "Report",
+						"prompt": "Write the final report for issue $context.issue, as the Final report section of your instructions says, and publish it with workcell tool run report. The record of the rows that the pre-PR cap left is `$context.left_rows`. When that is not empty, pass it to that command as --left-rows <record>. The file of the owner's answers and the fix commits of the rows is `$context.left_answers`. When that is not empty, pass it to that command as --left-answers <file>. The report then shows each answer beside its row or takes a settled row out of Left for you, and the run asks the owner no question about that row. The verify line is $context.verify_line. The answers to the Important Questions are in $context.conceptual_answers. A run that stopped short has the stopped line $context.stopped, which the report shows and records with workcell tool run status report $context.issue --stopped. A merged pull request has the Merge line merged $context.merge_sha. A merge that did not land has the merge result $context.merge_result, and the Merge line not merged: <that reason>. A rebase result of STACKED in $context.rebase_result means that the run skipped a rebase because the branch is stacked on an unmerged branch, and the report names that skip. A merge result of BASE-MOVED or CONFLICT with a rebase result of CONFLICT or IN-PROGRESS means that the rebase onto the moved base stopped on a conflict and the run skipped it. The report names that skipped conflicted rebase, and the conflict reason of a CONFLICT merge result. Then report done. When the report needs the human, the run asks them next."
+					},
+					"classes": ["manager"],
+					"handler": "codergen"
+				},
+				{
+					"id": "needs_human",
+					"attrs": {
+						"output": "report_fields, report_asks",
+						"shape": "parallelogram",
+						"label": "Needs human",
+						"timeout": "300s",
+						"tool_command": "workcell tool pr post needs-human",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "ask_human",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "owner",
+						"human.question_type": "freeform",
+						"timeout": "3d",
+						"human.default_choice": "remind",
+						"max_visits": 20,
+						"label": "Left for you",
+						"prompt": "The final report of issue $context.issue leaves rows for you. The report on $context.pr_url shows each row in full. The rows are:\n\n$context.report_asks\n\nReply with the numbers of the rows you pick and what to do with each. You can also set a round limit or raise the stop stage. When a limit stopped the run, you can answer retry to push any commit that the stop left off the pull request, wait for CI and bots on the head again, and start each count again."
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "take_pick",
+					"attrs": {
+						"output": "through, batch, resolution, no_change_rows",
+						"shape": "box",
+						"class": "manager",
+						"label": "Take pick",
+						"prompt": "The human answered the final report of issue $context.issue, whose fields are in $context.report_fields:\n\n$human.gate.text\n\nFollow the Human picks section of your instructions and take the pick: rounds_raised, rounds_noted, raised_pr, raised_review, raised_merge, squash, decided, rebased, rerun_review, rerun_skills, retry, limit_reached or done. A pick that raises the stop stage also reports CONTEXT: through=<the new stage>."
+					},
+					"classes": ["manager"],
+					"handler": "codergen"
+				},
+				{
+					"id": "keep_picks",
+					"attrs": {
+						"output": "left_answers",
+						"shape": "parallelogram",
+						"label": "Keep picks",
+						"timeout": "300s",
+						"tool_command": "workcell tool pr post keep-picks",
+						"context": "context"
+					},
+					"classes": [],
+					"handler": "tool"
+				}
+			],
+			"edges": [
+				{
+					"from": "start",
+					"to": "answer",
+					"attrs": {}
+				},
+				{
+					"from": "answer",
+					"to": "report",
+					"attrs": {}
+				},
+				{
+					"from": "answer",
+					"to": "report",
+					"attrs": {
+						"condition": "outcome=fail"
+					}
+				},
+				{
+					"from": "report",
+					"to": "needs_human",
+					"attrs": {}
+				},
+				{
+					"from": "needs_human",
+					"to": "exit",
+					"attrs": {
+						"label": "done",
+						"condition": "preferred_label=done"
+					}
+				},
+				{
+					"from": "needs_human",
+					"to": "ask_human",
+					"attrs": {
+						"label": "ask",
+						"condition": "preferred_label=ask"
+					}
+				},
+				{
+					"from": "ask_human",
+					"to": "take_pick",
+					"attrs": {
+						"label": "answered"
+					}
+				},
+				{
+					"from": "ask_human",
+					"to": "ask_human",
+					"attrs": {
+						"label": "remind",
+						"condition": "preferred_label=remind"
+					}
+				},
+				{
+					"from": "take_pick",
+					"to": "keep_picks",
+					"attrs": {}
+				},
+				{
+					"from": "keep_picks",
+					"to": "exit",
+					"attrs": {}
+				}
+			]
+		},
+		"reporting.dot": {
+			"name": "Reporting",
+			"label": "",
+			"attrs": {},
+			"nodes": [
+				{
+					"id": "implementer",
+					"attrs": {
+						"launcher": "implementer",
+						"instructions": "roles/implementer.md"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "verifier",
+					"attrs": {
+						"launcher": "verifier",
+						"instructions": "roles/verifier.md"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "reviewer",
+					"attrs": {
+						"launcher": "reviewer",
+						"instructions": "roles/reviewer.md"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "receiver",
+					"attrs": {
+						"launcher": "receiver",
+						"instructions": "roles/receiver.md"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "conceptual",
+					"attrs": {
+						"launcher": "reviewer",
+						"instructions": "roles/conceptual-reviewer.md"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "security_reviewer",
+					"attrs": {
+						"launcher": "reviewer",
+						"instructions": "roles/security-reviewer.md"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "vcs_conflict_resolver",
+					"attrs": {
+						"launcher": "implementer",
+						"instructions": "roles/vcs-conflict-resolver.md"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "change_risk_classifier",
+					"attrs": {
+						"launcher": "reviewer",
+						"instructions": "roles/change-risk-classifier.md"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "change_risk_checker",
+					"attrs": {
+						"launcher": "reviewer",
+						"instructions": "roles/change-risk-checker.md"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "manager",
+					"attrs": {
+						"launcher": "manager",
+						"instructions": "roles/manager.md",
+						"timeout": "30m"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "senior",
+					"attrs": {
+						"launcher": "senior",
+						"instructions": "roles/senior.md",
+						"timeout": "30m",
+						"ticket_session": true
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "requester",
+					"attrs": {
+						"human": true
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "owner",
+					"attrs": {
+						"human": true
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "second_reviewer",
+					"attrs": {
+						"human": true
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "operator",
+					"attrs": {
+						"human": true
+					},
+					"classes": [],
+					"handler": "codergen"
+				}
+			],
+			"edges": [
+				{
+					"from": "implementer",
+					"to": "manager",
+					"attrs": {}
+				},
+				{
+					"from": "verifier",
+					"to": "manager",
+					"attrs": {}
+				},
+				{
+					"from": "reviewer",
+					"to": "manager",
+					"attrs": {}
+				},
+				{
+					"from": "receiver",
+					"to": "manager",
+					"attrs": {}
+				},
+				{
+					"from": "conceptual",
+					"to": "manager",
+					"attrs": {}
+				},
+				{
+					"from": "security_reviewer",
+					"to": "manager",
+					"attrs": {}
+				},
+				{
+					"from": "vcs_conflict_resolver",
+					"to": "manager",
+					"attrs": {}
+				},
+				{
+					"from": "change_risk_classifier",
+					"to": "manager",
+					"attrs": {}
+				},
+				{
+					"from": "change_risk_checker",
+					"to": "manager",
+					"attrs": {}
+				},
+				{
+					"from": "manager",
+					"to": "senior",
+					"attrs": {}
+				},
+				{
+					"from": "senior",
+					"to": "operator",
+					"attrs": {}
+				}
+			]
+		}
+	},
+	"roles": [
+		{
+			"name": "implementer",
+			"launcher": "implementer",
+			"harness": "claude",
+			"model": "opus",
+			"effort": "xhigh",
+			"error": null
+		},
+		{
+			"name": "verifier",
+			"launcher": "verifier",
+			"harness": "codex",
+			"model": "gpt-6.1-sol",
+			"effort": "high",
+			"error": null
+		},
+		{
+			"name": "reviewer",
+			"launcher": "reviewer",
+			"harness": "codex",
+			"model": "gpt-6.1-sol",
+			"effort": "high",
+			"error": null
+		},
+		{
+			"name": "receiver",
+			"launcher": "receiver",
+			"harness": "codex",
+			"model": "gpt-6.1-sol",
+			"effort": "high",
+			"error": null
+		},
+		{
+			"name": "conceptual",
+			"launcher": "reviewer",
+			"harness": "codex",
+			"model": "gpt-6.1-sol",
+			"effort": "high",
+			"error": null
+		},
+		{
+			"name": "security_reviewer",
+			"launcher": "reviewer",
+			"harness": "codex",
+			"model": "gpt-6.1-sol",
+			"effort": "high",
+			"error": null
+		},
+		{
+			"name": "vcs_conflict_resolver",
+			"launcher": "implementer",
+			"harness": "claude",
+			"model": "opus",
+			"effort": "xhigh",
+			"error": null
+		},
+		{
+			"name": "change_risk_classifier",
+			"launcher": "reviewer",
+			"harness": "codex",
+			"model": "gpt-6.1-sol",
+			"effort": "high",
+			"error": null
+		},
+		{
+			"name": "change_risk_checker",
+			"launcher": "reviewer",
+			"harness": "codex",
+			"model": "gpt-6.1-sol",
+			"effort": "high",
+			"error": null
+		},
+		{
+			"name": "manager",
+			"launcher": "manager",
+			"harness": "claude",
+			"model": "opus",
+			"effort": "xhigh",
+			"error": null
+		},
+		{
+			"name": "senior",
+			"launcher": "senior",
+			"harness": "codex",
+			"model": "gpt-6.1-sol",
+			"effort": "xhigh",
+			"error": null
+		}
+	],
+	"stylesheet": ".implementer { fidelity: full; }\n.verifier { fidelity: none; }\n.reviewer { fidelity: none; }\n.receiver { fidelity: none; }\n.conceptual { fidelity: none; }\n",
+	"manifest": {
+		"entry": "pre-pr.dot",
+		"stylesheet": "stylesheet.css",
+		"reporting": "reporting.dot",
+		"replaceable": ["change-risk.dot"],
+		"child_selectors": ["rules.py:change_risk_opt_out"],
+		"lint_rules": ["rules.py:requester_ask_review"],
+		"instructions": [
+			"roles/implementer.md",
+			"roles/verifier.md",
+			"roles/reviewer.md",
+			"roles/receiver.md",
+			"roles/conceptual-reviewer.md",
+			"roles/security-reviewer.md",
+			"roles/vcs-conflict-resolver.md",
+			"roles/change-risk-classifier.md",
+			"roles/change-risk-checker.md",
+			"roles/manager.md",
+			"roles/senior.md"
+		]
+	},
+	"last_run": null
+}

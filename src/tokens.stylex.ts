@@ -401,6 +401,7 @@ export const measure = stylex.defineVars({
 	tileMin: "150px",
 	boxCardMin: "340px",
 	workflowCardMin: "300px",
+	workflowDiagramMin: "14rem",
 	statGap: "1.25rem",
 	meterLabel: "7.5rem",
 	meterValue: "8rem",
