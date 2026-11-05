@@ -787,7 +787,7 @@ function OverviewPage({
 		view.view === "graph" ? "Projects and their blockers" : navLabel.projects;
 	const page = (
 		<PageFrame
-			title={navLabel.overview}
+			title={navLabel.projects}
 			subtitle={summary}
 			tools={
 				<>
@@ -941,7 +941,7 @@ export function Page() {
 		(overview.polling === true && !stored)
 	) {
 		return (
-			<PageFrame title={navLabel.overview}>
+			<PageFrame title={navLabel.projects}>
 				<PollLoading />
 			</PageFrame>
 		);
