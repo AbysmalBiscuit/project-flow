@@ -182,6 +182,10 @@ _Avoid_: Server, controller, orchestrator
 A machine in the factory that does the runs the hub dispatches to it. Only the box holds the full detail of its runs.
 _Avoid_: Machine, worker, node (when the box is meant), build machine
 
+**Box pool**:
+The boxes of a hub, from its `GET /machines/pool` route. Each box has a state: awake, asleep, waking, stopping or unreachable. Each box also has its slots and the time of its last contact with the hub. The Factories tab shows a card for each box of the pool. An asleep or waking box shows its state and no host health.
+_Avoid_: Machine pool, fleet
+
 **Run stage**:
 The step of the workcell flow that a run is in: a node of the run's graph.
 _Avoid_: Phase, step, node (when the stage is meant)

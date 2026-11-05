@@ -18,7 +18,14 @@ import {
 	streamedRunPollMs,
 	streamRetryMs,
 } from "./factory-events.ts";
-import { hostRoute, hostSnapshot } from "./factory-host.ts";
+import {
+	boxPool,
+	hostRoute,
+	hostSnapshot,
+	ownPoolBox,
+	type PoolBox,
+	poolRoute,
+} from "./factory-host.ts";
 import {
 	body,
 	NotServed,
@@ -88,6 +95,8 @@ export type FactoryFloor = {
 	stageSince: Map<string, string>;
 	/** The factory urls whose `GET /machine` answers 404. */
 	hostsNotServed: Set<string>;
+	/** The box pool of each hub that serves it, by factory url. */
+	pools: Map<string, PoolBox[]>;
 };
 
 export type ListedFactory = Factory & { source: FactoryEntry["source"] };
@@ -311,6 +320,39 @@ export function factoryReader(
 			}
 		}
 	};
+	const pools = new Map<string, PoolBox[]>();
+	/**
+	 * Reads the box pool of a hub. The host snapshot of each awake box that is not
+	 * a listed factory joins the host samples under the box name.
+	 */
+	const readPool = async (
+		factory: ListedFactory,
+		read: Read,
+	): Promise<void> => {
+		try {
+			const { machines } = await body(await read(poolRoute), boxPool);
+			pools.set(factory.url, machines);
+			const listedNames = new Set(listed().map((other) => other.name));
+			for (const box of machines) {
+				if (
+					box.snapshot !== null &&
+					box.name !== ownPoolBox &&
+					!listedNames.has(box.name)
+				) {
+					history.host({
+						factory: box.name,
+						at: now().toISOString(),
+						snapshot: box.snapshot,
+					});
+				}
+			}
+		} catch (error) {
+			if (!(error instanceof NotServed || error instanceof Unreachable)) {
+				throw error;
+			}
+			pools.delete(factory.url);
+		}
+	};
 	const readHubSources = async (
 		factory: ListedFactory,
 		read: Read,
@@ -341,7 +383,10 @@ export function factoryReader(
 					? known.kind
 					: await factoryKind(read, role);
 			if (kind === "hub") {
-				await readHubSources(factory, read);
+				await Promise.all([
+					readHubSources(factory, read),
+					readPool(factory, read),
+				]);
 			}
 			if (known?.reachable === true && known.kind !== null) {
 				return {
@@ -717,6 +762,7 @@ export function factoryReader(
 			queues: new Map(queues),
 			stageSince: new Map(stageSince),
 			hostsNotServed: new Set(hostsNotServed),
+			pools: new Map(pools),
 		}),
 		unreachable,
 		sampleHosts: async () => {
