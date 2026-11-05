@@ -945,8 +945,8 @@ function BoxCard({
 			) : off ? (
 				<p className={clsx(styles.note)}>
 					{box.hub === undefined
-						? factoriesCopy.unreachable(heartbeat)
-						: factoriesCopy.boxUnreachable(heartbeat)}
+						? factoriesCopy.unreachable(heartbeat !== null)
+						: factoriesCopy.boxUnreachable(heartbeat !== null)}
 				</p>
 			) : (
 				<>

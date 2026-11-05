@@ -965,14 +965,14 @@ export const factoriesCopy = {
 	uptime: (span: string): string => `up ${span}`,
 	noHeartbeat: "no heartbeat yet",
 	noAnswer: "does not answer",
-	unreachable: (span: string | null): string =>
-		span === null
-			? "The factory has not answered yet."
-			: `The factory does not answer. Its last heartbeat was ${span} ago.`,
-	boxUnreachable: (span: string | null): string =>
-		span === null
-			? "The box has not answered its hub yet."
-			: `The box does not answer its hub. Its last contact was ${span} ago.`,
+	unreachable: (answered: boolean): string =>
+		answered
+			? "The factory does not answer."
+			: "The factory has not answered yet.",
+	boxUnreachable: (answered: boolean): string =>
+		answered
+			? "The box does not answer its hub."
+			: "The box has not answered its hub yet.",
 	boxState: { asleep: "asleep", waking: "waking", stopping: "stopping" },
 	asleep: (slots: number, span: string | null): string =>
 		`Asleep with ${plural(slots, "slot", "slots")}${span === null ? "" : `, last contact ${span} ago`}. The hub wakes it when the queue needs slots.`,
