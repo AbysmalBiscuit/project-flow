@@ -21,9 +21,8 @@ const startingNames = [
 	"Slowest stages by p95",
 	"Retries by stage, 30 days",
 	"Cost by stage, 30 days",
+	"Cost by model, 30 days",
 ];
-
-const byModel = "Cost by model, 30 days";
 
 async function savedList(base: string): Promise<Saved[]> {
 	const response = await fetch(new URL("/api/insights/saved", base));
@@ -205,26 +204,32 @@ describe("starting insights", () => {
 		}
 	});
 
-	test("a starting insight over a missing column stays out until the column exists", async () => {
+	test("a store whose turns have no harness or model gets both columns, and the starting insight over the model", async () => {
 		await withStore(async (databasePath) => {
 			const first = await serveHub(hub, databasePath);
-			try {
-				expect(
-					(await savedList(first.base)).map((query) => query.name),
-				).not.toContain(byModel);
-			} finally {
-				await first.stop();
-			}
+			await first.stop();
 			const db = new Database(databasePath);
 			db.run("drop view turns");
+			db.run("drop table run_turns");
 			db.run(
-				"create view turns as select run_id, turn, stage, input_tokens, output_tokens, cost_usd, duration_s, tools, null as model from run_turns",
+				"create table run_turns (run_id text not null, turn integer not null, stage text not null, input_tokens integer, output_tokens integer, cost_usd real, duration_s real, tools text, primary key (run_id, turn))",
+			);
+			db.run(
+				"create view turns as select run_id, turn, stage, input_tokens, output_tokens, cost_usd, duration_s, tools from run_turns",
+			);
+			db.run(
+				"delete from saved_queries where starting = 'cost-by-model-30-days'",
 			);
 			db.close();
 			const second = await serveHub(hub, databasePath);
 			try {
 				const names = (await savedList(second.base)).map((query) => query.name);
-				expect(names).toEqual([...startingNames, byModel]);
+				expect(names).toEqual(startingNames);
+				const { status } = await insightQuery(
+					second.base,
+					"select harness, model from turns",
+				);
+				expect(status).toBe(200);
 			} finally {
 				await second.stop();
 			}

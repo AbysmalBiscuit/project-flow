@@ -46,6 +46,9 @@ const turns = z.object({
 			tokens: z.object({ input: z.number(), output: z.number() }),
 			cost_usd: z.number(),
 			duration_s: z.number(),
+			/** Empty or absent when the factory recorded the turn before it named the harness and model. */
+			harness: z.string().optional(),
+			model: z.string().optional(),
 		}),
 	),
 });
@@ -240,6 +243,8 @@ export async function turnsOf(read: Read, id: string): Promise<RecordedTurn[]> {
 	);
 	return listed.turns.map((turn) => ({
 		nodePath: turn.node_path,
+		harness: turn.harness || null,
+		model: turn.model || null,
 		usage: {
 			inputTokens: turn.tokens.input,
 			outputTokens: turn.tokens.output,

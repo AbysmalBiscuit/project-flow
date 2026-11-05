@@ -1,7 +1,15 @@
 import type { RunUsage, TurnUsage } from "./domain.ts";
 
-/** One recorded agent turn of a run, at the node path of its worker. */
-export type RecordedTurn = { nodePath: string; usage: TurnUsage };
+/**
+ * One recorded agent turn of a run, at the node path of its worker, with the
+ * harness and model that ran it. Null when the factory does not name them.
+ */
+export type RecordedTurn = {
+	nodePath: string;
+	harness: string | null;
+	model: string | null;
+	usage: TurnUsage;
+};
 
 const noUsage: TurnUsage = {
 	inputTokens: 0,
