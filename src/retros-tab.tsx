@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 
 import { textControl } from "./control-styles.ts";
+import { PageLoading } from "./loading.tsx";
 import { retroPagePath } from "./page-links.ts";
 import { pageQuery } from "./queries.ts";
 import type {
@@ -656,7 +657,9 @@ export function Page() {
 	};
 	return (
 		<PageFrame title={navLabel.retros} subtitle={retrosCopy.subtitle}>
-			{page === undefined ? null : (
+			{page === undefined ? (
+				<PageLoading />
+			) : (
 				<div className={clsx(styles.grid, styles.two)}>
 					<Card
 						title={retrosCopy.runs}
