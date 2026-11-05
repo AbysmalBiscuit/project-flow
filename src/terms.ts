@@ -117,7 +117,6 @@ export const threadLoadingLabel = "Loading thread";
 
 export const navLabel = {
 	logo: "Project Flow",
-	overview: "Overview",
 	projects: "Projects",
 	needsYou: "Needs you",
 	inbox: "Inbox",

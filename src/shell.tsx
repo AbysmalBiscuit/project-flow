@@ -160,15 +160,20 @@ function SunIcon() {
 }
 
 const links = [
-	{ href: "/", label: navLabel.overview },
-	{ href: "/runs", label: navLabel.runs },
-	{ href: "/needs-you", label: navLabel.needsYou, count: true },
-	{ href: "/inbox", label: navLabel.inbox },
-	{ href: "/factories", label: navLabel.factories, afterBreak: true },
+	{ href: "/", label: navLabel.projects },
+	{ href: "/runs", label: navLabel.runs, afterBreak: true },
+	{ href: "/factories", label: navLabel.factories },
 	{ href: "/workflows", label: navLabel.workflows },
 	{ href: "/verification", label: navLabel.verification },
 	{ href: "/retros", label: navLabel.retros },
 	{ href: "/insights", label: navLabel.insights },
+	{
+		href: "/needs-you",
+		label: navLabel.needsYou,
+		count: true,
+		afterBreak: true,
+	},
+	{ href: "/inbox", label: navLabel.inbox },
 ] as const;
 
 /** Opens a saved ticket link that names no tracker, once its project report names the tracker. */
