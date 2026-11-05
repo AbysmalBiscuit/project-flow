@@ -937,7 +937,6 @@ const plural = (count: number, one: string, many: string): string =>
 
 export const factoriesCopy = {
 	subtitle: "What runs now, what needs you, and how much room each box has.",
-	updated: (span: string): string => `Updated ${span} ago.`,
 	tiles: {
 		running: "Running",
 		queued: "Queued",
