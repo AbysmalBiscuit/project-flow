@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { Button } from "./button.tsx";
 import { textControl } from "./control-styles.ts";
+import { Dropdown } from "./dropdown.tsx";
 import type {
 	AttentionItem,
 	DayOutcome,
@@ -15,7 +16,13 @@ import type {
 	RunningRun,
 	StageDuration,
 } from "./factories-page.ts";
-import { factoryCheckMs } from "./factories-page.ts";
+import {
+	factoryCheckMs,
+	outcomeDays,
+	type RangeDays,
+	rangeDays,
+	stageDays,
+} from "./factories-page.ts";
 import type { HostDisk, HostHealth, HostLevel } from "./host-health.ts";
 import { PageLoading } from "./loading.tsx";
 import { runPagePath } from "./page-links.ts";
@@ -552,12 +559,15 @@ function Card({
 	aggregate,
 	children,
 	stretch = false,
+	tools,
 }: {
 	title: string;
 	source?: string;
 	aggregate?: string;
 	children: ReactNode;
 	stretch?: boolean;
+	/** Controls after the sources, at the end of the card head. */
+	tools?: ReactNode;
 }) {
 	return (
 		<section
@@ -572,9 +582,44 @@ function Card({
 						{aggregate}
 					</Source>
 				)}
+				{tools}
 			</div>
 			{children}
 		</section>
+	);
+}
+
+const rangeChoices = rangeDays.map((days) => ({
+	id: String(days),
+	label: factoriesCopy.range(days),
+}));
+
+/** Picks the days that a chart of the Factories tab shows. */
+function RangePicker({
+	id,
+	chart,
+	days,
+	onChange,
+}: {
+	id: string;
+	chart: string;
+	days: RangeDays;
+	onChange: (days: RangeDays) => void;
+}) {
+	return (
+		<Dropdown
+			id={id}
+			label={factoriesCopy.rangeLabel(chart)}
+			value={String(days)}
+			choices={rangeChoices}
+			steadyWidth
+			onChange={(choice) => {
+				const picked = rangeDays.find((days) => String(days) === choice);
+				if (picked !== undefined) {
+					onChange(picked);
+				}
+			}}
+		/>
 	);
 }
 
@@ -1496,10 +1541,16 @@ const secondsText = (seconds: number) => spanText(seconds * 1_000);
 /** The stages that the table shows until Lev asks for all of them. */
 const shortStageList = 10;
 
-function StageTable({ stages }: { stages: StageDuration[] }) {
+function StageTable({
+	stages,
+	days,
+}: {
+	stages: StageDuration[];
+	days: RangeDays;
+}) {
 	const [all, setAll] = useState(false);
 	if (stages.length === 0) {
-		return <p className={clsx(styles.empty)}>{factoriesCopy.noStages}</p>;
+		return <p className={clsx(styles.empty)}>{factoriesCopy.noStages(days)}</p>;
 	}
 	const shown = all ? stages : stages.slice(0, shortStageList);
 	const { columns } = factoriesCopy;
@@ -1589,7 +1640,9 @@ function StageTable({ stages }: { stages: StageDuration[] }) {
 }
 
 export function Page() {
-	const query = useQuery(pageQuery.factories);
+	const [outcomes, setOutcomes] = useState<RangeDays>(outcomeDays);
+	const [stages, setStages] = useState<RangeDays>(stageDays);
+	const query = useQuery(pageQuery.factories(outcomes, stages));
 	const now = useNow(1_000);
 	const page = query.data;
 	return (
@@ -1620,6 +1673,14 @@ export function Page() {
 						<Card
 							title={factoriesCopy.outcomes}
 							aggregate={factoriesCopy.sources.outcomes}
+							tools={
+								<RangePicker
+									id="factories-outcome-days"
+									chart={factoriesCopy.outcomes}
+									days={outcomes}
+									onChange={setOutcomes}
+								/>
+							}
 						>
 							<OutcomeChart days={page.outcomes} />
 						</Card>
@@ -1627,8 +1688,16 @@ export function Page() {
 							title={factoriesCopy.stageDurations}
 							source={factoriesCopy.sources.stageEvents}
 							aggregate={factoriesCopy.sources.stageAggregate}
+							tools={
+								<RangePicker
+									id="factories-stage-days"
+									chart={factoriesCopy.stageDurations}
+									days={stages}
+									onChange={setStages}
+								/>
+							}
 						>
-							<StageTable stages={page.stages} />
+							<StageTable stages={page.stages} days={stages} />
 						</Card>
 						<Card
 							title={factoriesCopy.queue}

@@ -16,11 +16,16 @@ import { numberedKey } from "./ticket-key.ts";
 
 const dayMs = 24 * 60 * 60 * 1_000;
 
-/** The days of the outcome chart, today included. */
-export const outcomeDays = 14;
+/** The day ranges a reader can pick for the outcome chart and the stage durations. */
+export const rangeDays = [7, 14, 30, 90] as const;
 
-/** The days of run history that the stage durations and the stall rule cover. */
-export const stageDays = 30;
+export type RangeDays = (typeof rangeDays)[number];
+
+/** The days of the outcome chart, today included, when the reader picks none. */
+export const outcomeDays: RangeDays = 14;
+
+/** The days of run history that the stall rule covers, and the stage durations when the reader picks none. */
+export const stageDays: RangeDays = 30;
 
 /** The fewest ended runs of a stage, in the last `stageDays` days, that give the stage its stall rule. */
 export const stallRuns = 10;
@@ -326,10 +331,14 @@ function stallAt(since: string, p95S: number): number {
 
 const dayOf = (time: number) => new Date(time).toISOString().slice(0, 10);
 
-function outcomesOf(ended: RunHistoryEnd[], now: number): DayOutcome[] {
+function outcomesOf(
+	ended: RunHistoryEnd[],
+	daysShown: number,
+	now: number,
+): DayOutcome[] {
 	const days = new Map(
-		Array.from({ length: outcomeDays }, (_, index): [string, DayOutcome] => {
-			const day = dayOf(now - (outcomeDays - 1 - index) * dayMs);
+		Array.from({ length: daysShown }, (_, index): [string, DayOutcome] => {
+			const day = dayOf(now - (daysShown - 1 - index) * dayMs);
 			return [day, { day, merged: 0, failed: 0, stopped: 0 }];
 		}),
 	);
@@ -560,6 +569,9 @@ function endTiles(ended: RunHistoryEnd[], now: number) {
 	};
 }
 
+/** The stage events of some days of run history, and the turn cost of their runs. */
+export type StageWindow = { samples: StageSample[]; costs: StageCost[] };
+
 /** The Factories tab: what each factory runs now, what needs attention, and the queue. */
 export function factoriesPage(input: {
 	entries: FactoryEntry[];
@@ -568,9 +580,12 @@ export function factoriesPage(input: {
 	rows: RunListRow[];
 	/** The runs of the run history that ended in the outcome chart's days or in the last 48 hours. */
 	ended: RunHistoryEnd[];
-	/** The stage events of the last `stageDays` days, and the turn cost of their runs. */
-	stageSamples: StageSample[];
-	stageCosts: StageCost[];
+	/** The days of the outcome chart, today included. */
+	outcomeDays: number;
+	/** The stage events of the last `stageDays` days, and the turn cost of their runs, for the stall rule. */
+	stall: StageWindow;
+	/** The stage events and turn costs of the days the stage durations show. */
+	shown: StageWindow;
 	/** The host samples of the last `growthSpanMs`, oldest first. */
 	hostSamples: HostSample[];
 	/** The page of each tracked ticket by its key. */
@@ -580,7 +595,11 @@ export function factoriesPage(input: {
 	const now = input.now.getTime();
 	const keys = new Map(input.rows.map((row) => [row.id, row]));
 	const boxes = cards(input.entries, input.floor, input.hostSamples, input.now);
-	const stages = stageDurations(input.stageSamples, input.stageCosts);
+	const stages = stageDurations(input.stall.samples, input.stall.costs);
+	const shown =
+		input.shown === input.stall
+			? stages
+			: stageDurations(input.shown.samples, input.shown.costs);
 	const running = runningRuns(
 		input.runs,
 		keys,
@@ -622,9 +641,9 @@ export function factoriesPage(input: {
 		attention,
 		queue,
 		notServed,
-		stages: stages.flatMap(({ endedRuns: _, ...stage }) =>
+		stages: shown.flatMap(({ endedRuns: _, ...stage }) =>
 			stage.stage.includes("/") ? [] : [stage],
 		),
-		outcomes: outcomesOf(input.ended, now),
+		outcomes: outcomesOf(input.ended, input.outcomeDays, now),
 	};
 }

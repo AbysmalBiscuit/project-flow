@@ -272,6 +272,28 @@ describe("the stage durations of the Factories tab", () => {
 		}
 	});
 
+	test("?stageDays= picks the days of the stage durations, and the stall rule keeps its 30 days", async () => {
+		const { app, clock } = await serveLive({ "run-41": "build" });
+		const buildSamples = (page: {
+			stages: { stage: string; samples: number }[];
+		}) => page.stages.find((stage) => stage.stage === "build")?.samples;
+		try {
+			const week = await factoriesWhere(app.base, () => true, "?stageDays=7");
+			expect(buildSamples(week)).toBe(7);
+
+			clock.now = at(51);
+			const quarter = await factoriesWhere(
+				app.base,
+				(seen) => seen.attention.length > 0,
+				"?stageDays=90",
+			);
+			expect(buildSamples(quarter)).toBe(11);
+			expect(quarter.running[0]?.stall).toEqual({ p95S: 3_000 });
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("the Slowest stages by p95 insight gives the p95 of each stage that the tab gives", async () => {
 		const now = Date.now();
 		const app = await serveFactories(
@@ -388,6 +410,27 @@ describe("the outcomes of the Factories tab", () => {
 					};
 				}),
 			);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("?outcomeDays= picks how many days the outcomes give, and a range the tab does not offer gives 14", async () => {
+		const app = await serveFactories({
+			"/daemon": hubAbout,
+			"/sources": { sources: [] },
+			"/runs": { runs: [] },
+		});
+		try {
+			const days = async (search: string) =>
+				(await factoriesWhere(app.base, () => true, search)).outcomes.map(
+					(outcome) => outcome.day,
+				);
+			expect(await days("?outcomeDays=7")).toEqual(
+				Array.from({ length: 7 }, (_, index) => day(19 + index)),
+			);
+			expect(await days("?outcomeDays=90")).toHaveLength(90);
+			expect(await days("?outcomeDays=5")).toHaveLength(14);
 		} finally {
 			await app.stop();
 		}
