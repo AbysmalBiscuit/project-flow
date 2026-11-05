@@ -20,6 +20,7 @@ import {
 	colours,
 	font,
 	measure,
+	media,
 	radius,
 	space,
 	type,
@@ -107,6 +108,7 @@ const styles = stylex.create({
 	mono: {
 		fontFamily: font.mono,
 		fontSize: type.small,
+		whiteSpace: "nowrap",
 	},
 	paneHead: {
 		display: "flex",
@@ -187,7 +189,10 @@ const styles = stylex.create({
 		margin: 0,
 		color: colours.inkSoft,
 		fontSize: type.small,
-		textAlign: "right",
+		textAlign: {
+			default: "right",
+			[media.headerStack]: "left",
+		},
 	},
 	diagramHead: {
 		display: "flex",
@@ -301,7 +306,7 @@ const resultDot: Record<RunResult, stylex.StyleXStyles> = stylex.create({
 
 const tabs = ["diagram", "stages", "roles", "runs"] as const;
 
-/** The versions with the latest runs, one row of cards on a desktop. The older ones fold. */
+/** The versions with the latest runs, one row of cards on a desktop. The older ones fold, and a version with no run stays. */
 const newestShown = 3;
 
 type Tab = (typeof tabs)[number];
@@ -562,39 +567,17 @@ function RunsTable({ runs }: { runs: WorkflowRun[] }) {
 	);
 }
 
-function Sources({ served }: { served: boolean }) {
-	return (
-		<>
-			{served ? (
-				<span
-					className={clsx(
-						styles.source,
-						styles.sourceRoute,
-						styles.sourceFirst,
-					)}
-				>
-					{workflowsCopy.packageRoute}
-				</span>
-			) : null}
-			<span
-				className={clsx(
-					styles.source,
-					styles.sourceOwn,
-					!served && styles.sourceFirst,
-				)}
-			>
-				{workflowsCopy.source}
-			</span>
-		</>
-	);
-}
-
 function RolesTable({ roles }: { roles: WorkflowRole[] }) {
 	const { columns } = workflowsCopy;
 	return (
 		<>
 			<div className={clsx(styles.paneHead)}>
-				<Sources served />
+				<span className={clsx(styles.source, styles.sourceRoute)}>
+					{workflowsCopy.packageRoute}
+				</span>
+				<span className={clsx(styles.source, styles.sourceOwn)}>
+					{workflowsCopy.source}
+				</span>
 			</div>
 			{roles.length === 0 ? (
 				<p className={clsx(styles.empty)}>{workflowsCopy.noRoles}</p>
@@ -684,7 +667,11 @@ function Detail({ card }: { card: WorkflowCard }) {
 			<div className={clsx(styles.head)}>
 				<h2 className={clsx(styles.heading)}>{card.package}</h2>
 				<Sha sha={card.sha} prefix />
-				<Sources served={roles !== null} />
+				<span
+					className={clsx(styles.source, styles.sourceOwn, styles.sourceFirst)}
+				>
+					{workflowsCopy.source}
+				</span>
 				{roles === null ? (
 					<span className={clsx(styles.source, styles.sourceNeed)}>
 						{workflowsCopy.needsPackages}
@@ -729,7 +716,11 @@ export function Page() {
 	const [picked, setPicked] = useState<string | null>(null);
 	const [older, setOlder] = useState(false);
 	const card = cards?.find((item) => versionKey(item) === picked) ?? cards?.[0];
-	const hidden = Math.max(0, (cards?.length ?? 0) - newestShown);
+	const folded = cards?.filter(
+		(item, index) => index < newestShown || item.runs === 0,
+	);
+	const hidden = (cards?.length ?? 0) - (folded?.length ?? 0);
+	const shown = older ? cards : folded;
 	return (
 		<PageFrame title={navLabel.workflows} subtitle={workflowsCopy.subtitle}>
 			{cards === undefined ? null : cards.length === 0 ? (
@@ -737,7 +728,7 @@ export function Page() {
 			) : (
 				<>
 					<div className={clsx(styles.cards)}>
-						{(older ? cards : cards.slice(0, newestShown)).map((item) => (
+						{(shown ?? cards).map((item) => (
 							<Card
 								key={versionKey(item)}
 								card={item}
