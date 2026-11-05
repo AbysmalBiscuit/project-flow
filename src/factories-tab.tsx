@@ -15,6 +15,7 @@ import type {
 	RunningRun,
 	StageDuration,
 } from "./factories-page.ts";
+import { factoryCheckMs } from "./factories-page.ts";
 import type { HostDisk, HostHealth, HostLevel } from "./host-health.ts";
 import { PageLoading } from "./loading.tsx";
 import { runPagePath } from "./page-links.ts";
@@ -40,6 +41,14 @@ import {
 } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { useNow } from "./use-now.ts";
+
+const reducedMotion = "@media (prefers-reduced-motion: reduce)";
+
+const beat = stylex.keyframes({
+	"0%": { transform: "scale(1)" },
+	"30%": { transform: "scale(1.8)" },
+	"100%": { transform: "scale(1)" },
+});
 
 const styles = stylex.create({
 	grid: {
@@ -138,8 +147,23 @@ const styles = stylex.create({
 		fontWeight: type.weight,
 	},
 	meta: {
+		display: "inline-flex",
+		gap: space.sm,
+		alignItems: "center",
 		color: colours.inkSoft,
 		fontSize: type.meta,
+	},
+	beat: {
+		width: measure.dot,
+		height: measure.dot,
+		borderRadius: radius.pill,
+		backgroundColor: colours.inkSoft,
+	},
+	beatFresh: {
+		backgroundColor: colours.awaitingMerge,
+		animationName: { default: beat, [reducedMotion]: "none" },
+		animationDuration: measure.beat,
+		animationTimingFunction: "ease-out",
 	},
 	source: {
 		marginLeft: "auto",
@@ -862,6 +886,31 @@ function HostMeters({ host }: { host: HostHealth }) {
 	);
 }
 
+/** A heartbeat older than a few factory checks means the box went quiet. */
+const heartbeatFreshMs = 3 * factoryCheckMs;
+
+/** A dot that beats once when a new heartbeat lands, and turns grey when the heartbeat goes stale. */
+function HeartbeatDot({
+	at,
+	span,
+	now,
+}: {
+	at: string | null;
+	span: string;
+	now: number;
+}) {
+	const fresh = at !== null && now - Date.parse(at) < heartbeatFreshMs;
+	const label = factoriesCopy.heartbeat(span);
+	return (
+		<span
+			role="img"
+			aria-label={label}
+			title={label}
+			className={clsx(styles.beat, fresh && styles.beatFresh)}
+		/>
+	);
+}
+
 function BoxCard({
 	box,
 	page,
@@ -917,12 +966,19 @@ function BoxCard({
 				) : null}
 				{dormant !== null ? null : (
 					<span className={clsx(styles.meta)}>
-						{heartbeat === null
-							? factoriesCopy.noHeartbeat
-							: factoriesCopy.heartbeat(heartbeat)}
 						{host === undefined
 							? null
-							: `, ${factoriesCopy.uptime(spanText(host.uptimeS * 1_000))}`}
+							: factoriesCopy.uptime(spanText(host.uptimeS * 1_000))}
+						{heartbeat === null ? (
+							factoriesCopy.noHeartbeat
+						) : (
+							<HeartbeatDot
+								key={box.heartbeatAt}
+								at={box.heartbeatAt}
+								span={heartbeat}
+								now={now}
+							/>
+						)}
 					</span>
 				)}
 			</div>
@@ -1451,15 +1507,8 @@ export function Page() {
 	const query = useQuery(pageQuery.factories);
 	const now = useNow(1_000);
 	const page = query.data;
-	const updated =
-		query.dataUpdatedAt > 0
-			? ` ${factoriesCopy.updated(spanText(now - query.dataUpdatedAt))}`
-			: "";
 	return (
-		<PageFrame
-			title={navLabel.factories}
-			subtitle={`${factoriesCopy.subtitle}${updated}`}
-		>
+		<PageFrame title={navLabel.factories} subtitle={factoriesCopy.subtitle}>
 			{page === undefined ? (
 				<PageLoading />
 			) : (

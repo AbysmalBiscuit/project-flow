@@ -357,6 +357,7 @@ export const measure = stylex.defineVars({
 	pageSpinner: "2.5rem",
 	pageLoading: "calc(100dvh - 16rem)",
 	dotsCycle: "1.2s",
+	beat: "0.6s",
 	mark: "1.15rem",
 	tickShort: "0.32rem",
 	tickTall: "0.58rem",
