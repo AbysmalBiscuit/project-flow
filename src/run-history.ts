@@ -4,6 +4,12 @@ import { z } from "zod";
 
 import type { RunAsks } from "./factory-run-rows.ts";
 import type { RunResult, RunStatusKind } from "./kinds.ts";
+import {
+	type RetroRecord,
+	retroRecord,
+	type RetroRun,
+	type StageTime,
+} from "./retros-page.ts";
 import type { RunListRow } from "./run-list.ts";
 import type { RecordedTurn } from "./run-usage.ts";
 import {
@@ -105,7 +111,7 @@ const stageData = z
  * The factory reads that fill the run history of an ended run once. The
  * `events` read also stores a `package` mark, so the package sha is read once.
  */
-export type HistoryRead = "events" | "turns" | "verification";
+export type HistoryRead = "events" | "turns" | "verification" | "retro";
 
 /** The `workflow.started` data of an entry graph gives the sha of the workflow package. */
 const workflowStart = z.object({
@@ -144,7 +150,14 @@ export type StageUsage = {
 };
 
 /** The views that an insight query can read. */
-const queryableViews = ["runs", "stages", "turns", "asks", "verdicts"];
+const queryableViews = [
+	"runs",
+	"stages",
+	"turns",
+	"asks",
+	"verdicts",
+	"retros",
+];
 
 /** Whitespace, semicolons and comments: what may follow the one statement of a query. */
 const statementTail = /^(?:\s|;|--[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/)*$/;
@@ -225,6 +238,21 @@ export function runHistory(db: Database, path: string) {
 		select run_id, round, stage, node_path, number, verdict, reason, text,
 			position = max(position) over (partition by run_id, round) as final
 		from given
+	`);
+	db.run(
+		"create table if not exists run_retros (run_id text primary key, record text)",
+	);
+	// The view is derived, so a store from an older launch gets the current columns.
+	db.run("drop view if exists retros");
+	db.run(`
+		create view retros as
+		select run_id, record ->> '$.smoothness' as smoothness, record ->> '$.facts.outcome' as outcome,
+			record ->> '$.facts.failure' as failure, record ->> '$.facts.duration_s' as duration_s,
+			record ->> '$.facts.cost_usd' as cost_usd, record ->> '$.facts.rounds.review' as review_rounds,
+			record ->> '$.facts.rounds.pr' as pr_rounds, record ->> '$.facts.resumes' as resumes,
+			record ->> '$.facts.restarts' as restarts, json_array_length(record, '$.friction') as friction,
+			record ->> '$.time_lost_s' as time_lost_s
+		from run_retros where record is not null
 	`);
 	db.run(
 		"create table if not exists run_history_reads (run_id text not null, read text not null, ended_at text, primary key (run_id, read))",
@@ -315,6 +343,7 @@ export function runHistory(db: Database, path: string) {
 					"run_asks",
 					"run_packages",
 					"run_verifications",
+					"run_retros",
 					"run_history_reads",
 				]) {
 					db.query(`delete from ${table} where run_id = ?`).run(runId);
@@ -392,8 +421,9 @@ export function runHistory(db: Database, path: string) {
 		},
 		/**
 		 * The reads that an ended run still needs: its event log while it has no
-		 * stage rows or no package sha, its turns and its verification record. Each read runs once for each end of the run,
-		 * so a resumed run that ends again gets its turns read again.
+		 * stage rows or no package sha, its turns, its verification record and its retro.
+		 * Each read runs once for each end of the run, so a resumed run that ends again
+		 * gets its turns read again.
 		 */
 		unread(runId: string, endedAt: string | null): HistoryRead[] {
 			const done = new Set(readsOf.all(runId, endedAt).map((row) => row.read));
@@ -409,6 +439,9 @@ export function runHistory(db: Database, path: string) {
 			}
 			if (!done.has("verification")) {
 				reads.push("verification");
+			}
+			if (!done.has("retro")) {
+				reads.push("retro");
 			}
 			return reads;
 		},
@@ -489,6 +522,82 @@ export function runHistory(db: Database, path: string) {
 				)
 				.all()
 				.map((row) => row.factory);
+		},
+		/**
+		 * Keep the retro of an ended run, and remember the read with the run's end
+		 * time. A null retro means the factory does not serve the route.
+		 */
+		recordRetro(
+			runId: string,
+			endedAt: string | null,
+			retro: RetroRecord | null,
+		): void {
+			db.transaction(() => {
+				db.query(
+					"insert into run_retros (run_id, record) values (?, ?) on conflict(run_id) do update set record = excluded.record",
+				).run(runId, retro === null ? null : JSON.stringify(retro));
+				markRead.run(runId, "retro", endedAt);
+			})();
+		},
+		/** The stored retro of a run: null when no read stored one, and "not served" after a 404. */
+		retroOf(runId: string): RetroRecord | "not served" | null {
+			const row = db
+				.query<{ record: string | null }, [string]>(
+					"select record from run_retros where run_id = ?",
+				)
+				.get(runId);
+			if (row === null) {
+				return null;
+			}
+			return row.record === null
+				? "not served"
+				: retroRecord.parse(JSON.parse(row.record));
+		},
+		/** The stored retros of the runs that ended at or after `since`, oldest first. */
+		retrosSince(since: Date): RetroRun[] {
+			return db
+				.query<
+					{
+						id: string;
+						ticket: string;
+						result: string | null;
+						endedAt: string | null;
+						record: string;
+					},
+					[string]
+				>(
+					`select h.id, h.ticket, h.result, h.ended_at as endedAt, r.record from run_retros r
+					join run_history h on h.id = r.run_id
+					where r.record is not null and julianday(h.ended_at) >= julianday(?)
+					order by julianday(h.ended_at)`,
+				)
+				.all(since.toISOString())
+				.map(({ record, ...row }) => ({
+					...row,
+					result: storedResult.parse(row.result),
+					retro: retroRecord.parse(JSON.parse(record)),
+				}));
+		},
+		/** The factories whose newest retro read found no retro route. */
+		retroNotServed(): string[] {
+			return db
+				.query<{ factory: string }, []>(
+					`select factory from (
+						select h.factory, r.record, row_number() over (partition by h.factory order by julianday(h.ended_at) desc) as newest
+						from run_retros r join run_history h on h.id = r.run_id
+					) where newest = 1 and record is null order by factory`,
+				)
+				.all()
+				.map((row) => row.factory);
+		},
+		/** The time of each stage of a run, from its stage rows, in the order of each stage's first row. */
+		stageTimes(runId: string): StageTime[] {
+			return db
+				.query<StageTime, [string]>(
+					`select stage, coalesce(sum(duration_s), 0) as seconds from run_stages
+					where run_id = ? group by stage order by min(julianday(at))`,
+				)
+				.all(runId);
 		},
 		/** The runs that ended at or after `since`. */
 		endedSince(since: Date): RunHistoryEnd[] {

@@ -167,6 +167,7 @@ const links = [
 	{ href: "/factories", label: navLabel.factories, afterBreak: true },
 	{ href: "/workflows", label: navLabel.workflows },
 	{ href: "/verification", label: navLabel.verification },
+	{ href: "/retros", label: navLabel.retros },
 	{ href: "/insights", label: navLabel.insights },
 ] as const;
 

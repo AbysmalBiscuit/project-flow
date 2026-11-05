@@ -124,6 +124,7 @@ export const navLabel = {
 	factories: "Factories",
 	workflows: "Workflows",
 	verification: "Verification",
+	retros: "Retros",
 	insights: "Insights",
 	refreshing: "Refreshing",
 	settings: "Settings",
@@ -329,6 +330,8 @@ export const runFactLabel = {
 	ticket: "Ticket",
 	verification: "Verification",
 	openVerification: "Open the record",
+	retro: "Retro",
+	openRetro: "Open the retro",
 	project: "Project",
 	box: "Box",
 	factory: "Factory",
@@ -1137,4 +1140,72 @@ export const verificationCopy = {
 		`${factory} does not serve GET /runs/{id}/verification.`,
 	runNotServed:
 		"The factory of this run does not serve GET /runs/{id}/verification.",
+} as const;
+
+const frictionKindText: Partial<Record<string, string>> = {
+	retry: "The stage ran again.",
+	over_cap: "A decision went over its cap.",
+	stopped: "An attempt stopped.",
+	question: "The run waited on an answer.",
+	steer: "A steer reached the worker.",
+	restart: "The run took a loop restart.",
+	resume: "The run resumed.",
+	failure: "The run failed.",
+};
+
+/** The workcell ticket for the intent, outcome, learnings and open items of a retro. */
+const retroNotesTicket = 1784;
+
+export const retrosCopy = {
+	subtitle: "How each ended run went, and where it lost time.",
+	runs: "Runs",
+	all: "All",
+	roughOrWorse: "Rough or worse",
+	friction: "Friction across runs",
+	sources: {
+		route: "GET /runs/{id}/retro",
+		aggregate: "project-flow aggregate",
+	},
+	columns: {
+		ticket: "Ticket",
+		smoothness: "Smoothness",
+		duration: "Duration",
+		rounds: "Rounds",
+		friction: "Friction",
+		lost: "Lost",
+		cost: "Cost",
+		stage: "Stage",
+		minutes: "Minutes",
+		retries: "Retries",
+	},
+	tiles: {
+		duration: "Duration",
+		cost: "Cost",
+		rounds: "Rounds",
+		retries: "Retries",
+		lost: "Time lost",
+	},
+	stages: "Stages",
+	frictionPoints: "Friction",
+	notes: {
+		intent: "Intent",
+		outcome: "Outcome",
+		learnings: "Learnings",
+		openItems: "Open items",
+	},
+	notesSource: `needs workcell#${retroNotesTicket}`,
+	noNote: "The retro route does not give this yet.",
+	runCount: (runs: number): string => plural(runs, "run", "runs"),
+	/** A friction point with no detail says what happened by its kind. */
+	kindText: (kind: string): string =>
+		frictionKindText[kind] ?? kind.replaceAll("_", " "),
+	where: (stage: string, lost: string | null): string =>
+		[stage, lost].filter((part) => part !== null && part !== "").join(", "),
+	noRuns: "No ended run has a retro yet.",
+	noRough: "No run went rough or worse.",
+	noFriction: "No run lost time to friction.",
+	noStages: "The run has no stage.",
+	noPoints: "The run had no friction point.",
+	noRetro: "The factory has no retro of this run yet.",
+	runNotServed: "The factory of this run does not serve GET /runs/{id}/retro.",
 } as const;

@@ -37,6 +37,7 @@ import type { RunSettingsRead } from "./factory-run-settings.ts";
 import type { SourceRead } from "./factory-run-source.ts";
 import type { TranscriptRead } from "./factory-run-transcript.ts";
 import type { ProjectRef } from "./project-ref.ts";
+import type { RetroRecord } from "./retros-page.ts";
 import type { StageEvent } from "./run-history.ts";
 import type { RecordedTurn } from "./run-usage.ts";
 import type { VerificationRecord } from "./verification-page.ts";
@@ -238,6 +239,8 @@ export type FactoryReader = {
 	turns: (runId: string) => Promise<HistoryAnswer<RecordedTurn[]>>;
 	/** `GET /runs/{id}/verification` of the factory whose row gives the run its status. */
 	verification: (runId: string) => Promise<HistoryAnswer<VerificationRecord>>;
+	/** `GET /runs/{id}/retro` of the factory whose row gives the run its status. */
+	retro: (runId: string) => Promise<HistoryAnswer<RetroRecord>>;
 	/**
 	 * `GET /runs/{id}/artifacts` of the hub that reports the run, or else of its box.
 	 * "missing" when no factory reported the run or the factory did not answer,

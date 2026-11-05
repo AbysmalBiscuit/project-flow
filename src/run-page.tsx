@@ -5,7 +5,11 @@ import { useState } from "react";
 import { textControl } from "./control-styles.ts";
 import type { RunDetail } from "./domain.ts";
 import { PageLoading } from "./loading.tsx";
-import { runPagePath, verificationPagePath } from "./page-links.ts";
+import {
+	retroPagePath,
+	runPagePath,
+	verificationPagePath,
+} from "./page-links.ts";
 import { commentTime, elapsed, RunFact, runTime } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
@@ -127,6 +131,14 @@ function RunFacts({ run }: { run: RunDetail }) {
 					href={verificationPagePath(run.id)}
 				>
 					{runFactLabel.openVerification}
+				</a>
+			</RunFact>
+			<RunFact label={runFactLabel.retro}>
+				<a
+					className={clsx(panel.factLink, ...textControl)}
+					href={retroPagePath(run.id)}
+				>
+					{runFactLabel.openRetro}
 				</a>
 			</RunFact>
 			{run.repo === undefined ? null : (

@@ -41,6 +41,7 @@ import {
 } from "./project-views.ts";
 import { pullRoutes } from "./pull-routes.ts";
 import { replyRoutes } from "./reply-routes.ts";
+import { retrosRoutes } from "./retros-routes.ts";
 import { historyBackfill } from "./run-history-backfill.ts";
 import { runStartRoutes } from "./run-start-routes.ts";
 import { settledRequests } from "./run-start.ts";
@@ -559,6 +560,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			pathname === "/factories" ||
 			pathname === "/workflows" ||
 			pathname === "/verification" ||
+			pathname === "/retros" ||
 			pathname === "/insights"
 		) {
 			return undefined;
@@ -593,6 +595,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				"/factories": pageResponse,
 				"/workflows": pageResponse,
 				"/verification": pageResponse,
+				"/retros": pageResponse,
 				"/insights": pageResponse,
 				"/api/overview": {
 					GET: () => {
@@ -722,6 +725,13 @@ export async function start(options: StartOptions): Promise<Running> {
 					recordRuns,
 				}),
 				...verificationRoutes({
+					factories,
+					history: opened.history,
+					clock,
+					runList: () => factoryRunList(pollOptions, configuration),
+					recordRuns,
+				}),
+				...retrosRoutes({
 					factories,
 					history: opened.history,
 					clock,

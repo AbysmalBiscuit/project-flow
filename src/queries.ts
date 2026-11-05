@@ -40,6 +40,7 @@ import type { SourceRead } from "./factory-run-source.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import { liveRunStatusKinds } from "./kinds.ts";
 import { pullMergeCopy, requestChangesCopy } from "./pull-terms.ts";
+import type { RetrosPage, RunRetro } from "./retros-page.ts";
 import type { InsightResult, InsightTables } from "./run-history.ts";
 import type { RunListRow } from "./run-list.ts";
 import type { SavedInsight, SavedInsights } from "./saved-insights.ts";
@@ -149,6 +150,22 @@ export const pageQuery = {
 				fetchJson<RunVerification>(
 					`/api/verification/runs/${encodeURIComponent(runId)}`,
 				),
+		}),
+	/** A change in the factory feed reads the Retros tab again. */
+	retros: (roughOrWorse: boolean) =>
+		queryOptions({
+			queryKey: ["retros", roughOrWorse],
+			queryFn: () =>
+				fetchJson<RetrosPage>(
+					roughOrWorse ? "/api/retros?atLeast=rough" : "/api/retros",
+				),
+			placeholderData: (previous: RetrosPage | undefined) => previous,
+		}),
+	retrosRun: (runId: string) =>
+		queryOptions({
+			queryKey: ["retros", "run", runId],
+			queryFn: () =>
+				fetchJson<RunRetro>(`/api/retros/runs/${encodeURIComponent(runId)}`),
 		}),
 	savedInsights: queryOptions({
 		queryKey: ["saved-insights"],
@@ -954,6 +971,7 @@ function applyOverviewEvent(body: Overview): void {
 	void pageQueryClient.invalidateQueries(pageQuery.workflows);
 	void pageQueryClient.invalidateQueries({ queryKey: ["workflow"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["verification"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["retros"] });
 }
 
 function invalidatePageQueries(): void {
@@ -978,6 +996,7 @@ function invalidatePageQueries(): void {
 	void pageQueryClient.invalidateQueries(pageQuery.workflows);
 	void pageQueryClient.invalidateQueries({ queryKey: ["workflow"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["verification"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["retros"] });
 }
 
 export function wirePageQueryEvents(): void {

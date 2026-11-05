@@ -271,7 +271,7 @@ The table of every workcell run that the factories report, with search and filte
 _Avoid_: Run log
 
 **Run history**:
-The copy of the runs that the factories report, which the store keeps. It also keeps the stages, turns, asks and verification record of each run, and its package version. Each run keeps its rows after the factory stops listing it, until Lev deletes the run. The next factory read fills it again after a lost store. Insight queries read it through views: `runs`, `stages`, `turns`, `asks` and `verdicts`.
+The copy of the runs that the factories report, which the store keeps. It also keeps the stages, turns, asks, verification record and retro of each run, and its package version. Each run keeps its rows after the factory stops listing it, until Lev deletes the run. The next factory read fills it again after a lost store. Insight queries read it through views: `runs`, `stages`, `turns`, `asks`, `verdicts` and `retros`.
 _Avoid_: Runs list (when the stored rows are meant), run archive
 
 **Insight query**:
@@ -281,6 +281,17 @@ _Avoid_: SQL query (when the Insights page is meant)
 **Verification record**:
 What a run proved before its merge, as its factory serves it: the Done-when verdicts, the review check lines, the gate outcomes and checks, and the CI proof of each round. The run history stores the record of each ended run once. The Verification tab shows the record of one run and the check rates across runs. The `verdicts` view holds each verdict of each stage. Its `final` column is 1 for the last verdicts of a round, so `WHERE final = 1` gives the counts of the tab.
 _Avoid_: Verdict file, proof record
+**Retro**:
+How an ended run went, failed runs included, as its factory derives it from the run's records: the facts, the friction points, the time lost and the smoothness. The run history stores the retro of each ended run once. The Retros tab shows the retros of the last 30 days, and the `retros` view holds one row for each run with a stored retro.
+_Avoid_: Post-mortem, retrospective (when the stored retro is meant)
+
+**Friction point**:
+One point where a run lost time or met an obstacle, such as a retry, a question, a resume or the failure that ended the run. Each friction point has a kind, a stage and the time it cost. The Retros tab groups the friction points across runs by kind and cause. The cause is the detail of the point, or its stage when the point has no detail.
+_Avoid_: Incident, problem
+
+**Smoothness**:
+The level of a retro that a fixed rule of the factory sets: `smooth`, `bumpy`, `rough`, `stalled` or `failed`, from the best to the worst. The Retros tab filters the runs that went rough or worse.
+_Avoid_: Score, health (when a run is meant)
 
 **Factories tab**:
 The page that shows what each factory does now: the summary tiles, one card for each factory with its slots and heartbeat age, the live runs, the runs that need attention, and the hub queue. Each panel names its data source. A factory that does not answer shows as such, and the other panels keep working.

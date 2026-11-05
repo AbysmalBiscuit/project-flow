@@ -73,3 +73,8 @@ export function runPagePath(id: string): string {
 export function verificationPagePath(id: string): string {
 	return `/verification?${new URLSearchParams({ run: id })}`;
 }
+
+/** The Retros tab with the retro of one run. */
+export function retroPagePath(id: string): string {
+	return `/retros?${new URLSearchParams({ run: id })}`;
+}
