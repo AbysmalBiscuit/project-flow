@@ -242,10 +242,18 @@ const styles = stylex.create({
 	stagePill: {
 		marginLeft: space.xs,
 	},
+	meters: {
+		display: "grid",
+		gridTemplateColumns: `${measure.meterLabel} minmax(0, 1fr) max-content`,
+		columnGap: space.sm,
+	},
+	meterSpan: {
+		gridColumn: "1 / -1",
+	},
 	meter: {
 		display: "grid",
-		gridTemplateColumns: `${measure.meterLabel} minmax(0, 1fr) ${measure.meterValue}`,
-		gap: space.sm,
+		gridColumn: "1 / -1",
+		gridTemplateColumns: "subgrid",
 		alignItems: "center",
 		margin: `${space.xs} 0`,
 		color: colours.ink,
@@ -256,7 +264,7 @@ const styles = stylex.create({
 		height: measure.meterBar,
 		overflow: "hidden",
 		borderRadius: radius.pill,
-		backgroundColor: colours.surfaceMuted,
+		backgroundColor: colours.meterTrack,
 	},
 	fill: (share: string) => ({
 		width: share,
@@ -317,6 +325,7 @@ const styles = stylex.create({
 	meterValue: {
 		color: colours.inkMuted,
 		textAlign: "right",
+		whiteSpace: "nowrap",
 		fontVariantNumeric: "tabular-nums",
 	},
 	note: {
@@ -734,14 +743,37 @@ const percent = (share: number) =>
 	`${Math.max(0, Math.min(100, share * 100))}%`;
 
 /** Bytes as gigabytes, with one decimal under 10 GB. */
-const gigabytes = (bytes: number) => {
-	const gb = bytes / 1e9;
-	return gb < 10 ? gb.toFixed(1) : String(Math.round(gb));
-};
+const sizeText = (amount: number) =>
+	amount < 10 ? amount.toFixed(1) : String(Math.round(amount));
+
+const gigabytes = (bytes: number) => sizeText(bytes / 1e9);
+
+const diskUnits = ["GB", "TB", "PB", "EB"] as const;
+
+/** Free and total bytes of a disk in the largest unit that keeps the total at 1 or more. */
+function diskSize(free: number, total: number) {
+	const step = Math.max(
+		0,
+		Math.min(
+			diskUnits.length - 1,
+			Math.floor(Math.log10(Math.max(total, 1) / 1e9) / 3),
+		),
+	);
+	const scale = 1e9 * 1000 ** step;
+	return {
+		free: sizeText(free / scale),
+		total: sizeText(total / scale),
+		unit: diskUnits[step] ?? "GB",
+	};
+}
 
 /** A long mount path keeps its end, as the end names the folder. */
 const mountLabel = (mount: string) =>
-	mount.length > 16 ? `...${mount.slice(-13)}` : mount;
+	mount === "/"
+		? factoriesCopy.meters.disk
+		: mount.length > 16
+			? `...${mount.slice(-13)}`
+			: mount;
 
 function Meter({
 	label,
@@ -825,12 +857,15 @@ function worstNote(host: HostHealth): string | null {
 }
 
 function DiskMeter({ disk }: { disk: HostDisk }) {
+	const size = diskSize(disk.freeBytes, disk.totalBytes);
 	return (
 		<Meter
 			label={mountLabel(disk.mount)}
-			mono
+			mono={disk.mount !== "/"}
 			value={factoriesCopy.diskValue(
-				gigabytes(disk.freeBytes),
+				size.free,
+				size.total,
+				size.unit,
 				disk.fullInS === null ? null : roughSpanText(disk.fullInS * 1_000),
 			)}
 		>
@@ -844,11 +879,59 @@ function DiskMeter({ disk }: { disk: HostDisk }) {
 	);
 }
 
-function HostMeters({ host }: { host: HostHealth }) {
+/** The meter rows of a box card in one grid, so every bar starts and ends at the same place. */
+function HostMeters({
+	host,
+	children,
+}: {
+	host: HostHealth | undefined;
+	children: ReactNode;
+}) {
+	return (
+		<>
+			<div className={clsx(styles.meters)}>
+				{children}
+				{host === undefined ? null : <HostRows host={host} />}
+			</div>
+			{host === undefined ? null : <HostFoot host={host} />}
+		</>
+	);
+}
+
+function HostFoot({ host }: { host: HostHealth }) {
+	const note = worstNote(host);
+	return (
+		<>
+			<div className={clsx(styles.legend)}>
+				<span className={clsx(styles.legendItem)}>
+					<span className={clsx(styles.swatch, styles.iowait)} />
+					{factoriesCopy.iowait}
+				</span>
+				<span>
+					{factoriesCopy.hostSize(
+						host.cores,
+						gigabytes(host.memory.totalBytes),
+					)}
+				</span>
+			</div>
+			{note === null ? null : (
+				<p
+					className={clsx(
+						styles.note,
+						host.level === "bad" ? styles.worstBad : styles.worstWarn,
+					)}
+				>
+					{note}
+				</p>
+			)}
+		</>
+	);
+}
+
+function HostRows({ host }: { host: HostHealth }) {
 	const { load, cpu, memory, swap } = host;
 	const gateShare =
 		load.gate === null ? null : load.gate / host.cores / fullLoadPerCore;
-	const note = worstNote(host);
 	return (
 		<>
 			<Meter
@@ -921,25 +1004,6 @@ function HostMeters({ host }: { host: HostHealth }) {
 			{host.disks.map((disk) => (
 				<DiskMeter key={disk.mount} disk={disk} />
 			))}
-			<div className={clsx(styles.legend)}>
-				<span className={clsx(styles.legendItem)}>
-					<span className={clsx(styles.swatch, styles.iowait)} />
-					{factoriesCopy.iowait}
-				</span>
-				<span>
-					{factoriesCopy.hostSize(host.cores, gigabytes(memory.totalBytes))}
-				</span>
-			</div>
-			{note === null ? null : (
-				<p
-					className={clsx(
-						styles.note,
-						host.level === "bad" ? styles.worstBad : styles.worstWarn,
-					)}
-				>
-					{note}
-				</p>
-			)}
 		</>
 	);
 }
@@ -1167,9 +1231,11 @@ function BoxCard({
 							: factoriesCopy.boxUnreachable(heartbeat !== null)}
 				</p>
 			) : (
-				<>
+				<HostMeters host={host}>
 					{box.slots === undefined ? (
-						<p className={clsx(styles.note)}>{factoriesCopy.noSlotCount}</p>
+						<p className={clsx(styles.note, styles.meterSpan)}>
+							{factoriesCopy.noSlotCount}
+						</p>
 					) : (
 						<Meter
 							label={factoriesCopy.slots}
@@ -1178,21 +1244,25 @@ function BoxCard({
 							<span className={clsx(styles.bar)}>
 								<Fill
 									share={
-										box.slots.total === 0 ? 0 : box.slots.used / box.slots.total
+										box.slots.total === 0
+											? 0
+											: Math.min(1, box.slots.used / box.slots.total)
 									}
 									tone={styles.stepCurrent}
 								/>
 							</span>
 						</Meter>
 					)}
-					{host !== undefined ? (
-						<HostMeters host={host} />
-					) : hostNotServed ? (
-						<NotServed page={page} panel="host" factory={box.name} />
+					{host !== undefined ? null : hostNotServed ? (
+						<div className={clsx(styles.meterSpan)}>
+							<NotServed page={page} panel="host" factory={box.name} />
+						</div>
 					) : (
-						<p className={clsx(styles.note)}>{factoriesCopy.noHostSample}</p>
+						<p className={clsx(styles.note, styles.meterSpan)}>
+							{factoriesCopy.noHostSample}
+						</p>
 					)}
-				</>
+				</HostMeters>
 			)}
 		</section>
 	);
