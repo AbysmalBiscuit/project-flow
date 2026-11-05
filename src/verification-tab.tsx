@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { textControl } from "./control-styles.ts";
 import type { RunResult } from "./kinds.ts";
+import { PageLoading } from "./loading.tsx";
 import { pageQuery } from "./queries.ts";
 import { PageFrame } from "./shell.tsx";
 import { navLabel, runResultLabel, verificationCopy } from "./terms.ts";
@@ -719,7 +720,9 @@ export function Page() {
 			title={navLabel.verification}
 			subtitle={verificationCopy.subtitle}
 		>
-			{page === undefined ? null : (
+			{page === undefined ? (
+				<PageLoading />
+			) : (
 				<>
 					<Tiles tiles={page.tiles} />
 					<div className={clsx(styles.grid, styles.two)}>

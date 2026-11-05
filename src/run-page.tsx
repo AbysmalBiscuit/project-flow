@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { textControl } from "./control-styles.ts";
 import type { RunDetail } from "./domain.ts";
-import { Loading } from "./loading.tsx";
+import { PageLoading } from "./loading.tsx";
 import {
 	retroPagePath,
 	runPagePath,
@@ -279,7 +279,7 @@ export function Page() {
 						isError ? (
 							<p className={clsx(panel.note)}>{runReadFailedLabel}</p>
 						) : (
-							<Loading />
+							<PageLoading />
 						)
 					) : data === null ? (
 						<p className={clsx(panel.note)}>{runMissingLabel}</p>

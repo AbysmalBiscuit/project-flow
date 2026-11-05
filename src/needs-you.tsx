@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTrackerLabel } from "./backend-labels.ts";
 import type { NeedsYouItem } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
-import { Loading } from "./loading.tsx";
+import { PageLoading } from "./loading.tsx";
 import { NeedsItem } from "./needs-item.tsx";
 import { needs } from "./needs-you-styles.ts";
 import { TicketPanel } from "./panel.tsx";
@@ -284,7 +284,7 @@ export function Page() {
 	if (items === undefined || (polling && items.length === 0 && !holdsRead)) {
 		return (
 			<PageFrame title={navLabel.needsYou}>
-				<Loading />
+				<PageLoading />
 			</PageFrame>
 		);
 	}
