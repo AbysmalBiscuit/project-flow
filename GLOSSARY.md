@@ -302,7 +302,7 @@ One workflow package at one content hash. The `workflow.started` event of a run 
 _Avoid_: Package release, workflow version
 
 **Workflows tab**:
-The page that shows one card for each package version, with its run count, merge rate, median duration, cost per run and last run. A picked card opens the diagram, the stage statistics and the runs of that package version. The run history gives all its numbers. The diagram is the entry graph of the latest run, with the border colour of each stage from its agent role.
+The page that shows one card for each package version, with its run count, merge rate, median duration, cost per run and last run. A factory that serves its package list also adds a card for each package version with no run. A picked card opens the diagram, the stage statistics, the roles and the runs of that package version. The run history gives all its numbers. The diagram shows the entry graph and each child graph, with the border colour of each stage from its agent role. The graphs come from the factory that lists the package version, else from the latest run. The roles show only when a factory lists the package version: each role with its harness, model, stages and share of the turn cost.
 _Avoid_: Packages page, workflow list
 
 **Needs attention**:
