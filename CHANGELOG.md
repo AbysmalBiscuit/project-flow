@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.1.2](https://github.com/AbysmalBiscuit/project-flow/compare/v0.1.1...v0.1.2) (2026-11-05)
+
+
+### Features
+
+* **factories:** add the Factories tab with what runs now ([49aac4b](https://github.com/AbysmalBiscuit/project-flow/commit/49aac4baeeda875f7b0966616bdb396c02d7c811))
+* **factories:** show asleep boxes from the box pool ([04b6c23](https://github.com/AbysmalBiscuit/project-flow/commit/04b6c23468a7b8d98106db75e919c105cfe768c5))
+* **factories:** show stage durations, outcomes and stalled runs ([920c1e7](https://github.com/AbysmalBiscuit/project-flow/commit/920c1e7365f30d03e98bcbfdf6f68f6e7dc7154d))
+* **factories:** show the host health of each box ([6726721](https://github.com/AbysmalBiscuit/project-flow/commit/672672109efed4e77a9c3db6c3e4979ed9f3d8dc))
+* **insights:** keep the stages, turns and asks of runs ([2a37be8](https://github.com/AbysmalBiscuit/project-flow/commit/2a37be8fa4000a356b9fa1a381293c17d5f42859))
+* **insights:** query the run history from an Insights tab ([2ec9f26](https://github.com/AbysmalBiscuit/project-flow/commit/2ec9f26477c319bfb694255694165396698590e7))
+* **insights:** save and reuse queries, with starting insights ([2ef79fe](https://github.com/AbysmalBiscuit/project-flow/commit/2ef79fede23e8968895829372669d2d6f3c12ea4))
+* **retros:** add the Retros tab ([01aad4d](https://github.com/AbysmalBiscuit/project-flow/commit/01aad4da77472cdad3ef1dbfd5758cb75d3a5962))
+* **ui:** centre a prominent loading state on page loads ([1c08300](https://github.com/AbysmalBiscuit/project-flow/commit/1c083004fe0fe5c563cac69d645905ca720befa9))
+* **verification:** add the Verification tab ([281efee](https://github.com/AbysmalBiscuit/project-flow/commit/281efeeaa7ecdb78581fcc6045e04cf276b5bfce))
+* **workflows:** add the Workflows tab ([0f704b5](https://github.com/AbysmalBiscuit/project-flow/commit/0f704b5ca7ef3259a82c562832c50521c7feb3cd))
+* **workflows:** show packages without runs, child graphs and roles ([725c27c](https://github.com/AbysmalBiscuit/project-flow/commit/725c27cde2043ea6919e78de1891e1305703befb))
+
+
+### Bug Fixes
+
+* **start:** ignore a stale fetch error on a cold start ([1b7db01](https://github.com/AbysmalBiscuit/project-flow/commit/1b7db01121f23ae079ecf70cbfb7488040d51e76))
+
+
+### Performance Improvements
+
+* **runs:** find the ticket of each run in one map ([d808c9a](https://github.com/AbysmalBiscuit/project-flow/commit/d808c9a227bd453185d1395499503d9f74955a52))
+
 ## [0.1.1](https://github.com/AbysmalBiscuit/project-flow/compare/v0.1.0...v0.1.1) (2026-11-03)
 
 
