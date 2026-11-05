@@ -591,5 +591,29 @@ describe("the Workflows tab", () => {
 				await app.stop();
 			}
 		});
+
+		test("a version that no factory lists takes its roles from the listed package of the same name, and keeps the graphs of its runs", async () => {
+			const app = await serveHub(served);
+			try {
+				const detail = await readWhere<WorkflowDetail>(
+					app.base,
+					`/api/workflows/standard?sha=${oldSha}`,
+					(seen) => seen.roles !== null && seen.runs.length === 1,
+				);
+				expect(detail.graph).toBeNull();
+				const roles = new Map(detail.roles?.map((role) => [role.role, role]));
+				expect([...roles.keys()]).toEqual(
+					standardPackage.roles.map((role) => role.name),
+				);
+				expect(roles.get("implementer")).toMatchObject({
+					harnesses: ["claude"],
+					models: ["claude-opus-5-5"],
+					costShare: 1,
+				});
+				expect(roles.get("reviewer")?.costShare).toBe(0);
+			} finally {
+				await app.stop();
+			}
+		});
 	});
 });

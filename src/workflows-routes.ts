@@ -67,9 +67,12 @@ export function workflowsRoutes(options: WorkflowsRouteOptions) {
 				const sha = new URL(request.url).searchParams.get("sha");
 				const runs = versionRuns(options.history.packageRuns(), name, sha);
 				const ids = runs.map((run) => run.id);
-				const version = (await listedPackages(options.factories)).find(
-					(item) => item.name === name && item.version === sha,
+				const named = (await listedPackages(options.factories)).filter(
+					(item) => item.name === name,
 				);
+				const exact = named.find((item) => item.version === sha);
+				// A version that no factory lists takes the roles of the package that the factory holds now.
+				const version = exact ?? named[0];
 				const listed =
 					version === undefined
 						? null
@@ -83,9 +86,9 @@ export function workflowsRoutes(options: WorkflowsRouteOptions) {
 						usage: options.history.stageUsage(ids),
 						rows: options.runList(),
 						graph:
-							listed === null
-								? await latestGraph(options.factories, runs)
-								: { graphs: listed.graphs },
+							listed !== null && exact !== undefined
+								? { graphs: listed.graphs }
+								: await latestGraph(options.factories, runs),
 						listed:
 							listed === null
 								? null

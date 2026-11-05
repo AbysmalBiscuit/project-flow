@@ -19,7 +19,6 @@ export type FactoryPackage = {
 	repo: string | null;
 	/** The sha256 of the package, as the `workflow.started` event of a run names it. */
 	version: string;
-	lastRun: string | null;
 };
 
 /** What the stylesheet of a package gives a role on its factory. Null for a default. */
@@ -39,7 +38,6 @@ const packageList = z.object({
 			name: z.string(),
 			repo: z.string().nullable(),
 			version: z.string(),
-			last_run: z.string().nullable(),
 		}),
 	),
 });
@@ -134,7 +132,6 @@ export function factoryPackagesReader(deps: {
 							name: item.name,
 							repo: item.repo,
 							version: item.version,
-							lastRun: item.last_run,
 						}));
 					} catch (error) {
 						if (!(error instanceof Unreachable)) {

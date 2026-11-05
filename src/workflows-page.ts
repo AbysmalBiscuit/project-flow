@@ -136,7 +136,7 @@ export function workflowsPage(
 			mergeRate: null,
 			medianS: null,
 			costPerRun: null,
-			lastRunAt: item.lastRun,
+			lastRunAt: null,
 		}));
 	const cards = [...versions.values()].flatMap((group) => {
 		const [latest] = group;
