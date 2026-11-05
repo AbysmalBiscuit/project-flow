@@ -204,7 +204,7 @@ describe("starting insights", () => {
 		}
 	});
 
-	test("a store whose turns have no harness or model gets both columns, and the starting insight over the model", async () => {
+	test("a store whose turns have no harness or model keeps its turns, gets both columns, and the starting insight over the model", async () => {
 		await withStore(async (databasePath) => {
 			const first = await serveHub(hub, databasePath);
 			await first.stop();
@@ -218,6 +218,9 @@ describe("starting insights", () => {
 				"create view turns as select run_id, turn, stage, input_tokens, output_tokens, cost_usd, duration_s, tools from run_turns",
 			);
 			db.run(
+				"insert into run_turns values ('unlisted-run', 0, 'implement', 10, 2, 0.5, 30, '{}')",
+			);
+			db.run(
 				"delete from saved_queries where starting = 'cost-by-model-30-days'",
 			);
 			db.close();
@@ -225,11 +228,13 @@ describe("starting insights", () => {
 			try {
 				const names = (await savedList(second.base)).map((query) => query.name);
 				expect(names).toEqual(startingNames);
-				const { status } = await insightQuery(
+				const { body } = await insightQuery(
 					second.base,
-					"select harness, model from turns",
+					"select stage, cost_usd, harness, model from turns where run_id = 'unlisted-run'",
 				);
-				expect(status).toBe(200);
+				expect("rows" in body ? body.rows : body).toEqual([
+					["implement", 0.5, null, null],
+				]);
 			} finally {
 				await second.stop();
 			}

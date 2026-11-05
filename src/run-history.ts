@@ -209,11 +209,12 @@ export function runHistory(db: Database, path: string) {
 		.all()
 		.map((column) => column.name);
 	if (turnColumns.length > 0 && !turnColumns.includes("model")) {
-		// The turn rows of a store from an older launch have no harness or model, so the backfill reads them again.
-		db.run("drop view if exists turns");
-		db.run("drop table run_turns");
-		db.run("delete from run_history_reads where read = 'turns'");
+		// The turns of a store from an older launch keep their rows, with no harness or model.
+		db.run("alter table run_turns add column harness text");
+		db.run("alter table run_turns add column model text");
 	}
+	// The view is derived, so a store from an older launch gets the current columns.
+	db.run("drop view if exists turns");
 	db.run(`
 		create table if not exists run_turns (
 			run_id text not null, turn integer not null, stage text not null,
@@ -223,7 +224,7 @@ export function runHistory(db: Database, path: string) {
 		)
 	`);
 	db.run(
-		"create view if not exists turns as select run_id, turn, stage, input_tokens, output_tokens, cost_usd, duration_s, tools, harness, model from run_turns",
+		"create view turns as select run_id, turn, stage, input_tokens, output_tokens, cost_usd, duration_s, tools, harness, model from run_turns",
 	);
 	db.run(`
 		create table if not exists run_asks (
