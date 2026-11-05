@@ -322,8 +322,12 @@ One answer of the `GET /machine` route of a factory: the CPU load, the CPU busy 
 _Avoid_: Host stats, metrics snapshot
 
 **Host health**:
-The meters of a box card from its host samples, with a colour for each metric: green, amber or red. The last host sample gives the values. The samples of the last hour give the load sparkline. A straight-line fit of the used space of each mount over the last 6 hours gives its time until full, or "no growth". The placement gate of a factory marks the load meter and turns the card amber at the gate. A card takes the colour of its worst metric and names that metric in a note.
+The meters of the card of each factory on the Factories tab, from its host samples, with a colour for each metric: green, amber or red. The last host sample gives the values, and a card shows no meters when that sample is older than one minute. The samples of the last hour give the load sparkline. A straight-line fit of the used space of each mount over the last 6 hours gives its time until full, or "no growth". The placement gate of a factory marks the load meter and turns the card amber at the gate. A card takes the colour of its worst metric and names that metric in a note.
 _Avoid_: Box status, system health
+
+**Placement gate**:
+The 5-minute load average at which a factory stops taking new runs, set as `placementGate` of the factory in the configuration file. It marks the load meter of the host health.
+_Avoid_: Load limit, threshold (when the gate is meant)
 
 **Hub queue**:
 The tickets that a hub source did not start on its last poll, in start order, with what each one waits on. Project Flow reads it from `GET /sources` of each hub, and the budget hold of each ticket from `GET /holds`.

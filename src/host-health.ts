@@ -55,6 +55,9 @@ export const sparkSpanMs = hourMs;
 /** The span of samples that the time until full fits. */
 export const growthSpanMs = 6 * hourMs;
 
+/** The oldest last sample that still gives meters: four missed samples. */
+export const freshSampleMs = 60 * 1_000;
+
 const rank: Record<HostLevel, number> = { ok: 0, warn: 1, bad: 2 };
 
 /** `warnAt` and `badAt` bound a metric that is worse when higher. */
@@ -97,20 +100,20 @@ function fullIn(
 	return slope > 0 ? Math.round(free / slope) : null;
 }
 
-/**
- * The host health of a box from its samples, oldest first. The last sample gives
- * the values; the samples of the last hour give the sparkline, and the samples of the
- * last 6 hours give the time until full of each mount.
- */
+/** The host health of a box from its samples, oldest first, or none when the last sample is stale. */
 export function hostHealth(
 	samples: readonly TimedSnapshot[],
 	gate: number | null,
 	now: Date,
 ): HostHealth | undefined {
-	const last = samples.at(-1)?.snapshot;
-	if (last === undefined) {
+	const newest = samples.at(-1);
+	if (
+		newest === undefined ||
+		now.getTime() - Date.parse(newest.at) > freshSampleMs
+	) {
 		return undefined;
 	}
+	const last = newest.snapshot;
 	const since = (spanMs: number) =>
 		samples.filter((sample) => now.getTime() - Date.parse(sample.at) <= spanMs);
 	const growth = since(growthSpanMs);

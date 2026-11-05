@@ -983,6 +983,7 @@ export const factoriesCopy = {
 		stageAggregate: "project-flow aggregate",
 	},
 	hostSource: `GET ${hostRoute}`,
+	noHostSample: "No host sample in the last minute.",
 	level: { ok: "healthy", warn: "watch", bad: "trouble" },
 	meters: {
 		loadPerCore: "Load / core, 5m",

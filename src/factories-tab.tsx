@@ -874,6 +874,9 @@ function BoxCard({
 	const heartbeat = since(box.heartbeatAt, now);
 	const off = box.reachable !== true;
 	const host = off ? undefined : box.host;
+	const hostNotServed = page.notServed.some(
+		(item) => item.panel === "host" && item.factory === box.name,
+	);
 	return (
 		<section
 			className={clsx(
@@ -936,10 +939,12 @@ function BoxCard({
 							</span>
 						</Meter>
 					)}
-					{host === undefined ? (
+					{host !== undefined ? (
+						<HostMeters host={host} />
+					) : hostNotServed ? (
 						<NotServed page={page} panel="host" factory={box.name} />
 					) : (
-						<HostMeters host={host} />
+						<p className={clsx(styles.note)}>{factoriesCopy.noHostSample}</p>
 					)}
 				</>
 			)}

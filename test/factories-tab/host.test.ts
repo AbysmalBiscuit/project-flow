@@ -273,6 +273,39 @@ describe("the host health of the box cards", () => {
 		}
 	});
 
+	test("a host route that stops giving samples leaves no old meters on the card", async () => {
+		let now = Date.parse(clockStart);
+		let failing = false;
+		const app = await serveHosts(
+			[{ name: "work hub", url: hubUrl }],
+			{
+				[hubUrl]: hubAnswers(() =>
+					failing
+						? new Response("cannot read the machine state", { status: 500 })
+						: machine,
+				),
+			},
+			() => new Date(now),
+		);
+		try {
+			await factoriesWhere(
+				app.base,
+				(seen) => cardOf(seen, "work hub")?.host !== undefined,
+			);
+			failing = true;
+			now = Date.parse(clockStart) + 2 * 60 * 1_000;
+			const page = await factoriesWhere(
+				app.base,
+				(seen) =>
+					cardOf(seen, "work hub")?.heartbeatAt === new Date(now).toISOString(),
+			);
+			expect(cardOf(page, "work hub")?.host).toBeUndefined();
+			expect(cardOf(page, "work hub")?.reachable).toBe(true);
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a factory with no host route gets the not served note and no meters", async () => {
 		const app = await serveHosts(
 			[
