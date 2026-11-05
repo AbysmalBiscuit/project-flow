@@ -1043,6 +1043,7 @@ export const workflowsCopy = {
 	share: (share: number): string => `${Math.round(share * 100)}%`,
 	visits: (perRun: number): string => perRun.toFixed(1),
 	lastRun: (span: string): string => `last run ${span} ago`,
+	noRunYet: "no run yet",
 	stats: {
 		runs: "runs",
 		merged: "merged",
@@ -1051,11 +1052,13 @@ export const workflowsCopy = {
 		perRun: "per run",
 	},
 	source: "project-flow",
+	packageRoute: "GET /packages/{name}",
 	needsPackages: `needs workcell#${packageRoutesTicket} for graphs without a run`,
-	tabs: { diagram: "Diagram", stages: "Stages", runs: "Runs" },
+	tabs: { diagram: "Diagram", stages: "Stages", roles: "Roles", runs: "Runs" },
 	tabsLabel: "Package detail",
-	diagramNote:
-		"Border colour = role. Edge label = condition. The graphs of the latest run.",
+	diagramNote: (fromRun: boolean): string =>
+		`Border colour = role. Edge label = condition. ${fromRun ? "The graphs of the latest run." : "The graphs that the factory serves."}`,
+	noRoles: "The package names no role.",
 	noGraph: "No factory serves the workflow files of a run of this version.",
 	noStages: "No run of this version has stage rows yet.",
 	allStages: (count: number): string => `Show all ${count} stages`,
@@ -1076,6 +1079,11 @@ export const workflowsCopy = {
 		rounds: "Rounds",
 		pr: "PR",
 		runCost: "Cost",
+		role: "Role",
+		harness: "Harness",
+		model: "Model",
+		stages: "Stages",
+		costShare: "Cost share",
 	},
 	none: "-",
 } as const;

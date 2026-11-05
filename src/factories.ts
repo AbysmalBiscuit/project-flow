@@ -32,6 +32,7 @@ import {
 	factoryKind,
 	type Slots,
 } from "./factory-kind.ts";
+import { factoryPackagesReader } from "./factory-packages.ts";
 import { claimStart, runActions } from "./factory-run-actions.ts";
 import { runArtifactsReader } from "./factory-run-artifacts.ts";
 import {
@@ -710,6 +711,14 @@ export function factoryReader(
 		sandbox,
 		files: runFilesReader({ fetchImpl, signal, statusRowOf, sandbox }),
 		...runSourceReader({ fetchImpl, signal, statusRowOf }),
+		...factoryPackagesReader({
+			fetchImpl,
+			signal,
+			reachable: () =>
+				listed()
+					.filter((factory) => found.get(factory.url)?.reachable === true)
+					.map((factory) => factory.url),
+		}),
 		...runTranscriptReader({ fetchImpl, signal, statusRowOf }),
 		settings: runSettingsReader({ fetchImpl, signal, statusRowOf }),
 		...runActions({ fetchImpl, signal, now, statusRowOf, addMessage }),

@@ -1,0 +1,268 @@
+{
+	"name": "intake",
+	"repo": null,
+	"version": "247ca91520fdcc3ab261e2d2299a338e9dd7ee0a93e4058198a1d1c12a64f6fe",
+	"entry": "intake.dot",
+	"graphs": {
+		"intake.dot": {
+			"name": "Intake",
+			"label": "",
+			"attrs": {
+				"goal": "Interview the requester until the ticket is ready to build, then file it",
+				"rankdir": "LR"
+			},
+			"nodes": [
+				{
+					"id": "start",
+					"attrs": {
+						"shape": "Mdiamond",
+						"label": "Start"
+					},
+					"classes": [],
+					"handler": "start"
+				},
+				{
+					"id": "exit",
+					"attrs": {
+						"shape": "Msquare",
+						"label": "Exit"
+					},
+					"classes": [],
+					"handler": "exit"
+				},
+				{
+					"id": "ticket",
+					"attrs": {
+						"output": "report",
+						"shape": "parallelogram",
+						"label": "Ticket",
+						"timeout": "60s",
+						"tool_command": "workcell tool intake ticket"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "interview",
+					"attrs": {
+						"shape": "box",
+						"class": "interviewer",
+						"thread_id": "interviewer",
+						"label": "Interview",
+						"max_visits": 20,
+						"prompt": "Interview the requester of the ticket in $context.report until the ticket is ready to file. The requester's reply to your last question, if you asked one:\n\n$human.gate.text"
+					},
+					"classes": ["interviewer"],
+					"handler": "codergen"
+				},
+				{
+					"id": "question",
+					"attrs": {
+						"output": "question",
+						"shape": "parallelogram",
+						"label": "Question",
+						"timeout": "60s",
+						"tool_command": "workcell tool intake question"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "ask",
+					"attrs": {
+						"shape": "hexagon",
+						"ask": "requester",
+						"human.question_type": "freeform",
+						"label": "Ask",
+						"prompt": "$context.question",
+						"timeout": "3d",
+						"human.default_choice": "declined"
+					},
+					"classes": [],
+					"handler": "wait.human"
+				},
+				{
+					"id": "check",
+					"attrs": {
+						"output": "filed, filed_reason",
+						"shape": "parallelogram",
+						"label": "Check",
+						"timeout": "300s",
+						"context": "context",
+						"tool_command": "workcell tool intake check"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "declined",
+					"attrs": {
+						"output": "filed, filed_reason",
+						"shape": "parallelogram",
+						"label": "Declined",
+						"timeout": "300s",
+						"tool_command": "workcell tool intake decline --reason 'The interviewer declined the request.'"
+					},
+					"classes": [],
+					"handler": "tool"
+				},
+				{
+					"id": "expire",
+					"attrs": {
+						"output": "filed, filed_reason",
+						"shape": "parallelogram",
+						"label": "Expire",
+						"timeout": "300s",
+						"tool_command": "workcell tool intake decline --reason 'The requester did not answer in time.'"
+					},
+					"classes": [],
+					"handler": "tool"
+				}
+			],
+			"edges": [
+				{
+					"from": "start",
+					"to": "ticket",
+					"attrs": {}
+				},
+				{
+					"from": "ticket",
+					"to": "interview",
+					"attrs": {}
+				},
+				{
+					"from": "interview",
+					"to": "question",
+					"attrs": {
+						"label": "ask",
+						"condition": "preferred_label=ask"
+					}
+				},
+				{
+					"from": "interview",
+					"to": "check",
+					"attrs": {
+						"label": "Ready",
+						"condition": "preferred_label=Ready"
+					}
+				},
+				{
+					"from": "interview",
+					"to": "check",
+					"attrs": {
+						"label": "NeedEngineer",
+						"condition": "preferred_label=NeedEngineer"
+					}
+				},
+				{
+					"from": "interview",
+					"to": "check",
+					"attrs": {
+						"label": "NeedHuman",
+						"condition": "preferred_label=NeedHuman"
+					}
+				},
+				{
+					"from": "interview",
+					"to": "declined",
+					"attrs": {
+						"label": "declined",
+						"condition": "preferred_label=declined"
+					}
+				},
+				{
+					"from": "question",
+					"to": "ask",
+					"attrs": {}
+				},
+				{
+					"from": "ask",
+					"to": "interview",
+					"attrs": {
+						"label": "answered"
+					}
+				},
+				{
+					"from": "ask",
+					"to": "expire",
+					"attrs": {
+						"label": "declined",
+						"condition": "preferred_label=declined"
+					}
+				},
+				{
+					"from": "check",
+					"to": "exit",
+					"attrs": {}
+				},
+				{
+					"from": "declined",
+					"to": "exit",
+					"attrs": {}
+				},
+				{
+					"from": "expire",
+					"to": "exit",
+					"attrs": {}
+				}
+			]
+		},
+		"reporting.dot": {
+			"name": "Reporting",
+			"label": "",
+			"attrs": {},
+			"nodes": [
+				{
+					"id": "interviewer",
+					"attrs": {
+						"launcher": "interviewer",
+						"instructions": "roles/interviewer.md"
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "requester",
+					"attrs": {
+						"human": true
+					},
+					"classes": [],
+					"handler": "codergen"
+				},
+				{
+					"id": "operator",
+					"attrs": {
+						"human": true
+					},
+					"classes": [],
+					"handler": "codergen"
+				}
+			],
+			"edges": [
+				{
+					"from": "interviewer",
+					"to": "operator",
+					"attrs": {}
+				}
+			]
+		}
+	},
+	"roles": [
+		{
+			"name": "interviewer",
+			"launcher": "interviewer",
+			"harness": null,
+			"model": null,
+			"effort": null,
+			"error": "no launcher interviewer in /tmp/claude-1000/-home-lev-Git-lev-project-flow/603ed235-05ec-49df-8bd2-c7e6472c7ffa/scratchpad/wc/config/workcell/config.toml, and no launcher of that name is built in"
+		}
+	],
+	"stylesheet": ".interviewer { fidelity: full; }\n",
+	"manifest": {
+		"entry": "intake.dot",
+		"stylesheet": "stylesheet.css",
+		"reporting": "reporting.dot",
+		"instructions": ["roles/interviewer.md"]
+	},
+	"last_run": null
+}

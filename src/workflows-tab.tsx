@@ -6,7 +6,7 @@ import { textControl } from "./control-styles.ts";
 import type { RunResult } from "./kinds.ts";
 import { runPagePath } from "./page-links.ts";
 import { pageQuery } from "./queries.ts";
-import { WorkflowDiagram } from "./run-graph.tsx";
+import { roleInkOf, WorkflowDiagram } from "./run-graph.tsx";
 import { PageFrame } from "./shell.tsx";
 import {
 	costLabel,
@@ -29,6 +29,7 @@ import { useNow } from "./use-now.ts";
 import type {
 	WorkflowCard,
 	WorkflowDetail,
+	WorkflowRole,
 	WorkflowRun,
 	WorkflowStage,
 } from "./workflows-page.ts";
@@ -93,6 +94,26 @@ const styles = stylex.create({
 		fontWeight: type.weight,
 		whiteSpace: "nowrap",
 	},
+	rolePill: {
+		display: "inline-flex",
+		alignItems: "center",
+		padding: `${space.twoXs} ${space.sm}`,
+		borderRadius: radius.pill,
+		backgroundColor: colours.surfaceMuted,
+		fontSize: type.pill,
+		fontWeight: type.weight,
+		whiteSpace: "nowrap",
+	},
+	mono: {
+		fontFamily: font.mono,
+		fontSize: type.small,
+	},
+	paneHead: {
+		display: "flex",
+		justifyContent: "flex-end",
+		gap: space.xs,
+		marginBottom: space.sm,
+	},
 	meta: {
 		marginLeft: "auto",
 		color: colours.inkSoft,
@@ -121,8 +142,14 @@ const styles = stylex.create({
 		fontSize: type.tag,
 		whiteSpace: "nowrap",
 	},
-	sourceOwn: {
+	sourceFirst: {
 		marginLeft: "auto",
+	},
+	sourceRoute: {
+		backgroundColor: colours.surfaceMuted,
+		color: colours.inkMuted,
+	},
+	sourceOwn: {
 		backgroundColor: colours.chip,
 		color: colours.chipInk,
 	},
@@ -272,7 +299,7 @@ const resultDot: Record<RunResult, stylex.StyleXStyles> = stylex.create({
 	cancelled: { backgroundColor: colours.lineStrong },
 });
 
-const tabs = ["diagram", "stages", "runs"] as const;
+const tabs = ["diagram", "stages", "roles", "runs"] as const;
 
 /** The versions with the latest runs, one row of cards on a desktop. The older ones fold. */
 const newestShown = 3;
@@ -344,7 +371,9 @@ function Card({
 				<h2 className={clsx(styles.heading)}>{card.package}</h2>
 				<Sha sha={card.sha} />
 				<span className={clsx(styles.meta)}>
-					{workflowsCopy.lastRun(spanText(now - Date.parse(card.lastRunAt)))}
+					{card.lastRunAt === null
+						? workflowsCopy.noRunYet
+						: workflowsCopy.lastRun(spanText(now - Date.parse(card.lastRunAt)))}
 				</span>
 			</div>
 			<div className={clsx(styles.stats)}>
@@ -533,6 +562,82 @@ function RunsTable({ runs }: { runs: WorkflowRun[] }) {
 	);
 }
 
+function Sources({ served }: { served: boolean }) {
+	return (
+		<>
+			{served ? (
+				<span
+					className={clsx(
+						styles.source,
+						styles.sourceRoute,
+						styles.sourceFirst,
+					)}
+				>
+					{workflowsCopy.packageRoute}
+				</span>
+			) : null}
+			<span
+				className={clsx(
+					styles.source,
+					styles.sourceOwn,
+					!served && styles.sourceFirst,
+				)}
+			>
+				{workflowsCopy.source}
+			</span>
+		</>
+	);
+}
+
+function RolesTable({ roles }: { roles: WorkflowRole[] }) {
+	const { columns } = workflowsCopy;
+	return (
+		<>
+			<div className={clsx(styles.paneHead)}>
+				<Sources served />
+			</div>
+			{roles.length === 0 ? (
+				<p className={clsx(styles.empty)}>{workflowsCopy.noRoles}</p>
+			) : (
+				<Table
+					columns={[
+						{ key: "role", label: columns.role },
+						{ key: "harness", label: columns.harness },
+						{ key: "model", label: columns.model },
+						{ key: "stages", label: columns.stages },
+						{ key: "share", label: columns.costShare, number: true },
+					]}
+					rows={roles.map((role) => ({
+						key: role.role,
+						cells: {
+							role: (
+								<span className={clsx(styles.rolePill, roleInkOf(role.role))}>
+									{role.role}
+								</span>
+							),
+							harness: (
+								<span className={clsx(styles.mono)}>
+									{role.harnesses.join(", ") || workflowsCopy.none}
+								</span>
+							),
+							model: (
+								<span className={clsx(styles.mono)}>
+									{role.models.join(", ") || workflowsCopy.none}
+								</span>
+							),
+							stages: role.stages.join(", ") || workflowsCopy.none,
+							share:
+								role.costShare === null
+									? workflowsCopy.none
+									: workflowsCopy.share(role.costShare),
+						},
+					}))}
+				/>
+			)}
+		</>
+	);
+}
+
 function Diagram({ graph }: { graph: WorkflowDetail["graph"] }) {
 	const [picked, setPicked] = useState<string | null>(null);
 	const shown =
@@ -556,10 +661,12 @@ function Diagram({ graph }: { graph: WorkflowDetail["graph"] }) {
 						</button>
 					))}
 				</div>
-				<p className={clsx(styles.note)}>{workflowsCopy.diagramNote}</p>
+				<p className={clsx(styles.note)}>
+					{workflowsCopy.diagramNote(graph.runId !== undefined)}
+				</p>
 			</div>
 			<WorkflowDiagram
-				key={`${graph.runId}\n${shown.name}`}
+				key={`${graph.runId ?? ""}\n${shown.name}`}
 				graph={shown.graph}
 			/>
 		</>
@@ -567,26 +674,29 @@ function Diagram({ graph }: { graph: WorkflowDetail["graph"] }) {
 }
 
 function Detail({ card }: { card: WorkflowCard }) {
-	const [tab, setTab] = useState<Tab>("diagram");
+	const [picked, setTab] = useState<Tab>("diagram");
 	const detail = useQuery(pageQuery.workflow(card.package, card.sha)).data;
+	const roles = detail?.roles ?? null;
+	const shownTabs = tabs.filter((item) => item !== "roles" || roles !== null);
+	const tab = shownTabs.includes(picked) ? picked : "diagram";
 	return (
 		<section className={clsx(styles.card)} aria-label={card.package}>
 			<div className={clsx(styles.head)}>
 				<h2 className={clsx(styles.heading)}>{card.package}</h2>
 				<Sha sha={card.sha} prefix />
-				<span className={clsx(styles.source, styles.sourceOwn)}>
-					{workflowsCopy.source}
-				</span>
-				<span className={clsx(styles.source, styles.sourceNeed)}>
-					{workflowsCopy.needsPackages}
-				</span>
+				<Sources served={roles !== null} />
+				{roles === null ? (
+					<span className={clsx(styles.source, styles.sourceNeed)}>
+						{workflowsCopy.needsPackages}
+					</span>
+				) : null}
 			</div>
 			<div
 				className={clsx(styles.tabs)}
 				role="tablist"
 				aria-label={workflowsCopy.tabsLabel}
 			>
-				{tabs.map((item) => (
+				{shownTabs.map((item) => (
 					<button
 						key={item}
 						type="button"
@@ -603,6 +713,8 @@ function Detail({ card }: { card: WorkflowCard }) {
 				<Diagram graph={detail.graph} />
 			) : tab === "stages" ? (
 				<StagesTable stages={detail.stages} />
+			) : tab === "roles" && roles !== null ? (
+				<RolesTable roles={roles} />
 			) : (
 				<RunsTable runs={detail.runs} />
 			)}

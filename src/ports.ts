@@ -18,6 +18,7 @@ import type {
 	WorkcellRun,
 } from "./domain.ts";
 import type { FactoryEntry, FactoryFloor } from "./factories.ts";
+import type { FactoryPackage, PackageDetail } from "./factory-packages.ts";
 import type {
 	AnswerResult,
 	CancelResult,
@@ -275,6 +276,13 @@ export type FactoryReader = {
 	 * and "not served" when the factory answered with 404.
 	 */
 	source: (runId: string) => Promise<SourceRead>;
+	/**
+	 * `GET /packages` of each reachable factory: one entry for each package version.
+	 * "not served" when no factory answers the read.
+	 */
+	packages: () => Promise<FactoryPackage[] | "not served">;
+	/** `GET /packages/{name}` of the factory that lists the package. Null when the read fails. */
+	packageDetail: (listed: FactoryPackage) => Promise<PackageDetail | null>;
 	/**
 	 * `GET /runs/{id}/stages/{stage}/transcript?after=` of the hub that reports the run, or else of its box:
 	 * the entries of the stage after the cursor `after`. `stage` is the node path of the stage.

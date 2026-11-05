@@ -248,6 +248,24 @@ const roleStrokes: ReadonlyMap<string, stylex.StyleXStyles> = new Map(
 	Object.entries(roleStroke),
 );
 
+/** The text of an agent role in the colour of its stage borders. */
+const roleInk = stylex.create({
+	implementer: { color: colours.accent },
+	verifier: { color: colours.awaitingMerge },
+	reviewer: { color: colours.done },
+	receiver: { color: colours.warn },
+	senior: { color: colours.danger },
+	manager: { color: colours.lineStrong },
+	other: { color: colours.inkMuted },
+});
+
+const roleInks: ReadonlyMap<string, stylex.StyleXStyles> = new Map(
+	Object.entries(roleInk),
+);
+
+export const roleInkOf = (role: string): stylex.StyleXStyles =>
+	roleInks.get(role) ?? roleInk.other;
+
 function roleStrokeOf(role: string | undefined): stylex.StyleXStyles {
 	return [
 		roleOutline.all,
