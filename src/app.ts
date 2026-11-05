@@ -196,6 +196,10 @@ export async function start(options: StartOptions): Promise<Running> {
 		() => configuration.hosts,
 	);
 	const hadRows = opened.store.readTickets().length > 0;
+	// A cold start judges only the errors of its own first poll.
+	if (!hadRows) {
+		opened.store.clearFetchError();
+	}
 	const pollOptions: PollOptions = {
 		configuration: configurationPort,
 		backends,

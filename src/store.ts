@@ -295,6 +295,9 @@ export function sqliteStore(path: string): {
 			recordFetchError(message) {
 				db.query("update fetch_status set error = ? where id = 1").run(message);
 			},
+			clearFetchError() {
+				db.run("update fetch_status set error = null where id = 1");
+			},
 			recordProjectError(project, message) {
 				db.query(
 					"insert into project_errors (project, error) values (?, ?) on conflict(project) do update set error = excluded.error",
