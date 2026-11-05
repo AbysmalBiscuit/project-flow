@@ -877,6 +877,9 @@ function BoxCard({
 	const hostNotServed = page.notServed.some(
 		(item) => item.panel === "host" && item.factory === box.name,
 	);
+	const dormant =
+		box.state === "asleep" || box.state === "waking" ? box.state : null;
+	const slotTotal = box.slots?.total ?? 0;
 	return (
 		<section
 			className={clsx(
@@ -894,7 +897,11 @@ function BoxCard({
 						{factoriesCopy.role[box.role]}
 					</span>
 				)}
-				{off ? (
+				{dormant !== null ? (
+					<span className={clsx(styles.pill)}>
+						{factoriesCopy.boxState[dormant]}
+					</span>
+				) : off ? (
 					<span className={clsx(styles.pill, styles.pillBad)}>
 						{factoriesCopy.noAnswer}
 					</span>
@@ -903,22 +910,43 @@ function BoxCard({
 						{factoriesCopy.level[host.level]}
 					</span>
 				)}
-				<span className={clsx(styles.meta)}>
-					{heartbeat === null
-						? factoriesCopy.noHeartbeat
-						: factoriesCopy.heartbeat(heartbeat)}
-					{host === undefined
-						? null
-						: `, ${factoriesCopy.uptime(spanText(host.uptimeS * 1_000))}`}
-				</span>
+				{box.state === "stopping" ? (
+					<span className={clsx(styles.pill)}>
+						{factoriesCopy.boxState.stopping}
+					</span>
+				) : null}
+				{dormant !== null ? null : (
+					<span className={clsx(styles.meta)}>
+						{heartbeat === null
+							? factoriesCopy.noHeartbeat
+							: factoriesCopy.heartbeat(heartbeat)}
+						{host === undefined
+							? null
+							: `, ${factoriesCopy.uptime(spanText(host.uptimeS * 1_000))}`}
+					</span>
+				)}
 			</div>
 			<div className={clsx(styles.sourceRow)}>
-				<Source>{factoriesCopy.sources.daemon}</Source>
-				<Source next>{factoriesCopy.hostSource}</Source>
+				{box.hub === undefined ? (
+					<>
+						<Source>{factoriesCopy.sources.daemon}</Source>
+						<Source next>{factoriesCopy.hostSource}</Source>
+					</>
+				) : (
+					<Source>{factoriesCopy.poolSource}</Source>
+				)}
 			</div>
-			{off ? (
+			{dormant === "asleep" ? (
 				<p className={clsx(styles.note)}>
-					{factoriesCopy.unreachable(heartbeat)}
+					{factoriesCopy.asleep(slotTotal, heartbeat)}
+				</p>
+			) : dormant === "waking" ? (
+				<p className={clsx(styles.note)}>{factoriesCopy.waking(slotTotal)}</p>
+			) : off ? (
+				<p className={clsx(styles.note)}>
+					{box.hub === undefined
+						? factoriesCopy.unreachable(heartbeat)
+						: factoriesCopy.boxUnreachable(heartbeat)}
 				</p>
 			) : (
 				<>

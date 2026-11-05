@@ -1,7 +1,8 @@
 import type { FactoryRun } from "./domain.ts";
 import type { FactoryEntry, FactoryFloor } from "./factories.ts";
-import { hostRoute } from "./factory-host.ts";
+import { type BoxState, hostRoute } from "./factory-host.ts";
 import type { Slots } from "./factory-kind.ts";
+import { localMachine } from "./factory-run-rows.ts";
 import { type HostHealth, hostHealth } from "./host-health.ts";
 import type {
 	HostSample,
@@ -38,11 +39,17 @@ export type FactoryCard = {
 	/** Null until the first check ends. */
 	reachable: boolean | null;
 	slots?: Slots;
-	/** The clock time of the last good `GET /daemon` read. */
+	/** The clock time of the last good `GET /daemon` read, or of the last hub contact of a pool box. */
 	heartbeatAt: string | null;
 	/** The host health of a box that answers, from its host samples. */
 	host?: HostHealth;
+	/** The state of the box in the box pool of a hub. */
+	state?: BoxState;
+	/** The hub whose box pool lists this box, when no listed factory is the box. */
+	hub?: string;
 };
+
+const awakeStates: ReadonlySet<BoxState> = new Set(["awake", "stopping"]);
 
 /** A live run of the "Running now" table. */
 export type RunningRun = Pick<
@@ -177,16 +184,22 @@ function cards(
 	now: Date,
 ): FactoryCard[] {
 	const samples = Map.groupBy(hostSamples, (sample) => sample.factory);
-	return entries.map((entry) => {
-		const host =
-			entry.reachable === true && !floor.hostsNotServed.has(entry.url)
-				? hostHealth(
-						samples.get(entry.name) ?? [],
-						entry.placementGate ?? null,
-						now,
-					)
-				: undefined;
-		return {
+	const healthOf = (name: string, gate: number | null) => {
+		const host = hostHealth(samples.get(name) ?? [], gate, now);
+		return host === undefined ? {} : { host };
+	};
+	const listedNames = new Set(entries.map((entry) => entry.name));
+	const pools = entries.flatMap((entry) =>
+		entry.reachable === true
+			? (floor.pools.get(entry.url) ?? []).flatMap((box) =>
+					box.name === localMachine ? [] : [{ hub: entry.name, box }],
+				)
+			: [],
+	);
+	const stateOf = new Map(pools.map(({ box }) => [box.name, box.state]));
+	return entries.flatMap((entry): FactoryCard[] => {
+		const state = stateOf.get(entry.name);
+		const card: FactoryCard = {
 			name: entry.name,
 			role: entry.alsoReadThroughHub === undefined ? entry.kind : "box",
 			reachable: entry.reachable,
@@ -194,8 +207,28 @@ function cards(
 				? { slots: entry.slots }
 				: {}),
 			heartbeatAt: floor.heartbeats.get(entry.url) ?? null,
-			...(host === undefined ? {} : { host }),
+			...(entry.reachable === true && !floor.hostsNotServed.has(entry.url)
+				? healthOf(entry.name, entry.placementGate ?? null)
+				: {}),
+			...(state === undefined ? {} : { state }),
 		};
+		const poolCards = pools.flatMap(({ hub, box }): FactoryCard[] =>
+			hub !== entry.name || listedNames.has(box.name)
+				? []
+				: [
+						{
+							name: box.name,
+							role: "box",
+							hub,
+							state: box.state,
+							reachable: awakeStates.has(box.state),
+							slots: box.slots,
+							heartbeatAt: box.last_contact,
+							...(awakeStates.has(box.state) ? healthOf(box.name, null) : {}),
+						},
+					],
+		);
+		return [card, ...poolCards];
 	});
 }
 

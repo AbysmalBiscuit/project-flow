@@ -36,3 +36,33 @@ export const hostRoute = "/machine";
 
 /** How often Project Flow samples the host route of each factory. */
 export const hostSampleMs = 15_000;
+
+/** The states of a box in the box pool of a hub. */
+export const boxStates = [
+	"awake",
+	"asleep",
+	"waking",
+	"stopping",
+	"unreachable",
+] as const;
+
+export type BoxState = (typeof boxStates)[number];
+
+/** The answer of a hub's `GET /machines/pool`: the state, slots and host snapshot of each box. */
+export const boxPool = z.object({
+	machines: z.array(
+		z.object({
+			name: z.string(),
+			state: z.enum(boxStates),
+			drained: z.boolean(),
+			slots: z.object({ total: z.number(), used: z.number() }),
+			last_contact: z.string().nullable(),
+			snapshot: hostSnapshot.nullable(),
+		}),
+	),
+});
+
+export type PoolBox = z.infer<typeof boxPool>["machines"][number];
+
+/** The route of the box pool. */
+export const poolRoute = "/machines/pool";

@@ -8,7 +8,7 @@ import type {
 	ShownFactoryRun,
 	TicketState,
 } from "./domain.ts";
-import { hostRoute } from "./factory-host.ts";
+import { hostRoute, poolRoute } from "./factory-host.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { GraphDirection } from "./view-settings.ts";
 
@@ -970,6 +970,16 @@ export const factoriesCopy = {
 		span === null
 			? "The factory has not answered yet."
 			: `The factory does not answer. Its last heartbeat was ${span} ago.`,
+	boxUnreachable: (span: string | null): string =>
+		span === null
+			? "The box has not answered its hub yet."
+			: `The box does not answer its hub. Its last contact was ${span} ago.`,
+	boxState: { asleep: "asleep", waking: "waking", stopping: "stopping" },
+	asleep: (slots: number, span: string | null): string =>
+		`Asleep with ${plural(slots, "slot", "slots")}${span === null ? "" : `, last contact ${span} ago`}. The hub wakes it when the queue needs slots.`,
+	waking: (slots: number): string =>
+		`Waking with ${plural(slots, "slot", "slots")}. The hub woke it for the queue.`,
+	poolSource: `GET ${poolRoute}`,
 	slots: "Slots",
 	busy: (used: number, total: number): string => `${used} / ${total} busy`,
 	noSlotCount: "The factory reports no slots.",
