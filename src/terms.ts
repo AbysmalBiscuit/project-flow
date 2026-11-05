@@ -984,7 +984,10 @@ export const factoriesCopy = {
 		`Waking with ${plural(slots, "slot", "slots")}. The hub woke it for the queue.`,
 	poolSource: `GET ${poolRoute}`,
 	slots: "Slots",
-	busy: (used: number, total: number): string => `${used} / ${total} busy`,
+	busy: (used: number, total: number): string =>
+		used > total
+			? `${total} / ${total} busy (+${used - total})`
+			: `${used} / ${total} busy`,
 	noSlotCount: "The factory reports no slots.",
 	sources: {
 		daemon: "GET /daemon",
@@ -1004,6 +1007,7 @@ export const factoriesCopy = {
 		cpu: "CPU",
 		memory: "Memory",
 		swap: "Swap",
+		disk: "Disk",
 	},
 	loadPerCore: (perCore: string, load: string): string =>
 		`${perCore} (${load})`,
@@ -1011,8 +1015,13 @@ export const factoriesCopy = {
 		`${busy}%, iowait ${iowait}%`,
 	available: (gb: string): string => `${gb} GB available`,
 	swapValue: (used: string, total: string): string => `${used} / ${total} GB`,
-	diskValue: (free: string, fullIn: string | null): string =>
-		`${free} GB free, ${fullIn === null ? "no growth" : `full in ~${fullIn}`}`,
+	diskValue: (
+		free: string,
+		total: string,
+		unit: string,
+		fullIn: string | null,
+	): string =>
+		`${free} / ${total} ${unit} free, ${fullIn === null ? "no growth" : `full in ~${fullIn}`}`,
 	iowait: "iowait",
 	hostSize: (cores: number, gb: string): string =>
 		`${plural(cores, "core", "cores")}, ${gb} GB RAM`,
