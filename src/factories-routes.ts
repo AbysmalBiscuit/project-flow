@@ -27,7 +27,7 @@ export type FactoriesRouteOptions = {
 	ticketUrls: () => ReadonlyMap<string, string>;
 	/** Bring the run history up to date with the run list. */
 	recordRuns: () => void;
-	/** Check each factory again: `GET /daemon`, and `GET /sources` and `GET /holds` of each hub. */
+	/** Check each factory again: `GET /daemon`, and `GET /sources`, `GET /holds` and `GET /machines/pool` of each hub. */
 	checkFactories: () => void;
 };
 

@@ -22,7 +22,6 @@ import {
 	boxPool,
 	hostRoute,
 	hostSnapshot,
-	ownPoolBox,
 	type PoolBox,
 	poolRoute,
 } from "./factory-host.ts";
@@ -54,6 +53,7 @@ import { runPullReader } from "./factory-run-pulls.ts";
 import {
 	asksOf,
 	factoryRuns,
+	localMachine,
 	mergedRuns,
 	type ReadRun,
 	type RunAsks,
@@ -336,7 +336,7 @@ export function factoryReader(
 			for (const box of machines) {
 				if (
 					box.snapshot !== null &&
-					box.name !== ownPoolBox &&
+					box.name !== localMachine &&
 					!listedNames.has(box.name)
 				) {
 					history.host({

@@ -66,6 +66,3 @@ export type PoolBox = z.infer<typeof boxPool>["machines"][number];
 
 /** The route of the box pool. */
 export const poolRoute = "/machines/pool";
-
-/** The pool entry of the hub's own daemon, which the hub card already shows. */
-export const ownPoolBox = "local";

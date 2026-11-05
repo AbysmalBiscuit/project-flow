@@ -322,7 +322,7 @@ The time since the last good `GET /daemon` read of a factory.
 _Avoid_: Uptime, last seen
 
 **Host sample**:
-One answer of the `GET /machine` route of a factory: the CPU load, the CPU busy and iowait percentages, the memory, the swap, the free space of each disk mount, and the uptime of its host. Project Flow reads a host sample of each factory every 15 seconds. The run history keeps the host samples of the last 24 hours, and the `host_samples` view holds one row for each sample.
+One answer of the `GET /machine` route of a factory: the CPU load, the CPU busy and iowait percentages, the memory, the swap, the free space of each disk mount, and the uptime of its host. Project Flow reads a host sample of each factory every 15 seconds. The box pool of a hub also gives a host sample of each awake box, under the box name. The run history keeps the host samples of the last 24 hours, and the `host_samples` view holds one row for each sample.
 _Avoid_: Host stats, metrics snapshot
 
 **Host health**:

@@ -1,7 +1,8 @@
 import type { FactoryRun } from "./domain.ts";
 import type { FactoryEntry, FactoryFloor } from "./factories.ts";
-import { type BoxState, hostRoute, ownPoolBox } from "./factory-host.ts";
+import { type BoxState, hostRoute } from "./factory-host.ts";
 import type { Slots } from "./factory-kind.ts";
+import { localMachine } from "./factory-run-rows.ts";
 import { type HostHealth, hostHealth } from "./host-health.ts";
 import type {
 	HostSample,
@@ -191,7 +192,7 @@ function cards(
 	const pools = entries.flatMap((entry) =>
 		entry.reachable === true
 			? (floor.pools.get(entry.url) ?? []).flatMap((box) =>
-					box.name === ownPoolBox ? [] : [{ hub: entry.name, box }],
+					box.name === localMachine ? [] : [{ hub: entry.name, box }],
 				)
 			: [],
 	);
