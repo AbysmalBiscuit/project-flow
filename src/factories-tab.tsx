@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "./button.tsx";
 import { textControl } from "./control-styles.ts";
@@ -152,6 +152,7 @@ const styles = stylex.create({
 		borderLeftColor: colours.inkSoft,
 		opacity: 0.6,
 	},
+	keptHeight: (height: string) => ({ minHeight: height }),
 	head: {
 		display: "flex",
 		flexWrap: "wrap",
@@ -1034,6 +1035,34 @@ function BoxBands({ page, now }: { page: FactoriesPage; now: number }) {
 	);
 }
 
+/** The last height of each box card while its factory answered, kept for the life of the page. */
+const answeredHeights = new Map<string, number>();
+
+/**
+ * Measures a box card while its factory answers. When the factory stops answering,
+ * the card keeps that height, so the cards around it do not move.
+ */
+function useKeptHeight(name: string, answers: boolean) {
+	const ref = useRef<HTMLElement>(null);
+	const [kept, setKept] = useState(() => answeredHeights.get(name));
+	useLayoutEffect(() => {
+		const card = ref.current;
+		if (!answers || card === null) {
+			return;
+		}
+		const observer = new ResizeObserver(() => {
+			answeredHeights.set(name, card.offsetHeight);
+			setKept(card.offsetHeight);
+		});
+		observer.observe(card);
+		return () => observer.disconnect();
+	}, [name, answers]);
+	return {
+		ref,
+		style: !answers && kept !== undefined && styles.keptHeight(`${kept}px`),
+	};
+}
+
 function BoxCard({
 	box,
 	page,
@@ -1057,13 +1086,16 @@ function BoxCard({
 			? box.state
 			: null;
 	const slotTotal = box.slots?.total ?? 0;
+	const kept = useKeptHeight(box.name, !off);
 	return (
 		<section
-			className={clsx(
+			ref={kept.ref}
+			{...stylex.props(
 				styles.card,
 				styles.box,
 				host !== undefined && levelEdge[host.level],
 				off && styles.boxOff,
+				kept.style,
 			)}
 			aria-label={box.name}
 		>
