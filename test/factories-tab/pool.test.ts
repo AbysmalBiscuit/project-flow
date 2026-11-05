@@ -73,7 +73,8 @@ describe("the box pool of a hub", () => {
 			const { host, ...spare } = cardOf(page, "spare") ?? {};
 			expect(spare).toEqual({
 				name: "spare",
-				role: "box",
+				roles: ["daemon"],
+				network: "work hub",
 				hub: "work hub",
 				state: "awake",
 				reachable: true,
@@ -83,7 +84,8 @@ describe("the box pool of a hub", () => {
 			expect(host?.cores).toBe(awake.snapshot?.cpu.cores);
 			expect(cardOf(page, "spare-2")).toEqual({
 				name: "spare-2",
-				role: "box",
+				roles: ["daemon"],
+				network: "work hub",
 				hub: "work hub",
 				state: "asleep",
 				reachable: false,
@@ -120,6 +122,23 @@ describe("the box pool of a hub", () => {
 		}
 	});
 
+	test("a hub whose pool holds only its own machine builds its runs, so it is a hub and a daemon", async () => {
+		const app = await serveHub(
+			hubAnswers({ machines: [{ ...awake, name: "local" }] }),
+		);
+		try {
+			const page = await factoriesWhere(
+				app.base,
+				(seen) => cardOf(seen, "work hub")?.roles.includes("daemon") === true,
+			);
+			expect(page.boxes.map(({ name, roles }) => ({ name, roles }))).toEqual([
+				{ name: "work hub", roles: ["hub", "daemon"] },
+			]);
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a hub with no pool route keeps the cards from GET /daemon", async () => {
 		const app = await serveHub(hubAnswers(null));
 		try {
@@ -135,7 +154,7 @@ describe("the box pool of a hub", () => {
 			expect(page.boxes.map(({ host: _, ...box }) => box)).toEqual([
 				{
 					name: "work hub",
-					role: "hub",
+					roles: ["hub"],
 					reachable: true,
 					slots: hubAbout.slots,
 					heartbeatAt: clockStart,

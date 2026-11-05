@@ -61,9 +61,28 @@ const styles = stylex.create({
 	},
 	boxes: {
 		gridTemplateColumns: {
-			default: `repeat(auto-fit, minmax(${measure.boxCardMin}, 1fr))`,
+			default: `repeat(auto-fill, minmax(${measure.boxCardMin}, 1fr))`,
 			[media.projectBar]: "minmax(0, 1fr)",
 		},
+	},
+	band: {
+		marginBottom: space.lg,
+		padding: space.md,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.laneLine,
+		borderRadius: radius.md,
+		backgroundColor: colours.groupFill,
+	},
+	bandHead: {
+		display: "flex",
+		flexWrap: "wrap",
+		gap: space.sm,
+		alignItems: "center",
+		marginBottom: space.md,
+	},
+	bandGrid: {
+		marginBottom: 0,
 	},
 	two: {
 		gridTemplateColumns: {
@@ -904,6 +923,72 @@ function HeartbeatDot({
 	);
 }
 
+/**
+ * The box cards in bands: each hub that has boxes heads a band of its network,
+ * and one band holds the standalone factories. Without a network, the cards
+ * need no bands.
+ */
+function BoxBands({ page, now }: { page: FactoriesPage; now: number }) {
+	const grid = (boxes: FactoryCard[], inBand: boolean) => (
+		<div className={clsx(styles.grid, styles.boxes, inBand && styles.bandGrid)}>
+			{boxes.map((box) => (
+				<BoxCard key={box.name} box={box} page={page} now={now} />
+			))}
+		</div>
+	);
+	const members = Map.groupBy(
+		page.boxes.filter((box) => box.network !== undefined),
+		(box) => box.network,
+	);
+	const networks = page.boxes.filter((box) => members.has(box.name));
+	if (networks.length === 0) {
+		return grid(page.boxes, false);
+	}
+	const standalone = page.boxes.filter(
+		(box) => box.network === undefined && !members.has(box.name),
+	);
+	return (
+		<>
+			{networks.map((hub) => {
+				const boxes = members.get(hub.name) ?? [];
+				return (
+					<section
+						key={hub.name}
+						className={clsx(styles.band)}
+						aria-label={hub.name}
+					>
+						<div className={clsx(styles.bandHead)}>
+							<h2 className={clsx(styles.heading)}>{hub.name}</h2>
+							<span className={clsx(styles.pill)}>{factoriesCopy.network}</span>
+							<span className={clsx(styles.meta)}>
+								{factoriesCopy.networkSummary(
+									boxes.length,
+									boxes.filter((box) => box.reachable === true).length,
+								)}
+								{hub.slots === undefined
+									? null
+									: `, ${factoriesCopy.busy(hub.slots.used, hub.slots.total)}`}
+							</span>
+						</div>
+						{grid([hub, ...boxes], true)}
+					</section>
+				);
+			})}
+			{standalone.length === 0 ? null : (
+				<section
+					className={clsx(styles.band)}
+					aria-label={factoriesCopy.standalone}
+				>
+					<div className={clsx(styles.bandHead)}>
+						<h2 className={clsx(styles.heading)}>{factoriesCopy.standalone}</h2>
+					</div>
+					{grid(standalone, true)}
+				</section>
+			)}
+		</>
+	);
+}
+
 function BoxCard({
 	box,
 	page,
@@ -939,11 +1024,11 @@ function BoxCard({
 		>
 			<div className={clsx(styles.head)}>
 				<h2 className={clsx(styles.heading)}>{box.name}</h2>
-				{box.role === null ? null : (
-					<span className={clsx(styles.pill)}>
-						{factoriesCopy.role[box.role]}
+				{box.roles.map((role) => (
+					<span key={role} className={clsx(styles.pill)}>
+						{factoriesCopy.role[role]}
 					</span>
-				)}
+				))}
 				{dormant !== null ? (
 					<span className={clsx(styles.pill)}>
 						{factoriesCopy.boxState[dormant]}
@@ -1514,11 +1599,7 @@ export function Page() {
 			) : (
 				<>
 					<Tiles page={page} now={now} />
-					<div className={clsx(styles.grid, styles.boxes)}>
-						{page.boxes.map((box) => (
-							<BoxCard key={box.name} box={box} page={page} now={now} />
-						))}
-					</div>
+					<BoxBands page={page} now={now} />
 					<div className={clsx(styles.grid, styles.two)}>
 						<Card
 							title={factoriesCopy.running}

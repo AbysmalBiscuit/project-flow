@@ -142,14 +142,14 @@ describe("the Factories tab", () => {
 			expect(page.boxes).toEqual([
 				{
 					name: "work hub",
-					role: "hub",
+					roles: ["hub"],
 					reachable: true,
 					slots: { total: 12, used: 3 },
 					heartbeatAt: clockStart,
 				},
 				{
 					name: "laptop",
-					role: "daemon",
+					roles: ["daemon"],
 					reachable: true,
 					slots: { total: 2, used: 1 },
 					heartbeatAt: clockStart,
@@ -363,14 +363,14 @@ describe("the Factories tab", () => {
 			expect(page.boxes).toEqual([
 				{
 					name: "work hub",
-					role: "hub",
+					roles: ["hub"],
 					reachable: true,
 					slots: { total: 12, used: 3 },
 					heartbeatAt: clockStart,
 				},
 				{
 					name: "laptop",
-					role: null,
+					roles: [],
 					reachable: false,
 					heartbeatAt: null,
 				},

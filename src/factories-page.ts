@@ -1,7 +1,7 @@
 import type { FactoryRun } from "./domain.ts";
 import type { FactoryEntry, FactoryFloor } from "./factories.ts";
 import { type BoxState, hostRoute } from "./factory-host.ts";
-import type { Slots } from "./factory-kind.ts";
+import type { FactoryKind, Slots } from "./factory-kind.ts";
 import { localMachine } from "./factory-run-rows.ts";
 import { type HostHealth, hostHealth } from "./host-health.ts";
 import type {
@@ -34,8 +34,13 @@ export const factoryCheckMs = 15_000;
 /** One factory of the Factories tab: its role, its slots and the age of its last answer. */
 export type FactoryCard = {
 	name: string;
-	/** A box is a factory whose runs a listed hub also reports. Null before the first good check. */
-	role: "hub" | "daemon" | "box" | null;
+	/**
+	 * A hub takes runs from its sources, and a daemon builds them. A hub without
+	 * boxes builds its own runs, so it is both. Empty before the first good check.
+	 */
+	roles: FactoryKind[];
+	/** The hub whose network holds this box. */
+	network?: string;
 	/** Null until the first check ends. */
 	reachable: boolean | null;
 	slots?: Slots;
@@ -198,12 +203,28 @@ function cards(
 				: [{ hub: entry.name, hubAnswers: entry.reachable === true, box }],
 		),
 	);
-	const stateOf = new Map(pools.map(({ box }) => [box.name, box.state]));
+	const pooledIn = new Map(
+		pools.map(({ hub, box }) => [box.name, { hub, box }]),
+	);
+	const rolesOf = (entry: FactoryEntry): FactoryKind[] => {
+		if (entry.alsoReadThroughHub !== undefined || pooledIn.has(entry.name)) {
+			return ["daemon"];
+		}
+		if (entry.kind !== "hub") {
+			return entry.kind === null ? [] : [entry.kind];
+		}
+		const pool = floor.pools.get(entry.url) ?? [];
+		const buildsItself = pool.some((box) => box.name === localMachine);
+		return buildsItself ? ["hub", "daemon"] : ["hub"];
+	};
 	return entries.flatMap((entry): FactoryCard[] => {
-		const state = stateOf.get(entry.name);
+		const pooled = pooledIn.get(entry.name);
+		const state = pooled?.box.state;
+		const network = pooled?.hub ?? entry.alsoReadThroughHub;
 		const card: FactoryCard = {
 			name: entry.name,
-			role: entry.alsoReadThroughHub === undefined ? entry.kind : "box",
+			roles: rolesOf(entry),
+			...(network === undefined ? {} : { network }),
 			reachable: entry.reachable,
 			...(entry.reachable === true && entry.slots !== undefined
 				? { slots: entry.slots }
@@ -223,7 +244,8 @@ function cards(
 				return [
 					{
 						name: box.name,
-						role: "box",
+						roles: ["daemon"],
+						network: hub,
 						hub,
 						state: box.state,
 						reachable: awake,
@@ -241,7 +263,7 @@ function cards(
 /** The slots of every factory, with a box that a hub also reports counted once, in its hub. */
 function slotsOf(boxes: FactoryCard[]): Slots | null {
 	const counted = boxes.flatMap((box) =>
-		box.role !== "box" && box.slots !== undefined ? [box.slots] : [],
+		box.network === undefined && box.slots !== undefined ? [box.slots] : [],
 	);
 	return counted.length === 0
 		? null

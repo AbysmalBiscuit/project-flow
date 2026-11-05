@@ -959,7 +959,11 @@ export const factoriesCopy = {
 			: reasons.map(({ reason, count }) => `${count} ${reason}`).join(", "),
 	perMerged: (cost: string | null): string =>
 		cost === null ? "no merged PR" : `${cost} per merged PR`,
-	role: { hub: "hub", daemon: "factory", box: "box" },
+	role: { hub: "hub", daemon: "daemon" },
+	network: "network",
+	standalone: "Standalone",
+	networkSummary: (boxes: number, awake: number): string =>
+		`${boxes} ${boxes === 1 ? "box" : "boxes"}, ${awake} awake`,
 	heartbeat: (span: string): string => `heartbeat ${span} ago`,
 	uptime: (span: string): string => `up ${span}`,
 	noHeartbeat: "no heartbeat yet",
