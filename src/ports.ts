@@ -356,6 +356,7 @@ export type Store = {
 	recordGoodPoll: (project: ProjectRef, at: Date) => void;
 	forgetGoodPoll: (project: ProjectRef) => void;
 	recordFetchError: (message: string) => void;
+	clearFetchError: () => void;
 	recordProjectError: (project: ProjectRef, message: string) => void;
 	clearProjectError: (project: ProjectRef) => void;
 	projectError: (project: ProjectRef) => string | null;
