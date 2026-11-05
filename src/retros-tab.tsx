@@ -97,6 +97,13 @@ const styles = stylex.create({
 		backgroundColor: colours.chip,
 		color: colours.chipInk,
 	},
+	sourceNeed: {
+		backgroundColor: colours.warnWash,
+		color: colours.warn,
+	},
+	sourceNext: {
+		marginLeft: 0,
+	},
 	kicker: {
 		color: colours.inkSoft,
 		fontSize: type.kicker,
@@ -307,14 +314,36 @@ function SmoothnessPill({ level }: { level: Smoothness }) {
 function Source({
 	children,
 	store = false,
+	need = false,
+	next = false,
 }: {
 	children: string;
 	store?: boolean;
+	need?: boolean;
+	/** A source after another source in the same head. */
+	next?: boolean;
 }) {
 	return (
-		<span className={clsx(styles.source, store && styles.sourceStore)}>
+		<span
+			className={clsx(
+				styles.source,
+				store && styles.sourceStore,
+				need && styles.sourceNeed,
+				next && styles.sourceNext,
+			)}
+		>
 			{children}
 		</span>
+	);
+}
+
+/** A retro section that the retro route does not give yet. */
+function NoteSection({ title }: { title: string }) {
+	return (
+		<div className={clsx(styles.section)}>
+			<div className={clsx(styles.kicker, styles.sectionKicker)}>{title}</div>
+			<p className={clsx(styles.empty)}>{retrosCopy.noNote}</p>
+		</div>
 	);
 }
 
@@ -563,7 +592,14 @@ function RunRetroCard({ runId }: { runId: string }) {
 					)}
 				</>
 			}
-			head={<Source>{retrosCopy.sources.route}</Source>}
+			head={
+				<>
+					<Source>{retrosCopy.sources.route}</Source>
+					<Source need next>
+						{retrosCopy.notesSource}
+					</Source>
+				</>
+			}
 		>
 			{run.retro === null ? (
 				<p className={clsx(styles.empty)}>
@@ -574,16 +610,24 @@ function RunRetroCard({ runId }: { runId: string }) {
 					<Tiles retro={run.retro} />
 					<div className={clsx(styles.grid, styles.half)}>
 						<div>
-							<div className={clsx(styles.kicker, styles.sectionKicker)}>
-								{retrosCopy.stages}
+							<NoteSection title={retrosCopy.notes.intent} />
+							<NoteSection title={retrosCopy.notes.outcome} />
+							<div className={clsx(styles.section)}>
+								<div className={clsx(styles.kicker, styles.sectionKicker)}>
+									{retrosCopy.stages}
+								</div>
+								<StageTable retro={run.retro} />
 							</div>
-							<StageTable retro={run.retro} />
 						</div>
 						<div>
-							<div className={clsx(styles.kicker, styles.sectionKicker)}>
-								{retrosCopy.frictionPoints}
+							<div className={clsx(styles.section)}>
+								<div className={clsx(styles.kicker, styles.sectionKicker)}>
+									{retrosCopy.frictionPoints}
+								</div>
+								<FrictionPoints retro={run.retro} />
 							</div>
-							<FrictionPoints retro={run.retro} />
+							<NoteSection title={retrosCopy.notes.learnings} />
+							<NoteSection title={retrosCopy.notes.openItems} />
 						</div>
 					</div>
 				</>

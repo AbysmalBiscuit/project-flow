@@ -1153,6 +1153,9 @@ const frictionKindText: Partial<Record<string, string>> = {
 	failure: "The run failed.",
 };
 
+/** The workcell ticket for the intent, outcome, learnings and open items of a retro. */
+const retroNotesTicket = 1784;
+
 export const retrosCopy = {
 	subtitle: "How each ended run went, and where it lost time.",
 	runs: "Runs",
@@ -1184,6 +1187,14 @@ export const retrosCopy = {
 	},
 	stages: "Stages",
 	frictionPoints: "Friction",
+	notes: {
+		intent: "Intent",
+		outcome: "Outcome",
+		learnings: "Learnings",
+		openItems: "Open items",
+	},
+	notesSource: `needs workcell#${retroNotesTicket}`,
+	noNote: "The retro route does not give this yet.",
 	runCount: (runs: number): string => plural(runs, "run", "runs"),
 	/** A friction point with no detail says what happened by its kind. */
 	kindText: (kind: string): string =>
