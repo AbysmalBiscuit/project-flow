@@ -80,6 +80,7 @@ describe("factories", () => {
 			const feedUrls = [
 				"http://localhost/runs?archived=1",
 				"http://localhost/events",
+				"http://localhost/machine",
 			];
 			expect(
 				requests.filter((request) => !feedUrls.includes(request.url)),
@@ -143,7 +144,9 @@ describe("factories", () => {
 					.map((request) => request.url)
 					.filter(
 						(url) =>
-							url !== `${hubUrl}/runs?archived=1` && url !== `${hubUrl}/events`,
+							url !== `${hubUrl}/runs?archived=1` &&
+							url !== `${hubUrl}/events` &&
+							url !== `${hubUrl}/machine`,
 					),
 			).toEqual([`${hubUrl}/daemon`]);
 		} finally {

@@ -271,7 +271,7 @@ The table of every workcell run that the factories report, with search and filte
 _Avoid_: Run log
 
 **Run history**:
-The copy of the runs that the factories report, which the store keeps. It also keeps the stages, turns, asks, verification record and retro of each run, and its package version. Each run keeps its rows after the factory stops listing it, until Lev deletes the run. The next factory read fills it again after a lost store. Insight queries read it through views: `runs`, `stages`, `turns`, `asks`, `verdicts` and `retros`.
+The copy of the runs that the factories report, which the store keeps. It also keeps the stages, turns, asks, verification record and retro of each run, and its package version. Each run keeps its rows after the factory stops listing it, until Lev deletes the run. The next factory read fills it again after a lost store. It also keeps the host samples of the last 24 hours. Insight queries read it through views: `runs`, `stages`, `turns`, `asks`, `verdicts`, `retros` and `host_samples`.
 _Avoid_: Runs list (when the stored rows are meant), run archive
 
 **Insight query**:
@@ -294,7 +294,7 @@ The level of a retro that a fixed rule of the factory sets: `smooth`, `bumpy`, `
 _Avoid_: Score, health (when a run is meant)
 
 **Factories tab**:
-The page that shows what each factory does now: the summary tiles, one card for each factory with its slots and heartbeat age, the live runs, the runs that need attention, and the hub queue. Each panel names its data source. A factory that does not answer shows as such, and the other panels keep working.
+The page that shows what each factory does now: the summary tiles, one card for each factory with its slots, heartbeat age and host health, the live runs, the runs that need attention, and the hub queue. Each panel names its data source. A factory that does not answer shows as such, and the other panels keep working.
 _Avoid_: Fleet page, dashboard
 
 **Package version**:
@@ -316,6 +316,18 @@ _Avoid_: Stuck run, timed-out run
 **Heartbeat age**:
 The time since the last good `GET /daemon` read of a factory.
 _Avoid_: Uptime, last seen
+
+**Host sample**:
+One answer of the `GET /machine` route of a factory: the CPU load, the CPU busy and iowait percentages, the memory, the swap, the free space of each disk mount, and the uptime of its host. Project Flow reads a host sample of each factory every 15 seconds. The run history keeps the host samples of the last 24 hours, and the `host_samples` view holds one row for each sample.
+_Avoid_: Host stats, metrics snapshot
+
+**Host health**:
+The meters of the card of each factory on the Factories tab, from its host samples, with a colour for each metric: green, amber or red. The last host sample gives the values, and a card shows no meters when that sample is older than one minute. The samples of the last hour give the load sparkline. A straight-line fit of the used space of each mount over the last 6 hours gives its time until full, or "no growth". The placement gate of a factory marks the load meter and turns the card amber at the gate. A card takes the colour of its worst metric and names that metric in a note.
+_Avoid_: Box status, system health
+
+**Placement gate**:
+The 5-minute load average at which a factory stops taking new runs, set as `placementGate` of the factory in the configuration file. It marks the load meter of the host health.
+_Avoid_: Load limit, threshold (when the gate is meant)
 
 **Hub queue**:
 The tickets that a hub source did not start on its last poll, in start order, with what each one waits on. Project Flow reads it from `GET /sources` of each hub, and the budget hold of each ticket from `GET /holds`.

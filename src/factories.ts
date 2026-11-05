@@ -18,6 +18,7 @@ import {
 	streamedRunPollMs,
 	streamRetryMs,
 } from "./factory-events.ts";
+import { hostRoute, hostSnapshot } from "./factory-host.ts";
 import {
 	body,
 	NotServed,
@@ -60,7 +61,7 @@ import { runTranscriptReader } from "./factory-run-transcript.ts";
 import { hubSourcesOf, type SourceQueue } from "./factory-sources.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FactoryReader } from "./ports.ts";
-import type { StageEvent } from "./run-history.ts";
+import type { HostSample, StageEvent } from "./run-history.ts";
 import { WatchedMap, WatchedSet } from "./watched.ts";
 
 /** A factory that this launch reads, and what its last check found. */
@@ -85,6 +86,8 @@ export type FactoryFloor = {
 	queues: Map<string, SourceQueue[] | "not served">;
 	/** When each live run entered its current stage, by run id. */
 	stageSince: Map<string, string>;
+	/** The factory urls whose `GET /machine` answers 404. */
+	hostsNotServed: Set<string>;
 };
 
 export type ListedFactory = Factory & { source: FactoryEntry["source"] };
@@ -115,10 +118,11 @@ export function flagFactory(value: string): Factory | { error: string } {
 	};
 }
 
-/** Takes the stage events of the factory feed and the asks of each asks read, for the run history. */
+/** Takes the stage events of the factory feed, the asks of each asks read and the host samples, for the run history. */
 export type HistorySink = {
 	stage: (runId: string, event: StageEvent) => void;
 	asks: (runId: string, asks: RunAsks) => void;
+	host: (sample: HostSample) => void;
 };
 
 type Found = Pick<FactoryEntry, "reachable" | "kind" | "boxes" | "slots">;
@@ -142,7 +146,7 @@ export function factoryReader(
 	listed: () => ListedFactory[],
 	signal: AbortSignal,
 	now: () => Date,
-	history: HistorySink = { stage: () => {}, asks: () => {} },
+	history: HistorySink = { stage: () => {}, asks: () => {}, host: () => {} },
 ): FactoryReader {
 	/** Counts the writes to the state that the run list reads. */
 	let runWrites = 0;
@@ -286,6 +290,27 @@ export function factoryReader(
 	const heartbeats = new Map<string, string>();
 	/** When each live run entered its current stage, by run id. */
 	const stageSince = new Map<string, string>();
+	const hostsNotServed = new Set<string>();
+	const sampleHost = async (factory: ListedFactory): Promise<void> => {
+		try {
+			const read = reader(fetchImpl, factory.url, signal);
+			const snapshot = await body(await read(hostRoute), hostSnapshot);
+			hostsNotServed.delete(factory.url);
+			history.host({
+				factory: factory.name,
+				at: now().toISOString(),
+				snapshot,
+			});
+		} catch (error) {
+			if (error instanceof NotServed) {
+				hostsNotServed.add(factory.url);
+				return;
+			}
+			if (!(error instanceof Unreachable)) {
+				throw error;
+			}
+		}
+	};
 	const readHubSources = async (
 		factory: ListedFactory,
 		read: Read,
@@ -691,8 +716,12 @@ export function factoryReader(
 			heartbeats: new Map(heartbeats),
 			queues: new Map(queues),
 			stageSince: new Map(stageSince),
+			hostsNotServed: new Set(hostsNotServed),
 		}),
 		unreachable,
+		sampleHosts: async () => {
+			await Promise.all(listed().map(sampleHost));
+		},
 		readRuns: readAllRuns,
 		follow,
 		runs: runList,

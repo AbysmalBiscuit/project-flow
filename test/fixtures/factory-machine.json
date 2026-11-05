@@ -1,0 +1,27 @@
+{
+	"taken_at": "2026-11-05T01:13:02.063602+00:00",
+	"uptime_seconds": 445742.17,
+	"cpu": {
+		"cores": 16,
+		"load_1m": 6.55615234375,
+		"load_5m": 8.64794921875,
+		"load_15m": 7.49658203125,
+		"busy_percent": 29.2,
+		"iowait_percent": 0.0
+	},
+	"memory": {
+		"total_bytes": 33386541056,
+		"available_bytes": 14973480960,
+		"swap_total_bytes": 34359738368,
+		"swap_used_bytes": 5324488704
+	},
+	"disks": [
+		{
+			"mount": "/",
+			"holds": ["runs", "store", "worktrees"],
+			"total_bytes": 269427478528,
+			"used_bytes": 213436805120,
+			"free_bytes": 42230001664
+		}
+	]
+}

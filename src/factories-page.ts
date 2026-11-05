@@ -1,7 +1,14 @@
 import type { FactoryRun } from "./domain.ts";
 import type { FactoryEntry, FactoryFloor } from "./factories.ts";
+import { hostRoute } from "./factory-host.ts";
 import type { Slots } from "./factory-kind.ts";
-import type { RunHistoryEnd, StageCost, StageSample } from "./run-history.ts";
+import { type HostHealth, hostHealth } from "./host-health.ts";
+import type {
+	HostSample,
+	RunHistoryEnd,
+	StageCost,
+	StageSample,
+} from "./run-history.ts";
 import type { RunListRow } from "./run-list.ts";
 import { percentile } from "./stats.ts";
 import { numberedKey } from "./ticket-key.ts";
@@ -33,6 +40,8 @@ export type FactoryCard = {
 	slots?: Slots;
 	/** The clock time of the last good `GET /daemon` read. */
 	heartbeatAt: string | null;
+	/** The host health of a box that answers, from its host samples. */
+	host?: HostHealth;
 };
 
 /** A live run of the "Running now" table. */
@@ -107,7 +116,11 @@ export type QueueItem = {
 };
 
 /** A panel that a factory cannot fill, because it answers its route with 404. */
-export type NotServedPanel = { factory: string; panel: "queue"; route: string };
+export type NotServedPanel = {
+	factory: string;
+	panel: "queue" | "host";
+	route: string;
+};
 
 export type FactoriesPage = {
 	/** The server clock time of the answer. */
@@ -157,16 +170,33 @@ const liveKinds = new Set<FactoryRun["statusKind"]>([
 /** The reason of a failed run that names none. */
 const unnamedReason = "no reason given";
 
-function cards(entries: FactoryEntry[], floor: FactoryFloor): FactoryCard[] {
-	return entries.map((entry) => ({
-		name: entry.name,
-		role: entry.alsoReadThroughHub === undefined ? entry.kind : "box",
-		reachable: entry.reachable,
-		...(entry.reachable === true && entry.slots !== undefined
-			? { slots: entry.slots }
-			: {}),
-		heartbeatAt: floor.heartbeats.get(entry.url) ?? null,
-	}));
+function cards(
+	entries: FactoryEntry[],
+	floor: FactoryFloor,
+	hostSamples: HostSample[],
+	now: Date,
+): FactoryCard[] {
+	const samples = Map.groupBy(hostSamples, (sample) => sample.factory);
+	return entries.map((entry) => {
+		const host =
+			entry.reachable === true && !floor.hostsNotServed.has(entry.url)
+				? hostHealth(
+						samples.get(entry.name) ?? [],
+						entry.placementGate ?? null,
+						now,
+					)
+				: undefined;
+		return {
+			name: entry.name,
+			role: entry.alsoReadThroughHub === undefined ? entry.kind : "box",
+			reachable: entry.reachable,
+			...(entry.reachable === true && entry.slots !== undefined
+				? { slots: entry.slots }
+				: {}),
+			heartbeatAt: floor.heartbeats.get(entry.url) ?? null,
+			...(host === undefined ? {} : { host }),
+		};
+	});
 }
 
 /** The slots of every factory, with a box that a hub also reports counted once, in its hub. */
@@ -385,6 +415,13 @@ function queueOf(
 	const queue: QueueItem[] = [];
 	const notServed: NotServedPanel[] = [];
 	for (const entry of entries) {
+		if (floor.hostsNotServed.has(entry.url)) {
+			notServed.push({
+				factory: entry.name,
+				panel: "host",
+				route: `GET ${hostRoute}`,
+			});
+		}
 		const sources = floor.queues.get(entry.url);
 		if (sources === "not served") {
 			notServed.push({
@@ -473,13 +510,15 @@ export function factoriesPage(input: {
 	/** The stage events of the last `stageDays` days, and the turn cost of their runs. */
 	stageSamples: StageSample[];
 	stageCosts: StageCost[];
+	/** The host samples of the last `growthSpanMs`, oldest first. */
+	hostSamples: HostSample[];
 	/** The page of each tracked ticket by its key. */
 	ticketUrls: ReadonlyMap<string, string>;
 	now: Date;
 }): FactoriesPage {
 	const now = input.now.getTime();
 	const keys = new Map(input.rows.map((row) => [row.id, row]));
-	const boxes = cards(input.entries, input.floor);
+	const boxes = cards(input.entries, input.floor, input.hostSamples, input.now);
 	const stages = stageDurations(input.stageSamples, input.stageCosts);
 	const running = runningRuns(
 		input.runs,

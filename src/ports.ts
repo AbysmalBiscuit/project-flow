@@ -183,6 +183,8 @@ export type FactoryReader = {
 	floor: () => FactoryFloor;
 	/** True when the last check of a listed factory failed. */
 	unreachable: () => boolean;
+	/** Read `GET /machine` of each factory, and send each host sample to the run history. */
+	sampleHosts: () => Promise<void>;
 	/**
 	 * Read `GET /runs` again of each factory without an open event stream, and of
 	 * each streamed factory whose last read is older than the streamed run poll.

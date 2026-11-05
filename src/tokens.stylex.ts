@@ -307,6 +307,7 @@ export const type = stylex.defineVars({
 	tileValue: "1.6rem",
 	pill: "0.75rem",
 	meter: "0.82rem",
+	meterSmall: "0.75rem",
 });
 
 export const scheme = stylex.defineVars({
@@ -405,6 +406,10 @@ export const measure = stylex.defineVars({
 	meterValue: "8rem",
 	meterBar: "0.55rem",
 	boxEdge: "4px",
+	sparkWidth: "120px",
+	sparkHeight: "24px",
+	sparkStroke: "1.5px",
+	gateMark: "2px",
 	step: "1.1rem",
 	stepHeight: "0.45rem",
 	stepGap: "2px",
