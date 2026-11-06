@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.3](https://github.com/AbysmalBiscuit/project-flow/compare/v0.1.2...v0.1.3) (2026-11-06)
+
+
+### Features
+
+* **factories:** group boxes by hub network, keep cards in place, pick chart days ([a690103](https://github.com/AbysmalBiscuit/project-flow/commit/a69010377b5acd75c2c593b64f1770b106ea6e7d))
+* **factories:** show the heartbeat as a beating dot ([55fb736](https://github.com/AbysmalBiscuit/project-flow/commit/55fb7365867c6ef5e2ec2d60f25797a16308d120))
+* **nav:** group tabs and rename Overview to Projects ([4cfcf6b](https://github.com/AbysmalBiscuit/project-flow/commit/4cfcf6b8538b1c5ee09b89bf987e08bbc608859d))
+
+
+### Bug Fixes
+
+* **factories:** box cards keep their height when a hub drops ([c7fbd7b](https://github.com/AbysmalBiscuit/project-flow/commit/c7fbd7bdbf021e7a9af701e95646228b55f406e8))
+* **factories:** clearer meters on box cards ([33b9ead](https://github.com/AbysmalBiscuit/project-flow/commit/33b9eada111cbb854aaadb9a3cd849895b9dfd9e))
+* **factories:** show free / total for memory and swap ([601782c](https://github.com/AbysmalBiscuit/project-flow/commit/601782c5640678851e843740f75e3c6f862b1429))
+* **factories:** show the heartbeat of a silent box once ([eed3e43](https://github.com/AbysmalBiscuit/project-flow/commit/eed3e437bc714bc35e668c8097be1b24ae4c97fd))
+* **factories:** stop the stale-read refetch loop ([e273701](https://github.com/AbysmalBiscuit/project-flow/commit/e273701f015e44a12b587d2ca44189430b955a4d))
+
 ## [0.1.2](https://github.com/AbysmalBiscuit/project-flow/compare/v0.1.1...v0.1.2) (2026-11-05)
 
 
