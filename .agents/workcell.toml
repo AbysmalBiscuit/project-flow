@@ -17,3 +17,7 @@ when = ["no_unresolved_questions", "no_left_for_you"]
 [change_risk.high]
 approvals = 1
 when = ["no_unresolved_questions", "no_left_for_you"]
+
+# The tracker that holds the tickets of this repo. workcell requires it.
+[tracker]
+kind = "github"
