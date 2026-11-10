@@ -2,7 +2,9 @@ import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { Button } from "./button.tsx";
 import { textControl } from "./control-styles.ts";
+import { useCopy } from "./copy-text.tsx";
 import type { RunDetail } from "./domain.ts";
 import { PageLoading } from "./loading.tsx";
 import {
@@ -29,6 +31,7 @@ import { RunThread } from "./run-thread.tsx";
 import { Segment } from "./segment.tsx";
 import { PageFrame } from "./shell.tsx";
 import {
+	copyTextCopy,
 	hubQueueLabel,
 	runFactLabel,
 	runMissingLabel,
@@ -68,6 +71,11 @@ const styles = stylex.create({
 		borderRadius: radius.md,
 		backgroundColor: colours.raised,
 	},
+	ticketKey: {
+		display: "inline-flex",
+		alignItems: "center",
+		gap: space.xs,
+	},
 });
 
 const runPath = "/runs/";
@@ -92,6 +100,33 @@ function tabOfUrl(): RunTab {
 /** The stage that the Stages tab opens at, from a stage pane link. */
 function stageOfUrl(): string | null {
 	return new URLSearchParams(window.location.search).get("stage");
+}
+
+/** The run's ticket key: a link to the ticket page when the app knows it, and a copy button. */
+function TicketKey({ run }: { run: RunDetail }) {
+	const { write, toast } = useCopy(run.key);
+	return (
+		<span className={clsx(styles.ticketKey)}>
+			{run.ticketUrl === undefined ? (
+				run.key
+			) : (
+				<Button
+					href={run.ticketUrl}
+					newTab
+					label={run.key}
+					icon="external-link"
+					iconSide="right"
+					tooltip={runFactLabel.openTicket}
+				/>
+			)}
+			<Button
+				icon="copy"
+				name={copyTextCopy.action(run.key, copyTextCopy.ticketKey)}
+				onClick={write}
+			/>
+			{toast}
+		</span>
+	);
 }
 
 function RunFacts({ run }: { run: RunDetail }) {
@@ -124,7 +159,9 @@ function RunFacts({ run }: { run: RunDetail }) {
 			{run.stage === undefined ? null : (
 				<RunFact label={runFactLabel.stage}>{run.stage}</RunFact>
 			)}
-			<RunFact label={runFactLabel.ticket}>{run.key}</RunFact>
+			<RunFact label={runFactLabel.ticket}>
+				<TicketKey run={run} />
+			</RunFact>
 			<RunFact label={runFactLabel.verification}>
 				<a
 					className={clsx(panel.factLink, ...textControl)}
