@@ -472,6 +472,26 @@ describe("factory runs", () => {
 			}
 		});
 
+		test("a run of a tracked ticket gives the ticket page, and a run of an untracked ticket gives none", async () => {
+			const app = await serveRuns(hub, [39]);
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 39) !== undefined,
+				);
+				const tracked = await detailOf(app.base, failed39.id);
+				expect(await tracked.json()).toMatchObject({
+					key: "39",
+					ticketUrl: "https://github.com/acme/widget/issues/39",
+				});
+				const untracked = await detailOf(app.base, running41.id);
+				expect(untracked.status).toBe(200);
+				expect(await untracked.json()).not.toHaveProperty("ticketUrl");
+			} finally {
+				await app.stop();
+			}
+		});
+
 		test("a run on a standalone factory gives its facts and workflow from that factory", async () => {
 			const laptopRun = {
 				...boxRow(running41, "running"),

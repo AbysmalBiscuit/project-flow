@@ -235,6 +235,8 @@ export type RunDetail = FactoryRun & {
 	lastEvent?: RunEvent;
 	/** Present when Lev can resume or restart the run. */
 	resumable?: true;
+	/** The page of the run's ticket. Absent when no tracked project holds the ticket. */
+	ticketUrl?: string;
 };
 
 /**

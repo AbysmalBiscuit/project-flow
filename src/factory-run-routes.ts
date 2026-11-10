@@ -9,9 +9,10 @@ import type {
 } from "./factory-run-actions.ts";
 import type { PollOptions } from "./poll.ts";
 import type { Clock, FactoryReader } from "./ports.ts";
-import { factoryRunList } from "./project-views.ts";
+import { factoryRunList, trackedTicketUrls } from "./project-views.ts";
 import { routeTable } from "./route-table.ts";
 import type { staleReads } from "./stale-reads.ts";
+import { numberedKey } from "./ticket-key.ts";
 
 const answerBody = z.object({ text: z.string().trim().min(1) });
 
@@ -119,7 +120,14 @@ export function factoryRunRoutes({
 				if (found.workflow === undefined) {
 					void readWorkflow(found.id).catch(() => {});
 				}
-				return Response.json(found);
+				const ticketUrl = trackedTicketUrls(pollOptions, configuration()).get(
+					found.repo === undefined
+						? found.key
+						: numberedKey(found.repo, found.key),
+				);
+				return Response.json(
+					ticketUrl === undefined ? found : { ...found, ticketUrl },
+				);
 			},
 		},
 		"/api/factory-runs/:id/checkpoint": {

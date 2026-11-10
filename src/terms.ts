@@ -328,6 +328,7 @@ export const runFactLabel = {
 	status: "Status",
 	stage: "Stage",
 	ticket: "Ticket",
+	openTicket: "Open the ticket",
 	verification: "Verification",
 	openVerification: "Open the record",
 	retro: "Retro",
