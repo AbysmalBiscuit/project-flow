@@ -86,8 +86,20 @@ export function laneLinks(
 		}),
 	);
 	const side = horizontal ? card.height : card.width;
+	const across = (id: string): number => {
+		const bound = bounds.get(id);
+		if (bound === undefined) {
+			return 0;
+		}
+		return horizontal
+			? (bound.top + bound.bottom) / 2
+			: (bound.left + bound.right) / 2;
+	};
+	// Entry slots on a target follow the order of the sources across the flow, so arrows into one card do not cross.
 	const laned = assignLanes(
-		input.edges.map((link) => ({ link, source: link.from, target: link.to })),
+		input.edges
+			.toSorted((left, right) => across(left.from) - across(right.from))
+			.map((link) => ({ link, source: link.from, target: link.to })),
 	).map((edge) => ({
 		edge,
 		nodes: [...bounds].flatMap(([id, bound]) =>
