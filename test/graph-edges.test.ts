@@ -51,6 +51,31 @@ describe("graph edges", () => {
 		},
 	);
 
+	test.each([32, 120])(
+		"an arrow between rows %i px apart never runs back toward its source",
+		(gap) => {
+			const drawn = routeEdge(
+				{
+					sourceX: 360,
+					sourceY: 790,
+					targetX: 580,
+					targetY: 790 + gap,
+					sourcePosition: Position.Bottom,
+					targetPosition: Position.Top,
+				},
+				0,
+				1,
+			);
+			const ys = [...drawn.path.matchAll(/(-?[\d.]+)[ ,](-?[\d.]+)/g)].map(
+				(match) => Number(match[2]),
+			);
+			expect(ys.length).toBeGreaterThan(0);
+			for (const [index, y] of ys.slice(1).entries()) {
+				expect(y).toBeGreaterThanOrEqual(ys[index] ?? y);
+			}
+		},
+	);
+
 	test("two edge labels do not overlap", () => {
 		const route = {
 			sourceX: 0,

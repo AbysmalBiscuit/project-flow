@@ -60,7 +60,6 @@ export function markerEnd(size: number, color?: string): MarkerEnd {
 const bend = 8;
 const laneGap = 36;
 const stub = 36;
-const approach = 28;
 const labelClearance = 28;
 const channelGap = 18;
 
@@ -276,21 +275,25 @@ function routePoints(
 			: -1;
 	const exit = sourceExit(route, lane);
 	const entry = targetEntry(route, entryIndex, entries, side);
+	// The stubs from each end meet halfway, so every bend is a right angle and the arrow never runs back toward its source.
+	const reach = horizontal
+		? Math.abs(route.targetX - route.sourceX) / 2
+		: Math.abs(route.targetY - route.sourceY) / 2;
 	const straight =
 		horizontal && forward(route) && sameAxis(route)
 			? [
 					{ x: route.sourceX, y: route.sourceY },
-					{ x: route.sourceX + approach, y: route.sourceY },
-					{ x: route.sourceX + approach, y: exit.y },
-					{ x: entry.x - approach, y: entry.y },
+					{ x: route.sourceX + reach, y: route.sourceY },
+					{ x: route.sourceX + reach, y: exit.y },
+					{ x: entry.x - reach, y: entry.y },
 					{ x: entry.x, y: entry.y },
 				]
 			: !horizontal && forward(route) && sameAxis(route)
 				? [
 						{ x: route.sourceX, y: route.sourceY },
-						{ x: route.sourceX, y: route.sourceY + approach },
-						{ x: exit.x, y: route.sourceY + approach },
-						{ x: entry.x, y: entry.y - approach },
+						{ x: route.sourceX, y: route.sourceY + reach },
+						{ x: exit.x, y: route.sourceY + reach },
+						{ x: entry.x, y: entry.y - reach },
 						{ x: entry.x, y: entry.y },
 					]
 				: null;

@@ -3,8 +3,9 @@
 # A path or a filter from a caller is not a full suite and takes no slot.
 set -eu
 
-# bunfig.toml lives at the checkout. A caller outside it still loads the preload.
-root=$(CDPATH= git -C "$(dirname "$0")" rev-parse --show-toplevel)
+# bunfig.toml lives at the checkout, so a caller outside it still loads the preload.
+# The root comes from the script path: a git hook sets GIT_DIR, which breaks `rev-parse --show-toplevel`.
+root=$(CDPATH= cd "$(dirname "$0")/.." && pwd)
 
 # The pre-push hook runs only the tests that the change affects.
 # The rules come from origin/main, so a branch follows them without a rebase.
