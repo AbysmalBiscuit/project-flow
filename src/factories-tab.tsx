@@ -849,9 +849,10 @@ function worstNote(host: HostHealth): string | null {
 			if (disk === undefined) {
 				return null;
 			}
+			const name = disk.mount === "/" ? factoriesCopy.meters.disk : disk.mount;
 			return disk.fullInS === null
-				? copy.diskFree(disk.mount, gigabytes(disk.freeBytes))
-				: copy.diskFull(disk.mount, roughSpanText(disk.fullInS * 1_000));
+				? copy.diskFree(name, gigabytes(disk.freeBytes))
+				: copy.diskFull(name, roughSpanText(disk.fullInS * 1_000));
 		}
 	}
 }

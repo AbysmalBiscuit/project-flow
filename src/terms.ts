@@ -1032,10 +1032,9 @@ export const factoriesCopy = {
 		cpu: (busy: number): string => `CPU is ${busy}% busy`,
 		memory: (gb: string): string => `Only ${gb} GB of memory is available`,
 		swap: (gb: string): string => `${gb} GB of swap is in use`,
-		diskFull: (mount: string, span: string): string =>
-			`${mount} fills in about ${span}`,
-		diskFree: (mount: string, gb: string): string =>
-			`${mount} has ${gb} GB free`,
+		diskFull: (disk: string, span: string): string =>
+			`${disk} fills in about ${span}`,
+		diskFree: (disk: string, gb: string): string => `${disk} has ${gb} GB free`,
 	},
 	running: "Running now",
 	runningNote:
