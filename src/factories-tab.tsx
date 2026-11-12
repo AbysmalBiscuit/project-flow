@@ -118,7 +118,25 @@ const styles = stylex.create({
 		backgroundColor: colours.raised,
 	},
 	stretch: {
+		display: "flex",
+		flexDirection: "column",
 		alignSelf: "stretch",
+	},
+	grow: {
+		flexGrow: 1,
+		minWidth: 0,
+	},
+	fixedRow: {
+		height: measure.listRow,
+	},
+	blankItem: {
+		borderBottomWidth: 0,
+	},
+	clampOne: {
+		display: "block",
+		overflow: "hidden",
+		textOverflow: "ellipsis",
+		whiteSpace: "nowrap",
 	},
 	kicker: {
 		color: colours.inkSoft,
@@ -630,10 +648,13 @@ const styles = stylex.create({
 		listStyle: "none",
 	},
 	item: {
+		boxSizing: "border-box",
 		display: "flex",
 		gap: space.sm,
-		alignItems: "baseline",
+		alignItems: "center",
+		height: measure.listRow,
 		padding: `${space.sm} 0`,
+		overflow: "hidden",
 		borderBottomWidth: {
 			default: measure.hairline,
 			":last-child": 0,
@@ -1496,7 +1517,15 @@ function AgentWork({ run }: { run: RunningRun }) {
 	);
 }
 
-function RunningTable({ runs, now }: { runs: RunningRun[]; now: number }) {
+function RunningTable({
+	runs,
+	blank,
+	now,
+}: {
+	runs: RunningRun[];
+	blank: number;
+	now: number;
+}) {
 	if (runs.length === 0) {
 		return <p className={clsx(styles.empty)}>{factoriesCopy.noRunning}</p>;
 	}
@@ -1520,11 +1549,11 @@ function RunningTable({ runs, now }: { runs: RunningRun[]; now: number }) {
 				</thead>
 				<tbody>
 					{runs.map((run, index) => {
-						const last = index === runs.length - 1;
+						const last = index === runs.length - 1 && blank === 0;
 						const cell = (...more: (stylex.StyleXStyles | false)[]) =>
 							clsx(styles.td, last && styles.lastRow, ...more);
 						return (
-							<tr key={run.id} className={clsx(styles.row)}>
+							<tr key={run.id} className={clsx(styles.row, styles.fixedRow)}>
 								<td className={cell()}>
 									<a
 										href={runPagePath(run.id)}
@@ -1566,6 +1595,13 @@ function RunningTable({ runs, now }: { runs: RunningRun[]; now: number }) {
 							</tr>
 						);
 					})}
+					{Array.from({ length: blank }, (_, index) => (
+						<tr
+							// biome-ignore lint/suspicious/noArrayIndexKey: blank rows have no identity
+							key={index}
+							className={clsx(styles.fixedRow)}
+						/>
+					))}
 				</tbody>
 			</table>
 		</div>
@@ -1593,9 +1629,11 @@ function reasonOf(item: AttentionItem, now: number): string {
 
 function AttentionList({
 	items,
+	blank,
 	now,
 }: {
 	items: AttentionItem[];
+	blank: number;
 	now: number;
 }) {
 	if (items.length === 0) {
@@ -1618,12 +1656,20 @@ function AttentionList({
 						>
 							{ticketLabel(item.key)}
 						</a>
-						<span className={clsx(styles.clamp)} title={reasonOf(item, now)}>
+						<span className={clsx(styles.clampOne)} title={reasonOf(item, now)}>
 							{reasonOf(item, now)}
 						</span>
 					</span>
 					<span className={clsx(styles.where)}>{since(item.since, now)}</span>
 				</li>
+			))}
+			{Array.from({ length: blank }, (_, index) => (
+				<li
+					// biome-ignore lint/suspicious/noArrayIndexKey: blank rows have no identity
+					key={index}
+					aria-hidden="true"
+					className={clsx(styles.item, styles.blankItem)}
+				/>
 			))}
 		</ul>
 	);
@@ -2009,6 +2055,8 @@ function usePaged<Row>(title: string, rows: readonly Row[], size: number) {
 	const paged = pageOf(rows, page, size);
 	return {
 		rows: paged.rows,
+		/** Blank rows that keep the last page of a list as tall as the others. */
+		blank: paged.pages > 1 ? size - paged.rows.length : 0,
 		pager: (
 			<Pager
 				list={title}
@@ -2083,6 +2131,7 @@ function FactoriesBody({ view }: { view: FactoriesView }) {
 						<Card
 							title={factoriesCopy.running}
 							source={factoriesCopy.sources.running}
+							stretch
 							tools={
 								<PageSizePicker
 									list="running"
@@ -2091,7 +2140,13 @@ function FactoriesBody({ view }: { view: FactoriesView }) {
 								/>
 							}
 						>
-							<RunningTable runs={running.rows} now={now} />
+							<div className={clsx(styles.grow)}>
+								<RunningTable
+									runs={running.rows}
+									blank={running.blank}
+									now={now}
+								/>
+							</div>
 							{running.pager}
 							<p className={clsx(styles.note)}>{factoriesCopy.runningNote}</p>
 						</Card>
@@ -2107,7 +2162,13 @@ function FactoriesBody({ view }: { view: FactoriesView }) {
 								/>
 							}
 						>
-							<AttentionList items={attention.rows} now={now} />
+							<div className={clsx(styles.grow)}>
+								<AttentionList
+									items={attention.rows}
+									blank={attention.blank}
+									now={now}
+								/>
+							</div>
 							{attention.pager}
 						</Card>
 					</div>
