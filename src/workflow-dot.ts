@@ -1,8 +1,18 @@
 import type { RunSource } from "./domain.ts";
 import type { RunGraph, RunGraphNode } from "./run-domain.ts";
 
+/** A stage that calls a graph: the path of its graph and its node id. */
+export type GraphCaller = { graph: string; stage: string };
+
 /** One graph of a workflow package, by its path in the package. */
-export type WorkflowGraph = { name: string; graph: RunGraph };
+export type WorkflowGraph = {
+	name: string;
+	graph: RunGraph;
+	/** True for the graph that a run starts in. */
+	entry: boolean;
+	/** Each stage that calls the graph, in call order. Empty for the entry graph and for a graph that no run reaches. */
+	calledBy: GraphCaller[];
+};
 
 type Attrs = Record<string, string>;
 type Token = { text: string; quoted: boolean };
@@ -136,15 +146,27 @@ function parseDot(text: string) {
 }
 
 /** The graph files that a node calls, from its `prompt_file` or `graph` attribute. */
-export function callsOf(attrs: Readonly<Record<string, unknown>>): string[] {
+function callsOf(attrs: Readonly<Record<string, unknown>>): string[] {
 	return [attrs.prompt_file, attrs.graph].filter(
 		(value): value is string =>
 			typeof value === "string" && value.endsWith(graphFile),
 	);
 }
 
-/** A parsed graph, with the graph files that its nodes call. */
-export type CallingGraph = { graph: RunGraph; calls: string[] };
+/** A parsed graph, with each graph file that a node calls. */
+export type CallingGraph = {
+	graph: RunGraph;
+	calls: { stage: string; graph: string }[];
+};
+
+/** The calls of the nodes of a graph, by node id and attributes. */
+export function callsIn(
+	nodes: Iterable<readonly [string, Readonly<Record<string, unknown>>]>,
+): CallingGraph["calls"] {
+	return [...nodes].flatMap(([stage, attrs]) =>
+		callsOf(attrs).map((graph) => ({ stage, graph })),
+	);
+}
 
 /**
  * The entry graph, then each graph that a run can call from it, in call order.
@@ -154,7 +176,8 @@ export function inCallOrder(
 	entry: string,
 	read: (name: string) => CallingGraph | undefined,
 ): WorkflowGraph[] {
-	const graphs: WorkflowGraph[] = [];
+	const graphs: { name: string; graph: RunGraph }[] = [];
+	const callers = new Map<string, GraphCaller[]>();
 	const queue = [entry];
 	const seen = new Set(queue);
 	for (let name = queue.shift(); name !== undefined; name = queue.shift()) {
@@ -164,13 +187,21 @@ export function inCallOrder(
 		}
 		graphs.push({ name, graph: found.graph });
 		for (const call of found.calls) {
-			if (!seen.has(call)) {
-				seen.add(call);
-				queue.push(call);
+			callers.set(call.graph, [
+				...(callers.get(call.graph) ?? []),
+				{ graph: name, stage: call.stage },
+			]);
+			if (!seen.has(call.graph)) {
+				seen.add(call.graph);
+				queue.push(call.graph);
 			}
 		}
 	}
-	return graphs;
+	return graphs.map((item) => ({
+		...item,
+		entry: item.name === entry,
+		calledBy: item.name === entry ? [] : (callers.get(item.name) ?? []),
+	}));
 }
 
 function runGraphOf(text: string): CallingGraph {
@@ -199,7 +230,7 @@ function runGraphOf(text: string): CallingGraph {
 					: { condition: attrs.condition }),
 			})),
 		},
-		calls: [...nodes.values()].flatMap(callsOf),
+		calls: callsIn(nodes),
 	};
 }
 

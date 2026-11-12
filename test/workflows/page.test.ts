@@ -432,6 +432,14 @@ describe("the Workflows tab", () => {
 				"post_pr.dot",
 			]);
 			const [entry, postPr] = detail.graph?.graphs ?? [];
+			expect(entry).toMatchObject({ entry: true, calledBy: [] });
+			expect(postPr).toMatchObject({
+				entry: false,
+				calledBy: [
+					{ graph: "pre_pr.dot", stage: "post_pr" },
+					{ graph: "pre_pr.dot", stage: "retry" },
+				],
+			});
 			const nodes = new Map(entry?.graph.nodes.map((node) => [node.id, node]));
 			expect([...nodes.keys()]).toEqual([
 				"start",
@@ -549,6 +557,24 @@ describe("the Workflows tab", () => {
 				expect(names.toSorted()).toEqual(
 					Object.keys(standardPackage.graphs).toSorted(),
 				);
+				const byName = new Map(
+					standard.graph?.graphs.map((item) => [item.name, item]),
+				);
+				expect(byName.get("pre-pr.dot")).toMatchObject({
+					entry: true,
+					calledBy: [],
+				});
+				expect(byName.get("merge.dot")?.calledBy).toEqual([
+					{ graph: "post-pr.dot", stage: "merge" },
+				]);
+				expect(byName.get("rebase.dot")?.calledBy).toEqual([
+					{ graph: "pre-pr.dot", stage: "round_rebase" },
+					{ graph: "rebase-push.dot", stage: "rebase" },
+				]);
+				expect(byName.get("change-risk-off.dot")).toMatchObject({
+					entry: false,
+					calledBy: [],
+				});
 			} finally {
 				await app.stop();
 			}
