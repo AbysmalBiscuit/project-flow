@@ -412,6 +412,7 @@ export function factoryReader(
 				throw error;
 			}
 			return {
+				...known,
 				reachable: false,
 				kind: known?.kind ?? null,
 				boxes: known?.boxes ?? null,
@@ -499,6 +500,7 @@ export function factoryReader(
 				throw error;
 			}
 			found.set(factory.url, {
+				...known,
 				reachable: false,
 				kind: known?.kind ?? null,
 				boxes: known?.boxes ?? null,
