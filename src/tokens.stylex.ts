@@ -431,6 +431,8 @@ export const measure = stylex.defineVars({
 	chartAxis: "2rem",
 	chartTip: "11rem",
 	pagerInput: "3.25rem",
+	// One row of a paged Factories tab list: two lines of small text and the row padding.
+	listRow: "3.5rem",
 	outcomeGap: "6px",
 	legendSwatch: "0.6rem",
 	spreadColumn: "35%",
