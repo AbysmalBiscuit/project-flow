@@ -5,7 +5,7 @@ import { body, reader, Unreachable } from "./factory-http.ts";
 import type { Fetch } from "./fetch.ts";
 import {
 	type CallingGraph,
-	callsOf,
+	callsIn,
 	inCallOrder,
 	type WorkflowGraph,
 } from "./workflow-dot.ts";
@@ -103,7 +103,10 @@ function packageGraph(
 			};
 		}),
 	};
-	return { graph, calls: view.nodes.flatMap((node) => callsOf(node.attrs)) };
+	return {
+		graph,
+		calls: callsIn(view.nodes.map((node) => [node.id, node.attrs] as const)),
+	};
 }
 
 /** The package reads of the reachable factories. */
@@ -189,7 +192,12 @@ export function factoryPackagesReader(deps: {
 						...called,
 						...[...graphs]
 							.filter(([name]) => !shown.has(name))
-							.map(([name, { graph }]) => ({ name, graph })),
+							.map(([name, { graph }]) => ({
+								name,
+								graph,
+								entry: false,
+								calledBy: [],
+							})),
 					],
 					roles: found.roles,
 				};

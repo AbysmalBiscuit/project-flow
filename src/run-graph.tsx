@@ -15,6 +15,7 @@ import {
 	ReactFlowProvider,
 	type Viewport,
 } from "@xyflow/react";
+import { ChevronRight } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
 import { board } from "./board-styles.ts";
@@ -53,6 +54,7 @@ import {
 import {
 	calledGraphLabel,
 	floatPanelLabel,
+	openGraphLabel,
 	runGraphHelp,
 	runGraphLabel,
 	runGraphLegendLabel,
@@ -117,6 +119,27 @@ const styles = stylex.create({
 		position: "relative",
 		minWidth: 0,
 		width: "100%",
+	},
+	opens: {
+		cursor: "pointer",
+	},
+	opensMark: {
+		display: "inline-flex",
+		alignItems: "center",
+		justifyContent: "center",
+		width: measure.badge,
+		height: measure.badge,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.laneLine,
+		borderRadius: radius.pill,
+		backgroundColor: colours.surface,
+		color: colours.ink,
+		pointerEvents: "none",
+	},
+	opensIcon: {
+		width: measure.buttonIcon,
+		height: measure.buttonIcon,
 	},
 	toggle: {
 		position: "absolute",
@@ -332,6 +355,8 @@ type StageNode = Node<
 		child: { open: boolean; toggle: () => void } | null;
 		/** Set when the graph shows the agent role of each stage instead of its run state. */
 		role: { name: string | undefined } | null;
+		/** The graph file that the stage calls, when a click on the stage opens it. */
+		opens: string | null;
 	},
 	"stage"
 >;
@@ -341,11 +366,17 @@ type FrameNode = Node<Record<string, never>, "frame">;
 type RouteEdge = Edge<Pick<LaidEdge, "points" | "text" | "condition">, "route">;
 
 function Stage({
-	data: { facts, shape, kind, child, role },
+	data: { facts, shape, kind, child, role, opens },
 }: NodeProps<StageNode>) {
 	return (
 		<div
-			className={clsx(styles.stage, inset[insetOf[shape] ?? "box"])}
+			className={clsx(
+				styles.stage,
+				inset[insetOf[shape] ?? "box"],
+				opens !== null && styles.opens,
+			)}
+			title={opens === null ? undefined : openGraphLabel(opens)}
+			data-opens={opens ?? undefined}
 			data-shape={shape}
 			data-kind={kind}
 			data-role={role?.name}
@@ -377,6 +408,11 @@ function Stage({
 					</span>
 				)}
 			</span>
+			{opens === null ? null : (
+				<span className={clsx(styles.toggle, styles.opensMark)}>
+					<ChevronRight className={clsx(styles.opensIcon)} aria-hidden />
+				</span>
+			)}
 			{child === null ? null : (
 				<span className={`nodrag nopan ${clsx(styles.toggle)}`}>
 					<Button
@@ -490,6 +526,7 @@ function flowOf(
 	open: ReadonlySet<string>,
 	toggle: (id: string) => void,
 	roles: boolean,
+	calls: ReadonlyMap<string, string>,
 ) {
 	const frames: FrameNode[] = [...laid.frames].map(([caller, rect]) => ({
 		id: stageFrameId(caller),
@@ -523,6 +560,7 @@ function flowOf(
 								kind,
 								child,
 								role: roles ? { name: role } : null,
+								opens: calls.get(stage.id) ?? null,
 							},
 						},
 					];
@@ -564,7 +602,15 @@ const states = Object.keys(runStageStateLabel).filter(
  * The stage states of a run, or the stage roles of a diagram with no run,
  * then each shape in the graph with its kind, and the edge text.
  */
-function Legend({ graph, byRole }: { graph: Graph; byRole: boolean }) {
+function Legend({
+	graph,
+	byRole,
+	opens,
+}: {
+	graph: Graph;
+	byRole: boolean;
+	opens: boolean;
+}) {
 	const shapes = [
 		...new Map(
 			graph.nodes.map((node) => [`${node.shape}\n${node.kind}`, node]),
@@ -649,6 +695,11 @@ function Legend({ graph, byRole }: { graph: Graph; byRole: boolean }) {
 				</span>
 				{runGraphLegendLabel.edge}
 			</p>
+			{opens ? (
+				<p className={clsx(board.legendNote)}>
+					{runGraphLegendLabel.opensGraph}
+				</p>
+			) : null}
 			{framed ? (
 				<p className={clsx(board.legendNote)}>
 					{byRole
@@ -734,8 +785,24 @@ function openingView(
 	};
 }
 
+/** The graph files that the stages of a diagram call, by stage id, and the action that opens one. */
+export type DiagramCalls = {
+	calls: ReadonlyMap<string, string>;
+	onOpen: (graph: string) => void;
+};
+
+const noCalls: DiagramCalls = { calls: new Map(), onOpen: () => {} };
+
 /** The graph view of a workflow. With no `run`, each stage border shows its agent role instead of its run state. */
-function GraphPane({ graph, run }: { graph: Graph; run: RunState | null }) {
+function GraphPane({
+	graph,
+	run,
+	diagram = noCalls,
+}: {
+	graph: Graph;
+	run: RunState | null;
+	diagram?: DiagramCalls;
+}) {
 	const checkpoint = run?.checkpoint;
 	const agents = run?.agents;
 	const [direction, setDirection] = useState<GraphDirection>(
@@ -776,8 +843,9 @@ function GraphPane({ graph, run }: { graph: Graph; run: RunState | null }) {
 						(id) =>
 							setToggled((before) => new Map(before).set(id, !open.has(id))),
 						checkpoint === undefined,
+						diagram.calls,
 					),
-		[graph, laid, checkpoint, agents, open],
+		[graph, laid, checkpoint, agents, open, diagram.calls],
 	);
 	// The view opens on the live stage, or on the whole open frame that holds it.
 	const caller = liveStage(graph)?.id.split("/")[0];
@@ -841,8 +909,14 @@ function GraphPane({ graph, run }: { graph: Graph; run: RunState | null }) {
 							elementsSelectable={false}
 							zoomOnDoubleClick={false}
 							onNodeClick={(_, node) => {
-								if (node.type === "stage") {
-									run?.onPick(node.id);
+								if (node.type !== "stage") {
+									return;
+								}
+								const called = diagram.calls.get(node.id);
+								if (run !== null) {
+									run.onPick(node.id);
+								} else if (called !== undefined) {
+									diagram.onOpen(called);
 								}
 							}}
 							minZoom={0.1}
@@ -852,7 +926,11 @@ function GraphPane({ graph, run }: { graph: Graph; run: RunState | null }) {
 						</ReactFlow>
 					)}
 					<div className={clsx(float.overlay)}>
-						<Legend graph={graph} byRole={run === null} />
+						<Legend
+							graph={graph}
+							byRole={run === null}
+							opens={diagram.calls.size > 0}
+						/>
 					</div>
 					<div className={clsx(float.corner)}>
 						<FloatPanel
@@ -886,8 +964,14 @@ function GraphPane({ graph, run }: { graph: Graph; run: RunState | null }) {
 }
 
 /** A workflow graph with no run: each stage in the shape of its node, its border in the colour of its role. */
-export function WorkflowDiagram({ graph }: { graph: Graph }) {
-	return <GraphPane graph={graph} run={null} />;
+export function WorkflowDiagram({
+	graph,
+	diagram,
+}: {
+	graph: Graph;
+	diagram: DiagramCalls;
+}) {
+	return <GraphPane graph={graph} run={null} diagram={diagram} />;
 }
 
 /** The run's workflow graph, each stage in the shape of its workflow node and marked from the run checkpoint. */

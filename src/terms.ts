@@ -586,11 +586,14 @@ export const runGraphLegendLabel = {
 	noRole: "no role",
 	calledGraphDiagram:
 		"A frame holds the stages of the graph that a stage calls",
+	opensGraph: "Click a stage with an arrow to open the graph that it calls",
 } as const;
 
 export function calledGraphLabel(open: boolean, stage: string): string {
 	return `${open ? "Close" : "Open"} the graph that ${stage} calls`;
 }
+
+export const openGraphLabel = (graph: string): string => `Open ${graph}`;
 
 export function stageVisitsLabel(visits: number): string {
 	return `${visits} ${visits === 1 ? "visit" : "visits"}`;
@@ -1145,6 +1148,11 @@ export const workflowsCopy = {
 		`Border colour = role. Edge label = condition. ${fromRun ? "The graphs of the latest run." : "The graphs that the factory serves."}`,
 	noRoles: "The package names no role.",
 	noGraph: "No factory serves the workflow files of a run of this version.",
+	mainFlow: "Main flow",
+	calledBy: (stage: string, more: number): string =>
+		`called by ${stage}${more > 0 ? ` +${more}` : ""}`,
+	noCaller: "no stage calls it",
+	graphsLabel: "Graphs, in call order",
 	noStages: "No run of this version has stage rows yet.",
 	allStages: (count: number): string => `Show all ${count} stages`,
 	fewerStages: "Show fewer stages",

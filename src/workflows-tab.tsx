@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 
 import { textControl } from "./control-styles.ts";
 import type { RunResult } from "./kinds.ts";
@@ -211,8 +211,25 @@ const styles = stylex.create({
 		display: "flex",
 		flexWrap: "wrap",
 		gap: space.xs,
+		margin: 0,
+		padding: 0,
+		listStyle: "none",
+	},
+	chipItem: {
+		display: "flex",
+	},
+	chipMain: {
+		borderColor: colours.ink,
+	},
+	chipNote: {
+		color: colours.inkSoft,
+		fontSize: type.kicker,
+		fontWeight: "normal",
 	},
 	chip: {
+		display: "flex",
+		flexDirection: "column",
+		alignItems: "flex-start",
 		padding: `${space.xs} ${space.sm}`,
 		borderWidth: measure.hairline,
 		borderStyle: "solid",
@@ -637,29 +654,79 @@ function RolesTable({ roles }: { roles: WorkflowRole[] }) {
 	);
 }
 
+type ShownGraphs = NonNullable<WorkflowDetail["graph"]>["graphs"];
+
+type Caller = ShownGraphs[number]["calledBy"][number];
+
+const stageLabel = (graphs: ShownGraphs, caller: Caller): string =>
+	graphs
+		.find((item) => item.name === caller.graph)
+		?.graph.nodes.find((node) => node.id === caller.stage)?.label ??
+	caller.stage;
+
+/** The note under a graph name: the main flow, the first stage that calls it, or no caller. */
+function callerNote(item: ShownGraphs[number], graphs: ShownGraphs): string {
+	const [first, ...more] = item.calledBy;
+	if (item.entry) {
+		return workflowsCopy.mainFlow;
+	}
+	if (first === undefined) {
+		return workflowsCopy.noCaller;
+	}
+	return workflowsCopy.calledBy(stageLabel(graphs, first), more.length);
+}
+
 function Diagram({ graph }: { graph: WorkflowDetail["graph"] }) {
 	const [picked, setPicked] = useState<string | null>(null);
 	const shown =
 		graph?.graphs.find((item) => item.name === picked) ?? graph?.graphs[0];
+	const calls = useMemo(
+		() =>
+			new Map(
+				(graph?.graphs ?? []).flatMap((item) =>
+					item.calledBy
+						.filter((caller) => caller.graph === shown?.name)
+						.map((caller) => [caller.stage, item.name] as const),
+				),
+			),
+		[graph, shown],
+	);
 	if (graph === null || shown === undefined) {
 		return <p className={clsx(styles.empty)}>{workflowsCopy.noGraph}</p>;
 	}
 	return (
 		<>
 			<div className={clsx(styles.diagramHead)}>
-				<div className={clsx(styles.chips)}>
+				<ol
+					className={clsx(styles.chips)}
+					aria-label={workflowsCopy.graphsLabel}
+				>
 					{graph.graphs.map((item) => (
-						<button
-							key={item.name}
-							type="button"
-							aria-pressed={item === shown}
-							className={clsx(styles.chip, item === shown && styles.chipOn)}
-							onClick={() => setPicked(item.name)}
-						>
-							{item.name}
-						</button>
+						<li key={item.name} className={clsx(styles.chipItem)}>
+							<button
+								type="button"
+								aria-pressed={item === shown}
+								className={clsx(
+									styles.chip,
+									item.entry && styles.chipMain,
+									item === shown && styles.chipOn,
+								)}
+								title={item.calledBy
+									.map(
+										(caller) =>
+											`${caller.graph} › ${stageLabel(graph.graphs, caller)}`,
+									)
+									.join("\n")}
+								onClick={() => setPicked(item.name)}
+							>
+								<span>{item.name}</span>
+								<span className={clsx(styles.chipNote)}>
+									{callerNote(item, graph.graphs)}
+								</span>
+							</button>
+						</li>
 					))}
-				</div>
+				</ol>
 				<p className={clsx(styles.note)}>
 					{workflowsCopy.diagramNote(graph.runId !== undefined)}
 				</p>
@@ -667,6 +734,7 @@ function Diagram({ graph }: { graph: WorkflowDetail["graph"] }) {
 			<WorkflowDiagram
 				key={`${graph.runId ?? ""}\n${shown.name}`}
 				graph={shown.graph}
+				diagram={{ calls, onOpen: setPicked }}
 			/>
 		</>
 	);
