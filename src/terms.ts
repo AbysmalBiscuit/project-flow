@@ -583,7 +583,7 @@ export const runGraphLegendLabel = {
 	calledGraph:
 		"A frame holds the stages that the run reached in the graph that a stage calls",
 	roles: "Stage roles",
-	tool: "tool",
+	noRole: "no role",
 	calledGraphDiagram:
 		"A frame holds the stages of the graph that a stage calls",
 } as const;

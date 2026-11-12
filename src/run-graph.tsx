@@ -591,14 +591,14 @@ function Legend({ graph, byRole }: { graph: Graph; byRole: boolean }) {
 						<li
 							key={role ?? ""}
 							className={clsx(board.legendItem)}
-							data-legend-role={role ?? runGraphLegendLabel.tool}
+							data-legend-role={role ?? runGraphLegendLabel.noRole}
 						>
 							<Outline
 								shape="box"
 								stroke={roleStrokeOf(role)}
 								layout={styles.glyph}
 							/>
-							{role ?? runGraphLegendLabel.tool}
+							{role ?? runGraphLegendLabel.noRole}
 						</li>
 					))}
 				</ul>
