@@ -426,7 +426,11 @@ export const measure = stylex.defineVars({
 	underline: "2px",
 	failureMin: "12rem",
 	failureMax: "20rem",
-	outcomeChart: "8rem",
+	outcomeChart: "10rem",
+	// The y axis labels of a bar chart, right-aligned in this width.
+	chartAxis: "2rem",
+	chartTip: "11rem",
+	pagerInput: "3.25rem",
 	outcomeGap: "6px",
 	legendSwatch: "0.6rem",
 	spreadColumn: "35%",

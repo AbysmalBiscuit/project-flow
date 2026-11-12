@@ -226,6 +226,7 @@ export function viewOnlyChange(
 		states: previousStates,
 		stateMappings: previousMappings,
 		pinnedProjects: previousPins,
+		factoriesView: previousFactoriesView,
 		...rest
 	} = before;
 	const {
@@ -235,6 +236,7 @@ export function viewOnlyChange(
 		states: nextStates,
 		stateMappings: nextMappings,
 		pinnedProjects: nextPins,
+		factoriesView: nextFactoriesView,
 		...kept
 	} = after;
 	const restSame = JSON.stringify(rest) === JSON.stringify(kept);
@@ -247,9 +249,12 @@ export function viewOnlyChange(
 	const statesChanged =
 		JSON.stringify([previousStates, previousMappings]) !==
 		JSON.stringify([nextStates, nextMappings]);
+	const factoriesViewChanged =
+		JSON.stringify(previousFactoriesView) !== JSON.stringify(nextFactoriesView);
 	return (
 		restSame &&
 		(viewsChanged ||
+			factoriesViewChanged ||
 			overviewChanged ||
 			themeChanged ||
 			statesChanged ||

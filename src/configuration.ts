@@ -24,6 +24,14 @@ export const defaultFactoryMintCommand = [
 import { z } from "zod";
 
 import { forgeKinds } from "./domain.ts";
+import {
+	defaultPageSize,
+	factoriesViewDefaults,
+	outcomeDays,
+	pageSizes,
+	rangeDays,
+	stageDays,
+} from "./factories-view.ts";
 import { forgejoPin } from "./forgejo-pin.ts";
 import { githubHost, githubPin } from "./github-pin.ts";
 import { gitlabHost, gitlabPin } from "./gitlab-pin.ts";
@@ -106,6 +114,17 @@ const overviewView = z
 		view,
 		showNeedsYou,
 	}));
+
+const pageSize = z.literal(pageSizes).default(defaultPageSize);
+
+/** The choices of the Factories tab that a reader makes once and keeps. */
+const factoriesView = z.strictObject({
+	outcomeDays: z.literal(rangeDays).default(outcomeDays),
+	stageDays: z.literal(rangeDays).default(stageDays),
+	pageSize: z
+		.strictObject({ running: pageSize, attention: pageSize, queue: pageSize })
+		.default(factoriesViewDefaults.pageSize),
+});
 
 const projectViewSettings = z.strictObject({
 	shownLanes: z.array(z.string()).optional(),
@@ -212,6 +231,7 @@ const configurationSchema = z
 			view: "cards",
 			showNeedsYou: true,
 		}),
+		factoriesView: factoriesView.default(factoriesViewDefaults),
 		hosts: z.array(declaredHost).default([]),
 		tracked: z.array(projectRef).optional(),
 		pinned: z.array(projectRef).optional(),

@@ -14,18 +14,14 @@ import type { RunListRow } from "./run-list.ts";
 import { percentile } from "./stats.ts";
 import { numberedKey } from "./ticket-key.ts";
 
+export {
+	outcomeDays,
+	type RangeDays,
+	rangeDays,
+	stageDays,
+} from "./factories-view.ts";
+
 const dayMs = 24 * 60 * 60 * 1_000;
-
-/** The day ranges a reader can pick for the outcome chart and the stage durations. */
-export const rangeDays = [7, 14, 30, 90] as const;
-
-export type RangeDays = (typeof rangeDays)[number];
-
-/** The days of the outcome chart, today included, when the reader picks none. */
-export const outcomeDays: RangeDays = 14;
-
-/** The days of run history that the stall rule covers, and the stage durations when the reader picks none. */
-export const stageDays: RangeDays = 30;
 
 /** The fewest ended runs of a stage, in the last `stageDays` days, that give the stage its stall rule. */
 export const stallRuns = 10;

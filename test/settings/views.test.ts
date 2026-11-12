@@ -513,6 +513,66 @@ describe("settings", () => {
 		);
 	});
 
+	test("the Factories tab ranges and page sizes save without a tracker poll and survive a restart", async () => {
+		const factoriesView = {
+			outcomeDays: 30,
+			stageDays: 7,
+			pageSize: { running: 5, attention: 20, queue: 50 },
+		} as const;
+		await withApp(
+			JSON.stringify({ pinned: [] }),
+			async (base, path, requests) => {
+				const before = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(before.factoriesView).toEqual({
+					outcomeDays: 14,
+					stageDays: 30,
+					pageSize: { running: 10, attention: 10, queue: 10 },
+				});
+				const seen = requests.length;
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ ...before, factoriesView }),
+				});
+				expect(saved.status).toBe(200);
+				expect(((await saved.json()) as Configuration).factoriesView).toEqual(
+					factoriesView,
+				);
+				expect(requests.length).toBe(seen);
+				await withAppFile(path, async (restarted) => {
+					const again = (await (
+						await fetch(new URL("/api/settings", restarted))
+					).json()) as Configuration;
+					expect(again.factoriesView).toEqual(factoriesView);
+				});
+			},
+		);
+	});
+
+	test("a Factories tab range the tab does not offer names the field and leaves the file", async () => {
+		await withApp(JSON.stringify({ pinned: [] }), async (base) => {
+			const before = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			const refused = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					...before,
+					factoriesView: { ...before.factoriesView, outcomeDays: 3 },
+				}),
+			});
+			expect(refused.status).toBe(400);
+			expect(await refused.text()).toContain("factoriesView");
+			const after = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			expect(after.factoriesView.outcomeDays).toBe(14);
+		});
+	});
+
 	test("the board open view round-trips", async () => {
 		await withApp(JSON.stringify({ pinned: [] }), async (base) => {
 			const before = (await (

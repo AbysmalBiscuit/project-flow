@@ -16,17 +16,26 @@ import type {
 	RunningRun,
 	StageDuration,
 } from "./factories-page.ts";
+import { factoryCheckMs } from "./factories-page.ts";
 import {
-	factoryCheckMs,
-	outcomeDays,
+	type FactoriesView,
+	factoriesViewDefaults,
+	type PagedList,
+	type PageSize,
+	pageSizes,
 	type RangeDays,
 	rangeDays,
-	stageDays,
-} from "./factories-page.ts";
+} from "./factories-view.ts";
 import type { HostDisk, HostHealth, HostLevel } from "./host-health.ts";
 import { PageLoading } from "./loading.tsx";
 import { runPagePath } from "./page-links.ts";
-import { pageQuery } from "./queries.ts";
+import { pageOf, Pager } from "./pager.tsx";
+import {
+	configurationOf,
+	pageQuery,
+	pageQueryClient,
+	useSaveSettings,
+} from "./queries.ts";
 import type { RunGraph, RunGraphNodeState } from "./run-domain.ts";
 import { PageFrame } from "./shell.tsx";
 import {
@@ -429,18 +438,136 @@ const styles = stylex.create({
 		display: "flex",
 		gap: measure.outcomeGap,
 		alignItems: "flex-end",
+		position: "absolute",
+		inset: 0,
+	},
+	chartCrowded: {
+		gap: measure.hairline,
+	},
+	plotFrame: {
+		display: "flex",
+		gap: space.sm,
+		marginTop: space.sm,
+	},
+	yAxis: {
+		position: "relative",
+		flexShrink: 0,
+		width: measure.chartAxis,
+		height: measure.outcomeChart,
+		color: colours.inkSoft,
+		fontSize: type.tag,
+	},
+	yTick: (from: string) => ({
+		position: "absolute",
+		right: 0,
+		bottom: from,
+		transform: "translateY(50%)",
+		lineHeight: 1,
+	}),
+	plot: {
+		position: "relative",
+		flexGrow: 1,
 		height: measure.outcomeChart,
 	},
+	gridLine: (from: string) => ({
+		position: "absolute",
+		left: 0,
+		right: 0,
+		bottom: from,
+		borderTopWidth: measure.hairline,
+		borderTopStyle: "dashed",
+		borderTopColor: colours.line,
+	}),
 	day: {
 		display: "flex",
 		flex: 1,
 		flexDirection: "column-reverse",
+		minWidth: 0,
 		height: "100%",
+		padding: 0,
+		borderWidth: 0,
+		borderRadius: radius.cell,
+		backgroundColor: "transparent",
+		outline: "none",
+		cursor: "default",
+		transitionProperty: {
+			default: "opacity, background-color",
+			[reducedMotion]: "none",
+		},
+		transitionDuration: measure.fade,
+	},
+	dayDim: {
+		opacity: 0.45,
+	},
+	dayHover: {
+		backgroundColor: colours.surfaceMuted,
+	},
+	dayStack: (share: string) => ({
+		display: "flex",
+		flexDirection: "column-reverse",
+		width: "100%",
+		height: share,
+		borderRadius: radius.cell,
+		outlineWidth: measure.focus,
+		outlineStyle: "solid",
+		outlineColor: "transparent",
+		outlineOffset: measure.hairline,
+		transitionProperty: { default: "outline-color", [reducedMotion]: "none" },
+		transitionDuration: measure.fade,
+	}),
+	dayStackHover: {
+		outlineColor: colours.ink,
 	},
 	segment: (share: string) => ({
 		height: share,
-		borderRadius: measure.hairline,
 	}),
+	tip: (at: string) => ({
+		position: "absolute",
+		top: 0,
+		left: at,
+		zIndex: 1,
+		minWidth: measure.chartTip,
+		padding: space.sm,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.line,
+		borderRadius: radius.menu,
+		backgroundColor: colours.raised,
+		boxShadow: `0 ${space.xs} ${space.md} ${colours.shadow}`,
+		fontSize: type.meta,
+		pointerEvents: "none",
+	}),
+	// The card sits beside the hovered bar, on the side with more room.
+	tipRight: { transform: `translateX(${space.sm})` },
+	tipLeft: { transform: `translateX(calc(-100% - ${space.sm}))` },
+	tipHead: {
+		display: "flex",
+		justifyContent: "space-between",
+		gap: space.md,
+		marginBottom: space.xs,
+		fontWeight: type.weight,
+	},
+	tipTotal: {
+		color: colours.inkSoft,
+		fontWeight: type.regular,
+	},
+	tipRow: {
+		display: "flex",
+		justifyContent: "space-between",
+		gap: space.md,
+		color: colours.inkSoft,
+	},
+	tipCount: {
+		color: colours.ink,
+		fontVariantNumeric: "tabular-nums",
+	},
+	xTick: {
+		display: "flex",
+		flex: "1 1 0",
+		justifyContent: "center",
+		minWidth: 0,
+		whiteSpace: "nowrap",
+	},
 	merged: {
 		backgroundColor: colours.awaitingMerge,
 	},
@@ -452,8 +579,9 @@ const styles = stylex.create({
 	},
 	axis: {
 		display: "flex",
-		justifyContent: "space-between",
+		gap: measure.outcomeGap,
 		marginTop: space.twoXs,
+		marginLeft: `calc(${measure.chartAxis} + ${space.sm})`,
 		color: colours.inkSoft,
 		fontSize: type.tag,
 	},
@@ -1596,36 +1724,135 @@ const dayLabel = (day: string) =>
 		timeZone: "UTC",
 	});
 
-function OutcomeChart({ days }: { days: DayOutcome[] }) {
-	const most = Math.max(
+/** The most x axis labels under the outcome chart. */
+const dayLabelsShown = 7;
+
+/** The y axis ticks from 0 to a round top at or above `most`, about four steps apart. */
+function runTicks(most: number): number[] {
+	const rough = Math.max(1, most) / 4;
+	const scale = 10 ** Math.floor(Math.log10(rough));
+	const step = Math.max(
 		1,
-		...days.map((day) => day.merged + day.failed + day.stopped),
+		([1, 2, 5, 10].find((factor) => factor * scale >= rough) ?? 10) * scale,
 	);
-	const first = days[0];
+	const top = Math.max(step, Math.ceil(most / step) * step);
+	return Array.from({ length: top / step + 1 }, (_, index) => index * step);
+}
+
+const total = (day: DayOutcome) => day.merged + day.failed + day.stopped;
+
+function OutcomeChart({ days }: { days: DayOutcome[] }) {
+	const [hovered, setHovered] = useState<number | null>(null);
+	const ticks = runTicks(Math.max(0, ...days.map(total)));
+	const top = ticks.at(-1) ?? 1;
+	const labelEvery = Math.ceil(days.length / dayLabelsShown);
+	const last = days.length - 1;
+	const shown = hovered === null ? undefined : days[hovered];
+	const crowded = days.length > 30;
 	return (
 		<>
-			<div className={clsx(styles.chart)}>
-				{days.map((day) => (
-					<div
-						key={day.day}
-						className={clsx(styles.day)}
-						title={factoriesCopy.dayOutcome(dayLabel(day.day), day)}
-					>
-						{outcomeKinds.map((kind) => (
-							<span
-								key={kind}
-								{...stylex.props(
-									styles.segment(`${(day[kind] / most) * 100}%`),
-									styles[kind],
+			<div className={clsx(styles.plotFrame)}>
+				<div className={clsx(styles.yAxis)} aria-hidden="true">
+					{ticks.map((tick) => (
+						<span
+							key={tick}
+							{...stylex.props(styles.yTick(`${(tick / top) * 100}%`))}
+						>
+							{tick}
+						</span>
+					))}
+				</div>
+				<div className={clsx(styles.plot)}>
+					{ticks.map((tick) => (
+						<span
+							key={tick}
+							aria-hidden="true"
+							{...stylex.props(styles.gridLine(`${(tick / top) * 100}%`))}
+						/>
+					))}
+					<div className={clsx(styles.chart, crowded && styles.chartCrowded)}>
+						{days.map((day, index) => (
+							<button
+								key={day.day}
+								type="button"
+								aria-label={factoriesCopy.dayOutcome(dayLabel(day.day), day)}
+								className={clsx(
+									styles.day,
+									hovered !== null && hovered !== index && styles.dayDim,
+									hovered === index && styles.dayHover,
 								)}
-							/>
+								onMouseEnter={() => setHovered(index)}
+								onMouseLeave={() => setHovered(null)}
+								onFocus={() => setHovered(index)}
+								onBlur={() => setHovered(null)}
+							>
+								<span
+									{...stylex.props(
+										styles.dayStack(`${(total(day) / top) * 100}%`),
+										hovered === index && total(day) > 0 && styles.dayStackHover,
+									)}
+								>
+									{outcomeKinds.map((kind) => (
+										<span
+											key={kind}
+											{...stylex.props(
+												styles.segment(
+													`${total(day) === 0 ? 0 : (day[kind] / total(day)) * 100}%`,
+												),
+												styles[kind],
+											)}
+										/>
+									))}
+								</span>
+							</button>
 						))}
 					</div>
-				))}
+					{shown === undefined || hovered === null ? null : (
+						<div
+							role="tooltip"
+							{...stylex.props(
+								...(hovered < days.length / 2
+									? [
+											styles.tip(`${((hovered + 1) / days.length) * 100}%`),
+											styles.tipRight,
+										]
+									: [
+											styles.tip(`${(hovered / days.length) * 100}%`),
+											styles.tipLeft,
+										]),
+							)}
+						>
+							<div className={clsx(styles.tipHead)}>
+								<span>
+									{hovered === last ? factoriesCopy.today : dayLabel(shown.day)}
+								</span>
+								<span className={clsx(styles.tipTotal)}>
+									{total(shown)} {factoriesCopy.runsAxis}
+								</span>
+							</div>
+							{outcomeKinds.map((kind) => (
+								<div key={kind} className={clsx(styles.tipRow)}>
+									<span className={clsx(styles.legendItem)}>
+										<span className={clsx(styles.swatch, styles[kind])} />
+										{factoriesCopy.outcome[kind]}
+									</span>
+									<span className={clsx(styles.tipCount)}>{shown[kind]}</span>
+								</div>
+							))}
+						</div>
+					)}
+				</div>
 			</div>
-			<div className={clsx(styles.axis)}>
-				<span>{first === undefined ? null : dayLabel(first.day)}</span>
-				<span>{factoriesCopy.today}</span>
+			<div className={clsx(styles.axis, crowded && styles.chartCrowded)}>
+				{days.map((day, index) => (
+					<span key={day.day} className={clsx(styles.xTick)}>
+						{(last - index) % labelEvery !== 0
+							? null
+							: index === last
+								? factoriesCopy.today
+								: dayLabel(day.day)}
+					</span>
+				))}
 			</div>
 			<div className={clsx(styles.legend)}>
 				{outcomeKinds.map((kind) => (
@@ -1742,12 +1969,108 @@ function StageTable({
 	);
 }
 
+const pageSizeChoices = pageSizes.map((rows) => ({
+	id: String(rows),
+	label: factoriesCopy.pageSize(rows),
+}));
+
+/** Picks the rows on one page of a Factories tab list. */
+function PageSizePicker({
+	list,
+	title,
+	size,
+	onChange,
+}: {
+	list: PagedList;
+	title: string;
+	size: PageSize;
+	onChange: (size: PageSize) => void;
+}) {
+	return (
+		<Dropdown
+			id={`factories-${list}-rows`}
+			label={factoriesCopy.pageSizeLabel(title)}
+			value={String(size)}
+			choices={pageSizeChoices}
+			steadyWidth
+			onChange={(choice) => {
+				const picked = pageSizes.find((rows) => String(rows) === choice);
+				if (picked !== undefined) {
+					onChange(picked);
+				}
+			}}
+		/>
+	);
+}
+
+/** One page of `rows`, and the pager that moves between the pages. */
+function usePaged<Row>(title: string, rows: readonly Row[], size: number) {
+	const [page, setPage] = useState(0);
+	const paged = pageOf(rows, page, size);
+	return {
+		rows: paged.rows,
+		pager: (
+			<Pager
+				list={title}
+				page={paged.page}
+				pages={paged.pages}
+				onPage={setPage}
+			/>
+		),
+	};
+}
+
 export function Page() {
-	const [outcomes, setOutcomes] = useState<RangeDays>(outcomeDays);
-	const [stages, setStages] = useState<RangeDays>(stageDays);
+	const settings = useQuery({ ...pageQuery.settings, select: configurationOf });
+	if (settings.data === undefined) {
+		return (
+			<PageFrame title={navLabel.factories} subtitle={factoriesCopy.subtitle}>
+				<PageLoading />
+			</PageFrame>
+		);
+	}
+	return (
+		<FactoriesBody
+			view={settings.data?.factoriesView ?? factoriesViewDefaults}
+		/>
+	);
+}
+
+function FactoriesBody({ view }: { view: FactoriesView }) {
+	const save = useSaveSettings({ refetchProjects: false, optimistic: true });
+	const saveView = (change: Partial<FactoriesView>) => {
+		void save
+			.mutateAsync((current) => ({
+				...current,
+				factoriesView: { ...current.factoriesView, ...change },
+			}))
+			.catch(() => pageQueryClient.invalidateQueries(pageQuery.settings));
+	};
+	const sizeOf = (list: PagedList) => ({
+		size: view.pageSize[list],
+		onChange: (size: PageSize) =>
+			saveView({ pageSize: { ...view.pageSize, [list]: size } }),
+	});
+	const outcomes = view.outcomeDays;
+	const stages = view.stageDays;
 	const query = useQuery(pageQuery.factories(outcomes, stages));
 	const now = useNow(1_000);
 	const page = query.data;
+	const running = usePaged(
+		factoriesCopy.running,
+		page?.running ?? [],
+		view.pageSize.running,
+	);
+	const attention = usePaged(
+		factoriesCopy.attention,
+		page?.attention ?? [],
+		view.pageSize.attention,
+	);
+	const queue = usePaged(
+		factoriesCopy.queue,
+		page?.queue ?? [],
+		view.pageSize.queue,
+	);
 	return (
 		<PageFrame title={navLabel.factories} subtitle={factoriesCopy.subtitle}>
 			{page === undefined ? (
@@ -1760,16 +2083,32 @@ export function Page() {
 						<Card
 							title={factoriesCopy.running}
 							source={factoriesCopy.sources.running}
+							tools={
+								<PageSizePicker
+									list="running"
+									title={factoriesCopy.running}
+									{...sizeOf("running")}
+								/>
+							}
 						>
-							<RunningTable runs={page.running} now={now} />
+							<RunningTable runs={running.rows} now={now} />
+							{running.pager}
 							<p className={clsx(styles.note)}>{factoriesCopy.runningNote}</p>
 						</Card>
 						<Card
 							title={factoriesCopy.attention}
 							source={factoriesCopy.sources.attention}
 							stretch
+							tools={
+								<PageSizePicker
+									list="attention"
+									title={factoriesCopy.attention}
+									{...sizeOf("attention")}
+								/>
+							}
 						>
-							<AttentionList items={page.attention} now={now} />
+							<AttentionList items={attention.rows} now={now} />
+							{attention.pager}
 						</Card>
 					</div>
 					<div className={clsx(styles.grid)}>
@@ -1781,7 +2120,7 @@ export function Page() {
 									id="factories-outcome-days"
 									chart={factoriesCopy.outcomes}
 									days={outcomes}
-									onChange={setOutcomes}
+									onChange={(outcomeDays) => saveView({ outcomeDays })}
 								/>
 							}
 						>
@@ -1796,7 +2135,7 @@ export function Page() {
 									id="factories-stage-days"
 									chart={factoriesCopy.stageDurations}
 									days={stages}
-									onChange={setStages}
+									onChange={(stageDays) => saveView({ stageDays })}
 								/>
 							}
 						>
@@ -1805,8 +2144,16 @@ export function Page() {
 						<Card
 							title={factoriesCopy.queue}
 							source={factoriesCopy.sources.queue}
+							tools={
+								<PageSizePicker
+									list="queue"
+									title={factoriesCopy.queue}
+									{...sizeOf("queue")}
+								/>
+							}
 						>
-							<QueueTable items={page.queue} now={now} />
+							<QueueTable items={queue.rows} now={now} />
+							{queue.pager}
 							<NotServed page={page} panel="queue" />
 						</Card>
 					</div>
