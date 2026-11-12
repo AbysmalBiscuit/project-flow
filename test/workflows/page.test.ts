@@ -295,6 +295,7 @@ describe("the Workflows tab", () => {
 					mergeRate: 0.5,
 					medianS: 2176.5,
 					costPerRun: 3,
+					firstRunAt: "2026-10-25T12:00:09+00:00",
 					lastRunAt: "2026-10-25T13:05:20+00:00",
 				},
 				{
@@ -304,6 +305,7 @@ describe("the Workflows tab", () => {
 					mergeRate: 0,
 					medianS: 3000,
 					costPerRun: 1,
+					firstRunAt: "2026-10-25T12:10:00+00:00",
 					lastRunAt: "2026-10-25T12:10:00+00:00",
 				},
 				{
@@ -313,6 +315,7 @@ describe("the Workflows tab", () => {
 					mergeRate: 0,
 					medianS: 60,
 					costPerRun: 0.5,
+					firstRunAt: "2026-10-25T13:10:00+00:00",
 					lastRunAt: "2026-10-25T13:10:00+00:00",
 				},
 			]);
@@ -507,6 +510,7 @@ describe("the Workflows tab", () => {
 					mergeRate: null,
 					medianS: null,
 					costPerRun: null,
+					firstRunAt: null,
 					lastRunAt: null,
 				});
 				const intake = await readWhere<WorkflowDetail>(

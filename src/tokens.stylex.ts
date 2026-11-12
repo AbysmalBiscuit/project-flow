@@ -338,6 +338,8 @@ export const measure = stylex.defineVars({
 	fieldMin: "4rem",
 	diagram: "48rem",
 	runGraph: "max(26rem, calc(100dvh - 16rem))",
+	// The screen less the shell (3.5rem), the page's bottom padding (2.5rem) and the card's (1rem), and a 1rem gap.
+	diagramPane: "max(26rem, calc(100dvh - 8rem))",
 	swatch: "0.9rem",
 	hairline: "1px",
 	none: "0",

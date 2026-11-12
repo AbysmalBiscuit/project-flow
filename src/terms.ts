@@ -582,6 +582,10 @@ export const runGraphLegendLabel = {
 	edgeSample: "outcome=success",
 	calledGraph:
 		"A frame holds the stages that the run reached in the graph that a stage calls",
+	roles: "Stage roles",
+	tool: "tool",
+	calledGraphDiagram:
+		"A frame holds the stages of the graph that a stage calls",
 } as const;
 
 export function calledGraphLabel(open: boolean, stage: string): string {
@@ -1114,6 +1118,12 @@ export const workflowsCopy = {
 		`Show ${plural(count, "older version", "older versions")}`,
 	hideOlder: "Hide older versions",
 	sha: (sha: string): string => `sha ${sha}`,
+	/** The start of the first run of a version, as `yyyy-mm-dd hh:mm` in local time. */
+	since: (iso: string): string => {
+		const at = new Date(iso);
+		const two = (value: number) => String(value).padStart(2, "0");
+		return `since ${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())} ${two(at.getHours())}:${two(at.getMinutes())}`;
+	},
 	tokens: (count: number): string => compactCount.format(Math.round(count)),
 	share: (share: number): string => `${Math.round(share * 100)}%`,
 	visits: (perRun: number): string => perRun.toFixed(1),
