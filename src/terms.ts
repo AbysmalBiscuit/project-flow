@@ -1071,6 +1071,15 @@ export const factoriesCopy = {
 	outcomes: "Outcomes",
 	range: (days: number): string => `last ${days} days`,
 	rangeLabel: (chart: string): string => `Days of ${chart}`,
+	pageSize: (rows: number): string => `${rows} per page`,
+	pageSizeLabel: (list: string): string => `Rows per page of ${list}`,
+	pager: {
+		previous: "Previous page",
+		next: "Next page",
+		page: (list: string): string => `Page of ${list}`,
+		of: (pages: number): string => `of ${pages}`,
+	},
+	runsAxis: "runs",
 	outcome: { merged: "merged", failed: "failed", stopped: "stopped" },
 	today: "today",
 	dayOutcome: (
