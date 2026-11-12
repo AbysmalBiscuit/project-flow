@@ -122,6 +122,11 @@ const styles = stylex.create({
 		color: colours.inkSoft,
 		fontSize: type.meta,
 	},
+	since: {
+		color: colours.inkSoft,
+		fontSize: type.meta,
+		whiteSpace: "nowrap",
+	},
 	stats: {
 		display: "flex",
 		flexWrap: "wrap",
@@ -343,6 +348,15 @@ function Sha({
 	);
 }
 
+/** Since when a version runs: the start of its first run in the run history. */
+function Since({ card }: { card: WorkflowCard }) {
+	return card.firstRunAt === null ? null : (
+		<span className={clsx(styles.since)}>
+			{workflowsCopy.since(card.firstRunAt)}
+		</span>
+	);
+}
+
 function Stat({ value, label }: { value: string; label: string }) {
 	return (
 		<div className={clsx(styles.stat)}>
@@ -376,6 +390,7 @@ function Card({
 			<div className={clsx(styles.head)}>
 				<h2 className={clsx(styles.heading)}>{card.package}</h2>
 				<Sha sha={card.sha} />
+				<Since card={card} />
 				<span className={clsx(styles.meta)}>
 					{card.lastRunAt === null
 						? workflowsCopy.noRunYet
@@ -668,6 +683,7 @@ function Detail({ card }: { card: WorkflowCard }) {
 			<div className={clsx(styles.head)}>
 				<h2 className={clsx(styles.heading)}>{card.package}</h2>
 				<Sha sha={card.sha} prefix />
+				<Since card={card} />
 				<span
 					className={clsx(styles.source, styles.sourceOwn, styles.sourceFirst)}
 				>

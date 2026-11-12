@@ -21,6 +21,8 @@ export type WorkflowCard = {
 	/** The median wall time of the ended runs, in seconds. */
 	medianS: number | null;
 	costPerRun: number | null;
+	/** The start of the oldest run of the version in the run history: since when the version runs. Null with no run. */
+	firstRunAt: string | null;
 	/** Null for a package with no started run. */
 	lastRunAt: string | null;
 };
@@ -136,6 +138,7 @@ export function workflowsPage(
 			mergeRate: null,
 			medianS: null,
 			costPerRun: null,
+			firstRunAt: null,
 			lastRunAt: null,
 		}));
 	const cards = [...versions.values()].flatMap((group) => {
@@ -156,6 +159,13 @@ export function workflowsPage(
 							ended.length,
 				medianS: median(group.flatMap((run) => durationS(run) ?? [])),
 				costPerRun: mean(group.flatMap((run) => run.costUsd ?? [])),
+				firstRunAt: group.reduce(
+					(first, run) =>
+						Date.parse(run.startedAt) < Date.parse(first)
+							? run.startedAt
+							: first,
+					latest.startedAt,
+				),
 				lastRunAt: latest.startedAt,
 			},
 		];

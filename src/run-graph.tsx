@@ -88,7 +88,11 @@ const styles = stylex.create({
 		"--xy-edge-stroke-width": measure.hairline,
 		"--xy-background-color": colours.raised,
 	},
+	// One height for every graph: the screen below the shell, so a page scrolled to its end shows the whole pane.
 	diagramPane: {
+		boxSizing: "border-box",
+		width: "100%",
+		height: measure.diagramPane,
 		borderWidth: 0,
 		backgroundColor: colours.surfaceMuted,
 		"--xy-background-color": colours.surfaceMuted,
@@ -556,35 +560,69 @@ const states = Object.keys(runStageStateLabel).filter(
 		Object.hasOwn(runStageStateLabel, state),
 );
 
-/** The stage states, each shape in the graph with its kind, and the edge text. */
-function Legend({ graph }: { graph: Graph }) {
+/**
+ * The stage states of a run, or the stage roles of a diagram with no run,
+ * then each shape in the graph with its kind, and the edge text.
+ */
+function Legend({ graph, byRole }: { graph: Graph; byRole: boolean }) {
 	const shapes = [
 		...new Map(
 			graph.nodes.map((node) => [`${node.shape}\n${node.kind}`, node]),
 		).values(),
 	];
 	const framed = graph.nodes.some((node) => node.child !== undefined);
+	// A called graph draws its stages as tool stages.
+	const roles = [
+		...new Set(
+			graph.nodes.flatMap((node) => [
+				node.role,
+				...(node.child === undefined ? [] : [undefined]),
+			]),
+		),
+	];
 	return (
 		<LegendFrame id="run-graph-legend" label={runGraphLegendLabel.legend}>
-			<ul
-				className={clsx(styles.legendRow)}
-				aria-label={runGraphLegendLabel.states}
-			>
-				{states.map((state) => (
-					<li
-						key={state}
-						className={clsx(board.legendItem)}
-						data-legend-state={state}
-					>
-						<Outline
-							shape="box"
-							stroke={stageStroke[state]}
-							layout={styles.glyph}
-						/>
-						{runStageStateLabel[state]}
-					</li>
-				))}
-			</ul>
+			{byRole ? (
+				<ul
+					className={clsx(styles.legendRow)}
+					aria-label={runGraphLegendLabel.roles}
+				>
+					{roles.map((role) => (
+						<li
+							key={role ?? ""}
+							className={clsx(board.legendItem)}
+							data-legend-role={role ?? runGraphLegendLabel.noRole}
+						>
+							<Outline
+								shape="box"
+								stroke={roleStrokeOf(role)}
+								layout={styles.glyph}
+							/>
+							{role ?? runGraphLegendLabel.noRole}
+						</li>
+					))}
+				</ul>
+			) : (
+				<ul
+					className={clsx(styles.legendRow)}
+					aria-label={runGraphLegendLabel.states}
+				>
+					{states.map((state) => (
+						<li
+							key={state}
+							className={clsx(board.legendItem)}
+							data-legend-state={state}
+						>
+							<Outline
+								shape="box"
+								stroke={stageStroke[state]}
+								layout={styles.glyph}
+							/>
+							{runStageStateLabel[state]}
+						</li>
+					))}
+				</ul>
+			)}
 			<ul
 				className={clsx(styles.legendRow)}
 				aria-label={runGraphLegendLabel.shapes}
@@ -613,7 +651,9 @@ function Legend({ graph }: { graph: Graph }) {
 			</p>
 			{framed ? (
 				<p className={clsx(board.legendNote)}>
-					{runGraphLegendLabel.calledGraph}
+					{byRole
+						? runGraphLegendLabel.calledGraphDiagram
+						: runGraphLegendLabel.calledGraph}
 				</p>
 			) : null}
 		</LegendFrame>
@@ -779,7 +819,9 @@ function GraphPane({ graph, run }: { graph: Graph; run: RunState | null }) {
 				{...stylex.props(
 					styles.pane,
 					run === null && styles.diagramPane,
-					bounds !== null && fitted.shape(bounds.width, bounds.height),
+					run !== null &&
+						bounds !== null &&
+						fitted.shape(bounds.width, bounds.height),
 				)}
 				aria-label={runGraphLabel}
 				title={runGraphHelp}
@@ -809,11 +851,9 @@ function GraphPane({ graph, run }: { graph: Graph; run: RunState | null }) {
 							<FitLayout layout={laid} held={false} refit={refit} fit={fit} />
 						</ReactFlow>
 					)}
-					{run === null ? null : (
-						<div className={clsx(float.overlay)}>
-							<Legend graph={graph} />
-						</div>
-					)}
+					<div className={clsx(float.overlay)}>
+						<Legend graph={graph} byRole={run === null} />
+					</div>
 					<div className={clsx(float.corner)}>
 						<FloatPanel
 							id="run-graph-controls"
