@@ -1075,7 +1075,7 @@ function BoxBands({ page, now }: { page: FactoriesPage; now: number }) {
 									boxes.length,
 									boxes.filter((box) => box.reachable === true).length,
 								)}
-								{hub.slots === undefined
+								{hub.slots === undefined || hub.reachable !== true
 									? null
 									: `, ${factoriesCopy.busy(hub.slots.used, hub.slots.total)}`}
 							</span>
@@ -1138,7 +1138,8 @@ function BoxCard({
 }) {
 	const heartbeat = since(box.heartbeatAt, now);
 	const off = box.reachable !== true;
-	const host = off ? undefined : box.host;
+	const host = box.host;
+	const lastKnown = box.slots !== undefined || host !== undefined;
 	const hostNotServed = page.notServed.some(
 		(item) => item.panel === "host" && item.factory === box.name,
 	);
@@ -1190,7 +1191,7 @@ function BoxCard({
 				) : null}
 				{dormant !== null ? null : (
 					<span className={clsx(styles.meta)}>
-						{host === undefined
+						{host === undefined || off
 							? null
 							: factoriesCopy.uptime(spanText(host.uptimeS * 1_000))}
 						{heartbeat === null ? (
@@ -1222,7 +1223,7 @@ function BoxCard({
 				</p>
 			) : dormant === "waking" ? (
 				<p className={clsx(styles.note)}>{factoriesCopy.waking(slotTotal)}</p>
-			) : off ? (
+			) : off && !lastKnown ? (
 				<p className={clsx(styles.note)}>
 					{box.hub === undefined
 						? factoriesCopy.unreachable(heartbeat !== null)

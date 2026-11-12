@@ -48,10 +48,11 @@ export type FactoryCard = {
 	network?: string;
 	/** Null until the first check ends. */
 	reachable: boolean | null;
+	/** The slots of the last good read. A box that does not answer keeps them. */
 	slots?: Slots;
 	/** The clock time of the last good `GET /daemon` read, or of the last hub contact of a pool box. */
 	heartbeatAt: string | null;
-	/** The host health of a box that answers, from its host samples. */
+	/** The host health of a box from its host samples. A box that does not answer keeps its last values. */
 	host?: HostHealth;
 	/** The state of the box in the box pool of a hub. */
 	state?: BoxState;
@@ -194,8 +195,12 @@ function cards(
 	now: Date,
 ): FactoryCard[] {
 	const samples = Map.groupBy(hostSamples, (sample) => sample.factory);
-	const healthOf = (name: string, gate: number | null) => {
-		const host = hostHealth(samples.get(name) ?? [], gate, now);
+	const healthOf = (name: string, gate: number | null, answers: boolean) => {
+		const own = samples.get(name) ?? [];
+		const newest = own.at(-1);
+		// A box that does not answer shows its health as of its last sample.
+		const at = answers || newest === undefined ? now : new Date(newest.at);
+		const host = hostHealth(own, gate, at);
 		return host === undefined ? {} : { host };
 	};
 	const listedNames = new Set(entries.map((entry) => entry.name));
@@ -231,13 +236,11 @@ function cards(
 			roles: rolesOf(entry),
 			...(network === undefined ? {} : { network }),
 			reachable: entry.reachable,
-			...(entry.reachable === true && entry.slots !== undefined
-				? { slots: entry.slots }
-				: {}),
+			...(entry.slots === undefined ? {} : { slots: entry.slots }),
 			heartbeatAt: floor.heartbeats.get(entry.url) ?? null,
-			...(entry.reachable === true && !floor.hostsNotServed.has(entry.url)
-				? healthOf(entry.name, entry.placementGate ?? null)
-				: {}),
+			...(entry.reachable === null || floor.hostsNotServed.has(entry.url)
+				? {}
+				: healthOf(entry.name, entry.placementGate ?? null, entry.reachable)),
 			...(state === undefined ? {} : { state }),
 		};
 		const poolCards = pools.flatMap(
@@ -254,9 +257,11 @@ function cards(
 						hub,
 						state: box.state,
 						reachable: awake,
-						...(hubAnswers ? { slots: box.slots } : {}),
+						slots: box.slots,
 						heartbeatAt: box.last_contact,
-						...(awake ? healthOf(box.name, null) : {}),
+						...(awakeStates.has(box.state)
+							? healthOf(box.name, null, hubAnswers)
+							: {}),
 					},
 				];
 			},
@@ -268,7 +273,11 @@ function cards(
 /** The slots of every factory, with a box that a hub also reports counted once, in its hub. */
 function slotsOf(boxes: FactoryCard[]): Slots | null {
 	const counted = boxes.flatMap((box) =>
-		box.network === undefined && box.slots !== undefined ? [box.slots] : [],
+		box.network === undefined &&
+		box.reachable === true &&
+		box.slots !== undefined
+			? [box.slots]
+			: [],
 	);
 	return counted.length === 0
 		? null

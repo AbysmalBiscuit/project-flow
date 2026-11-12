@@ -34,7 +34,7 @@ function snapshot(change: (recorded: Snapshot) => Snapshot): Snapshot {
 
 async function serveHosts(
 	factories: { name: string; url: string; placementGate?: number }[],
-	answers: Record<string, Answers>,
+	answers: Record<string, Answers | "down">,
 	now: () => Date = () => new Date(clockStart),
 ) {
 	const requests: FactoryRequest[] = [];
@@ -301,6 +301,48 @@ describe("the host health of the box cards", () => {
 			);
 			expect(cardOf(page, "work hub")?.host).toBeUndefined();
 			expect(cardOf(page, "work hub")?.reachable).toBe(true);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a factory that stops answering keeps its last slots and host values, and leaves the slots tile", async () => {
+		let now = Date.parse(clockStart);
+		const answers: Record<string, Answers | "down"> = {
+			[hubUrl]: hubAnswers(machine),
+			[laptopUrl]: laptopAnswers(machine),
+		};
+		const app = await serveHosts(
+			[
+				{ name: "work hub", url: hubUrl },
+				{ name: "laptop", url: laptopUrl },
+			],
+			answers,
+			() => new Date(now),
+		);
+		try {
+			const answered = cardOf(
+				await factoriesWhere(
+					app.base,
+					(seen) => cardOf(seen, "laptop")?.host !== undefined,
+				),
+				"laptop",
+			);
+			answers[laptopUrl] = "down";
+			now = Date.parse(clockStart) + 2 * 60 * 1_000;
+			const page = await factoriesWhere(
+				app.base,
+				(seen) => cardOf(seen, "laptop")?.reachable === false,
+			);
+			if (answered === undefined) {
+				throw new Error("the laptop card is missing");
+			}
+			expect(answered.slots).toEqual(laptopAbout.slots);
+			expect(cardOf(page, "laptop")).toEqual({
+				...answered,
+				reachable: false,
+			});
+			expect(page.tiles.slots).toEqual(hubAbout.slots);
 		} finally {
 			await app.stop();
 		}
