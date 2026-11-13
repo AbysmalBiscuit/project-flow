@@ -50,7 +50,7 @@ import {
 import { runEventsReader } from "./factory-run-events.ts";
 import { runFilesReader } from "./factory-run-files.ts";
 import { runHistoryReader } from "./factory-run-history.ts";
-import { runPullReader } from "./factory-run-pulls.ts";
+import { type KnownPull, runPullReader } from "./factory-run-pulls.ts";
 import {
 	asksOf,
 	factoryRuns,
@@ -157,6 +157,8 @@ export function factoryReader(
 	signal: AbortSignal,
 	now: () => Date,
 	history: HistorySink = { stage: () => {}, asks: () => {}, host: () => {} },
+	/** The run PRs that the run history stored, so a restart does not read an ended run's PR again. */
+	knownPulls: readonly KnownPull[] = [],
 ): FactoryReader {
 	/** Counts the writes to the state that the run list reads. */
 	let runWrites = 0;
@@ -169,6 +171,7 @@ export function factoryReader(
 		fetchImpl,
 		signal,
 		runsChanged,
+		knownPulls,
 	);
 	/**
 	 * The thread of each run, by run id. The factory gives the open and answered asks,

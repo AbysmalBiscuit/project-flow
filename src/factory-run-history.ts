@@ -19,8 +19,14 @@ const eventLogLimitMs = 30_000;
 /** A read of an ended run for the run history: its answer, "not served" on 404, or null when it failed. */
 export type HistoryAnswer<T> = T | "not served" | null;
 
-/** The URL of the PR that a run opened, as its factory reports it. */
-export type FactoryPull = { url: string };
+/** The PR that a run opened, as its factory reports it. */
+export type FactoryPull = {
+	repo: string;
+	number: number;
+	url: string;
+	/** True when the run recorded the merge of its PR. */
+	merged: boolean;
+};
 
 /** The one-time reads of an ended run that fill the run history. */
 export function runHistoryReader(deps: {
@@ -112,7 +118,7 @@ export function runHistoryReader(deps: {
 				return null;
 			}
 			try {
-				const { pr } = await body(
+				const pull = await body(
 					await reader(
 						fetchImpl,
 						row.url,
@@ -120,7 +126,7 @@ export function runHistoryReader(deps: {
 					)(`/runs/${encodeURIComponent(runId)}`),
 					runPull,
 				);
-				return pr === null || pr === undefined ? "no pull" : { url: pr.url };
+				return pull ?? "no pull";
 			} catch (error) {
 				if (error instanceof NotServed) {
 					return "not served";
