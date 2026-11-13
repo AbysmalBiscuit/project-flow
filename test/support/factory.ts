@@ -176,6 +176,8 @@ export async function serve(
 		now?: () => Date;
 		/** A store that outlives the app, so a second start reads what the first stored. */
 		databasePath?: string;
+		/** Takes each line that the app writes to stderr. */
+		stderr?: (line: string) => void;
 	} = {},
 ): Promise<{
 	base: string;
@@ -204,6 +206,7 @@ export async function serve(
 			waitForStop: stopped,
 			runTickMs: 25,
 			...(io.now === undefined ? {} : { now: io.now }),
+			...(io.stderr === undefined ? {} : { stderr: io.stderr }),
 		}),
 	);
 	const base = await ready;

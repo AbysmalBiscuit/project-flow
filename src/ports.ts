@@ -432,6 +432,17 @@ export class TrackerError extends Error {
 	}
 }
 
+/** A forge read that the rate limit refused. The forge takes reads again at `retryAt`. */
+export class RateLimited extends TrackerError {
+	readonly retryAt: Date;
+
+	constructor(message: string, status: number, retryAt: Date) {
+		super(message, status);
+		this.name = "RateLimited";
+		this.retryAt = retryAt;
+	}
+}
+
 export function isMissing(error: unknown): boolean {
 	return (
 		error instanceof TrackerError &&

@@ -3,9 +3,11 @@ import { Database, type SQLQueryBindings } from "bun:sqlite";
 import { z } from "zod";
 
 import { type HostSnapshot, hostSnapshot } from "./factory-host.ts";
+import type { FactoryPull } from "./factory-run-history.ts";
+import type { KnownPull } from "./factory-run-pulls.ts";
 import type { RunAsks } from "./factory-run-rows.ts";
 import type { RunResult, RunStatusKind } from "./kinds.ts";
-import type { PullSize, PullTarget } from "./ports.ts";
+import type { PullSize } from "./ports.ts";
 import {
 	type RetroRecord,
 	retroRecord,
@@ -116,12 +118,8 @@ const stageData = z
 export type HistoryRead =
 	"events" | "turns" | "verification" | "retro" | "pull";
 
-/** The PR of an ended run: its URL, and its repo, number and size when its forge reads them. */
-export type RecordedPull = {
-	url: string;
-	target: PullTarget | null;
-	size: PullSize | null;
-};
+/** The PR of an ended run as its factory reports it, with its size when its forge reads it. */
+export type RecordedPull = FactoryPull & { size: PullSize | null };
 
 /** The `workflow.started` data of an entry graph gives the sha of the workflow package. */
 const workflowStart = z.object({
@@ -299,9 +297,18 @@ export function runHistory(db: Database, path: string) {
 	db.run(`
 		create table if not exists run_pulls (
 			run_id text primary key, url text not null, repo text, number integer,
-			additions integer, deletions integer, changed_files integer, opened_at text, merged_at text
+			additions integer, deletions integer, changed_files integer, opened_at text, merged_at text,
+			merged integer
 		)
 	`);
+	const pullColumns = db
+		.query<{ name: string }, []>("pragma table_info(run_pulls)")
+		.all()
+		.map((column) => column.name);
+	if (!pullColumns.includes("merged")) {
+		// The PRs of a store from an older launch keep their rows; their merge time stands in for the flag.
+		db.run("alter table run_pulls add column merged integer");
+	}
 	db.run(
 		"create view if not exists pulls as select run_id, url, repo, number, additions, deletions, changed_files, opened_at, merged_at from run_pulls",
 	);
@@ -537,12 +544,13 @@ export function runHistory(db: Database, path: string) {
 				db.query("delete from run_pulls where run_id = ?").run(runId);
 				if (pull !== null) {
 					db.query(
-						"insert into run_pulls (run_id, url, repo, number, additions, deletions, changed_files, opened_at, merged_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+						"insert into run_pulls (run_id, url, repo, number, merged, additions, deletions, changed_files, opened_at, merged_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 					).run(
 						runId,
 						pull.url,
-						pull.target?.repo ?? null,
-						pull.target?.number ?? null,
+						pull.repo,
+						pull.number,
+						Number(pull.merged),
 						pull.size?.additions ?? null,
 						pull.size?.deletions ?? null,
 						pull.size?.changedFiles ?? null,
@@ -552,6 +560,35 @@ export function runHistory(db: Database, path: string) {
 				}
 				markRead.run(runId, "pull", endedAt);
 			})();
+		},
+		/** The PR read of each run that a launch stored, so the next launch does not read an ended run again. */
+		knownPulls(): KnownPull[] {
+			return db
+				.query<
+					{
+						runId: string;
+						endedAt: string | null;
+						url: string | null;
+						repo: string | null;
+						number: number | null;
+						merged: number | null;
+					},
+					[]
+				>(
+					`select x.run_id as runId, x.ended_at as endedAt, p.url, p.repo, p.number,
+						coalesce(p.merged, p.merged_at is not null) as merged
+					from run_history_reads x left join run_pulls p on p.run_id = x.run_id
+					where x.read = 'pull' and (p.url is null or p.repo is not null)`,
+				)
+				.all()
+				.map(({ runId, endedAt, url, repo, number, merged }) => ({
+					runId,
+					endedAt,
+					pull:
+						url === null || repo === null || number === null
+							? null
+							: { repo, number, url, merged: merged === 1 },
+				}));
 		},
 		/**
 		 * Keep the verification record of an ended run, and remember the read with the

@@ -99,6 +99,8 @@ export type StartOptions = {
 	listTodos?: TodoSource;
 	listCheckouts?: CheckoutSource;
 	now?: () => Date;
+	/** Takes each line that the app reports on stderr, such as a run history read that failed. */
+	warn?: (line: string) => void;
 	threadReadLimitMs?: number;
 	trackerRequestLimitMs?: number;
 	/** How long one second of `pollIntervalSeconds` lasts on the poll timer. */
@@ -184,6 +186,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			asks: (runId, asks) => opened.history.recordAsks(runId, asks),
 			host: (sample) => opened.history.recordHost(sample),
 		},
+		opened.history.knownPulls(),
 	);
 	const backends = buildBackends({
 		credentials: options.credentials,
@@ -191,10 +194,15 @@ export async function start(options: StartOptions): Promise<Running> {
 		fetch: trackerFetch,
 		repoFetch: repoFetch.fetch,
 	});
-	const backfill = historyBackfill(opened.history, factories, (url) => {
-		const link = backends.linkOf(url, configuration.hosts);
-		return link === null || "error" in link ? null : link;
-	});
+	const backfill = historyBackfill(
+		opened.history,
+		factories,
+		(url) => {
+			const link = backends.linkOf(url, configuration.hosts);
+			return link === null || "error" in link ? null : link;
+		},
+		{ now: () => clock.now(), warn: options.warn ?? (() => {}) },
+	);
 	const trackerOf = projectTrackers(
 		backends,
 		() => opened.store.readTickets(),

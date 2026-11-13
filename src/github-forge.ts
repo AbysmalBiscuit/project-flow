@@ -10,6 +10,7 @@ import {
 	type Forge,
 	type PullSize,
 	type PullTarget,
+	RateLimited,
 	TrackerError,
 } from "./ports.ts";
 
@@ -52,6 +53,22 @@ async function refusalReason(
 				? refused.data.message
 				: `GitHub ${action} failed (HTTP ${response.status})`;
 	return new TrackerError(reason, response.status);
+}
+
+/** The time GitHub takes reads again, when a refused response reports a rate limit. */
+function rateLimitRetry(response: Response): Date | null {
+	if (response.status !== 403 && response.status !== 429) {
+		return null;
+	}
+	const retryAfter = response.headers.get("retry-after");
+	if (retryAfter !== null && Number.isFinite(Number(retryAfter))) {
+		return new Date(Date.now() + Number(retryAfter) * 1000);
+	}
+	const reset = response.headers.get("x-ratelimit-reset");
+	if (response.headers.get("x-ratelimit-remaining") === "0" && reset !== null) {
+		return new Date(Number(reset) * 1000);
+	}
+	return null;
 }
 
 export function githubForge(
@@ -115,9 +132,19 @@ export function githubForge(
 		async pullSize({ repo, number }) {
 			const response = await fetchImpl(
 				`https://api.github.com/repos/${repo}/pulls/${number}`,
-				{ headers: githubHeaders(token) },
+				{
+					headers: githubHeaders(token),
+				},
 			);
 			if (!response.ok) {
+				const retryAt = rateLimitRetry(response);
+				if (retryAt !== null) {
+					throw new RateLimited(
+						`GitHub read pull rate limited: ${repo}#${number}`,
+						response.status,
+						retryAt,
+					);
+				}
 				throw new TrackerError(
 					`GitHub read pull failed: ${repo}#${number}`,
 					response.status,

@@ -128,6 +128,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			listCheckouts:
 				io.listCheckouts ?? ((roots) => listDevkitCheckouts(roots, io.env)),
 			flagFactories,
+			warn: writeErr,
 			...(io.now === undefined ? {} : { now: io.now }),
 			...(io.threadReadLimitMs === undefined
 				? {}

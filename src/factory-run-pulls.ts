@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import type { RunPull } from "./domain.ts";
 import { body, type Read, reader, Unreachable } from "./factory-http.ts";
+import type { FactoryPull } from "./factory-run-history.ts";
 import { isLive, type ReadRun } from "./factory-run-rows.ts";
 import type { Fetch } from "./fetch.ts";
 import { githubHost } from "./github-pin.ts";
@@ -26,17 +27,45 @@ function declaredHost(url: string): { host?: string } {
 	return host === undefined || host === githubHost ? {} : { host };
 }
 
-/** The PR of each run from `GET /runs/{id}` of the factory that reports the run. */
+/** The run PR of the PR that a factory reports. */
+export function runPullOf(pull: FactoryPull): RunPull {
+	return {
+		repo: pull.repo,
+		...declaredHost(pull.url),
+		number: pull.number,
+		url: pull.url,
+		merged: pull.merged,
+	};
+}
+
+/** The PR read of an ended run that an earlier launch stored: the run's end time at the read, and its PR, or null when it opened none. */
+export type KnownPull = {
+	runId: string;
+	endedAt: string | null;
+	pull: FactoryPull | null;
+};
+
+/**
+ * The PR of each run from `GET /runs/{id}` of the factory that reports the run.
+ * It starts from the PRs in `known`, so it does not read an ended run again after a restart.
+ */
 export function runPullReader(
 	fetchImpl: Fetch,
 	signal: AbortSignal,
 	changed: () => void,
+	known: readonly KnownPull[] = [],
 ) {
 	/** The PR of each run that has one, by run id, with the end time of the run at the read. */
 	const pulls = new WatchedMap<
 		string,
 		{ endedAt: string | null; pull?: RunPull }
 	>(changed);
+	for (const { runId, endedAt, pull } of known) {
+		pulls.set(runId, {
+			endedAt,
+			...(pull === null ? {} : { pull: runPullOf(pull) }),
+		});
+	}
 	/** The factories whose PR reads run now. */
 	const readingPulls = new Set<string>();
 	/** The factories that ended at least one pass of PR reads. */
@@ -52,13 +81,12 @@ export function runPullReader(
 				...(pr === null || pr === undefined
 					? {}
 					: {
-							pull: {
+							pull: runPullOf({
 								repo: `${pr.owner}/${pr.repo}`,
-								...declaredHost(pr.url),
 								number: pr.number,
 								url: pr.url,
 								merged: (outputs?.merge_sha ?? "") !== "",
-							},
+							}),
 						}),
 			});
 		} catch (error) {
