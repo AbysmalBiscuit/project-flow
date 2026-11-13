@@ -32,7 +32,7 @@ import type {
 import type { ArtifactsRead } from "./factory-run-artifacts.ts";
 import type { CheckpointRead } from "./factory-run-detail.ts";
 import type { FilesRead } from "./factory-run-files.ts";
-import type { HistoryAnswer } from "./factory-run-history.ts";
+import type { FactoryPull, HistoryAnswer } from "./factory-run-history.ts";
 import type { SandboxRead } from "./factory-run-sandbox.ts";
 import type { RunSettingsRead } from "./factory-run-settings.ts";
 import type { SourceRead } from "./factory-run-source.ts";
@@ -112,6 +112,15 @@ export type PullLinks = {
 
 /** The repo and number of one PR on a forge. */
 export type PullTarget = Pick<PullLink, "repo" | "number">;
+
+/** The lines and files that a PR changes, and when it opened and merged. */
+export type PullSize = {
+	additions: number;
+	deletions: number;
+	changedFiles: number;
+	openedAt: string;
+	mergedAt: string | null;
+};
 
 /** A URL on one ticket that can name a PR on a forge. */
 export type PullRef = { url: string; ticketKey: string };
@@ -244,6 +253,8 @@ export type FactoryReader = {
 	verification: (runId: string) => Promise<HistoryAnswer<VerificationRecord>>;
 	/** `GET /runs/{id}/retro` of the factory whose row gives the run its status. */
 	retro: (runId: string) => Promise<HistoryAnswer<RetroRecord>>;
+	/** The PR of the run from `GET /runs/{id}` of the factory whose row gives the run its status. */
+	pull: (runId: string) => Promise<HistoryAnswer<FactoryPull | "no pull">>;
 	/**
 	 * `GET /runs/{id}/artifacts` of the hub that reports the run, or else of its box.
 	 * "missing" when no factory reported the run or the factory did not answer,
@@ -346,6 +357,8 @@ export type Forge = {
 	repoAutoMerge: (repo: string) => Promise<boolean>;
 	/** The repo and number of the PR that this URL names, or null for any other URL. */
 	pullOfUrl: (url: URL) => PullTarget | null;
+	/** The size and the open and merge times of one PR. A failed read throws. */
+	pullSize?: (pull: PullTarget) => Promise<PullSize>;
 	/** Merge the PR at its known head. A refusal throws a `TrackerError` with the reason of the forge. */
 	merge?: (
 		pull: Pick<PullRequest, "repo" | "number" | "headSha">,

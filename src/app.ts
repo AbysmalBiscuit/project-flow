@@ -185,12 +185,15 @@ export async function start(options: StartOptions): Promise<Running> {
 			host: (sample) => opened.history.recordHost(sample),
 		},
 	);
-	const backfill = historyBackfill(opened.history, factories);
 	const backends = buildBackends({
 		credentials: options.credentials,
 		env: options.env,
 		fetch: trackerFetch,
 		repoFetch: repoFetch.fetch,
+	});
+	const backfill = historyBackfill(opened.history, factories, (url) => {
+		const link = backends.linkOf(url, configuration.hosts);
+		return link === null || "error" in link ? null : link;
 	});
 	const trackerOf = projectTrackers(
 		backends,

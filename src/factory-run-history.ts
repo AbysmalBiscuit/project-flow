@@ -2,6 +2,7 @@ import { sseFrames } from "./factory-events.ts";
 import { body, NotServed, reader, Unreachable } from "./factory-http.ts";
 import { turnsOf } from "./factory-run-detail.ts";
 import { runEventFrame } from "./factory-run-events.ts";
+import { runPull } from "./factory-run-pulls.ts";
 import type { ReadRun, StatusRows } from "./factory-run-rows.ts";
 import type { Fetch } from "./fetch.ts";
 import { type RetroRecord, retroRecord } from "./retros-page.ts";
@@ -17,6 +18,9 @@ const eventLogLimitMs = 30_000;
 
 /** A read of an ended run for the run history: its answer, "not served" on 404, or null when it failed. */
 export type HistoryAnswer<T> = T | "not served" | null;
+
+/** The URL of the PR that a run opened, as its factory reports it. */
+export type FactoryPull = { url: string };
 
 /** The one-time reads of an ended run that fill the run history. */
 export function runHistoryReader(deps: {
@@ -90,6 +94,33 @@ export function runHistoryReader(deps: {
 					)(`/runs/${encodeURIComponent(runId)}/verification`),
 					verificationRecord,
 				);
+			} catch (error) {
+				if (error instanceof NotServed) {
+					return "not served";
+				}
+				if (error instanceof Unreachable) {
+					return null;
+				}
+				throw error;
+			}
+		},
+		pull: async (
+			runId: string,
+		): Promise<HistoryAnswer<FactoryPull | "no pull">> => {
+			const { row } = statusRowOf(runId);
+			if (row === undefined) {
+				return null;
+			}
+			try {
+				const { pr } = await body(
+					await reader(
+						fetchImpl,
+						row.url,
+						signal,
+					)(`/runs/${encodeURIComponent(runId)}`),
+					runPull,
+				);
+				return pr === null || pr === undefined ? "no pull" : { url: pr.url };
 			} catch (error) {
 				if (error instanceof NotServed) {
 					return "not served";

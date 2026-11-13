@@ -6,7 +6,28 @@ import { githubHeaders } from "./github-pages.ts";
 import { keepMergedEvidence, type ReviewEvidence } from "./github-pulls.ts";
 import type { GithubReads } from "./github-reads.ts";
 import { readAutoMerge } from "./github-repo-query.ts";
-import { type Forge, type PullTarget, TrackerError } from "./ports.ts";
+import {
+	type Forge,
+	type PullSize,
+	type PullTarget,
+	TrackerError,
+} from "./ports.ts";
+
+const pullSize = z
+	.object({
+		additions: z.number(),
+		deletions: z.number(),
+		changed_files: z.number(),
+		created_at: z.string(),
+		merged_at: z.string().nullable(),
+	})
+	.transform((pull): PullSize => ({
+		additions: pull.additions,
+		deletions: pull.deletions,
+		changedFiles: pull.changed_files,
+		openedAt: pull.created_at,
+		mergedAt: pull.merged_at,
+	}));
 
 const refusal = z.object({
 	message: z.string(),
@@ -91,6 +112,19 @@ export function githubForge(
 			return read;
 		},
 		pullOfUrl: githubPullOfUrl,
+		async pullSize({ repo, number }) {
+			const response = await fetchImpl(
+				`https://api.github.com/repos/${repo}/pulls/${number}`,
+				{ headers: githubHeaders(token) },
+			);
+			if (!response.ok) {
+				throw new TrackerError(
+					`GitHub read pull failed: ${repo}#${number}`,
+					response.status,
+				);
+			}
+			return pullSize.parse(await response.json());
+		},
 		async merge({ repo, number, headSha }) {
 			const response = await fetchImpl(
 				`https://api.github.com/repos/${repo}/pulls/${number}/merge`,
