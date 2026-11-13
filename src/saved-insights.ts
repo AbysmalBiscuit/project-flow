@@ -146,6 +146,29 @@ GROUP BY turns.stage
 ORDER BY cost_usd DESC;`,
 	},
 	{
+		key: "median-pr-lines-by-factory-30-days",
+		name: "Median lines changed per merged PR by factory, 30 days",
+		sql: `WITH merged AS (
+  SELECT runs.factory, pulls.additions + pulls.deletions AS lines,
+         row_number() OVER (PARTITION BY pulls.url ORDER BY runs.ended_at DESC) AS newest
+  FROM pulls
+  JOIN runs ON runs.id = pulls.run_id
+  WHERE pulls.merged_at IS NOT NULL AND pulls.additions IS NOT NULL
+    AND runs.ended_at > date('now', '-30 days')
+), ranked AS (
+  SELECT factory, lines,
+         row_number() OVER (PARTITION BY factory ORDER BY lines) AS position,
+         count(*) OVER (PARTITION BY factory) AS total
+  FROM merged
+  WHERE newest = 1
+)
+SELECT factory, round(avg(lines)) AS median_lines
+FROM ranked
+WHERE position IN ((total + 1) / 2, (total + 2) / 2)
+GROUP BY factory
+ORDER BY median_lines DESC;`,
+	},
+	{
 		key: "cost-by-model-30-days",
 		name: "Cost by model, 30 days",
 		sql: `SELECT coalesce(turns.model, 'unknown') AS model,

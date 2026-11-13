@@ -275,7 +275,7 @@ The table of every workcell run that the factories report, with search and filte
 _Avoid_: Run log
 
 **Run history**:
-The copy of the runs that the factories report, which the store keeps. It also keeps the stages, turns, asks, verification record and retro of each run, and its package version. Each run keeps its rows after the factory stops listing it, until Lev deletes the run. The next factory read fills it again after a lost store. It also keeps the host samples of the last 24 hours. Insight queries read it through views: `runs`, `stages`, `turns`, `asks`, `verdicts`, `retros` and `host_samples`.
+The copy of the runs that the factories report, which the store keeps. It also keeps the stages, turns, asks, verification record and retro of each run, its package version, and the size of its PR. Each run keeps its rows after the factory stops listing it, until Lev deletes the run. The next factory read fills it again after a lost store. It also keeps the host samples of the last 24 hours. Insight queries read it through views: `runs`, `stages`, `turns`, `asks`, `verdicts`, `retros`, `pulls` and `host_samples`.
 _Avoid_: Runs list (when the stored rows are meant), run archive
 
 **Insight query**:

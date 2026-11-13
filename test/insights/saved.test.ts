@@ -21,6 +21,7 @@ const startingNames = [
 	"Slowest stages by p95",
 	"Retries by stage, 30 days",
 	"Cost by stage, 30 days",
+	"Median lines changed per merged PR by factory, 30 days",
 	"Cost by model, 30 days",
 ];
 

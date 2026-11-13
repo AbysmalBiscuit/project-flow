@@ -245,7 +245,7 @@ test("the answered asks of a run give ask rows", async () => {
 	}
 });
 
-test("Insights lists the stages, turns, asks, verdicts, retros and host_samples tables", async () => {
+test("Insights lists the stages, turns, asks, verdicts, retros, pulls and host_samples tables", async () => {
 	const app = await serveHub();
 	try {
 		const { tables } = await insightTables(app.base);
@@ -256,6 +256,7 @@ test("Insights lists the stages, turns, asks, verdicts, retros and host_samples 
 			"asks",
 			"verdicts",
 			"retros",
+			"pulls",
 			"host_samples",
 		]);
 		expect(tables.find((table) => table.name === "host_samples")).toEqual({

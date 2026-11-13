@@ -8,7 +8,7 @@ import { githubHost } from "./github-pin.ts";
 import { WatchedMap } from "./watched.ts";
 
 /** `GET /runs/{id}`: the PR that the run opened, and its outputs. */
-const runPull = z.object({
+export const runPull = z.object({
 	pr: z
 		.object({
 			owner: z.string(),

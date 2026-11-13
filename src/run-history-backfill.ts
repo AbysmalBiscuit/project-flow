@@ -1,6 +1,6 @@
 import { endedRunStatusKinds } from "./kinds.ts";
-import type { FactoryReader } from "./ports.ts";
-import type { HistoryRead, RunHistory } from "./run-history.ts";
+import type { FactoryReader, Forge, PullTarget } from "./ports.ts";
+import type { HistoryRead, RecordedPull, RunHistory } from "./run-history.ts";
 import type { RunListRow } from "./run-list.ts";
 
 /** The most factory reads that the backfill runs at the same time. */
@@ -10,16 +10,26 @@ const ended: ReadonlySet<string> = new Set(endedRunStatusKinds);
 
 /**
  * Fills the run history of each end of a run once: its stage rows from its
- * event log, its turn rows, its verification record and its retro. The reads run in the background, `backfillReads` at a
+ * event log, its turn rows, its verification record, its retro and the size of its PR. The reads run in the background, `backfillReads` at a
  * time. A failed read runs again at the next call.
  */
 export function historyBackfill(
 	history: RunHistory,
 	factories: Pick<
 		FactoryReader,
-		"eventLog" | "turns" | "verification" | "retro"
+		"eventLog" | "turns" | "verification" | "retro" | "pull"
 	>,
+	forgeOfPull: (url: URL) => { forge: Forge; target: PullTarget } | null,
 ) {
+	const readPull = async (url: string): Promise<RecordedPull> => {
+		const parsed = URL.parse(url);
+		const link = parsed === null ? null : forgeOfPull(parsed);
+		if (link === null) {
+			return { url, target: null, size: null };
+		}
+		const size = (await link.forge.pullSize?.(link.target)) ?? null;
+		return { url, target: link.target, size };
+	};
 	const queued = new Set<string>();
 	const waiting: (() => Promise<void>)[] = [];
 	let active = 0;
@@ -61,6 +71,19 @@ export function historyBackfill(
 					runId,
 					endedAt,
 					record === "not served" ? null : record,
+				);
+			}
+			return;
+		}
+		if (read === "pull") {
+			const pull = await factories.pull(runId);
+			if (pull !== null) {
+				history.recordPull(
+					runId,
+					endedAt,
+					pull === "not served" || pull === "no pull"
+						? null
+						: await readPull(pull.url),
 				);
 			}
 			return;

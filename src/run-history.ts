@@ -5,6 +5,7 @@ import { z } from "zod";
 import { type HostSnapshot, hostSnapshot } from "./factory-host.ts";
 import type { RunAsks } from "./factory-run-rows.ts";
 import type { RunResult, RunStatusKind } from "./kinds.ts";
+import type { PullSize, PullTarget } from "./ports.ts";
 import {
 	type RetroRecord,
 	retroRecord,
@@ -112,7 +113,15 @@ const stageData = z
  * The factory reads that fill the run history of an ended run once. The
  * `events` read also stores a `package` mark, so the package sha is read once.
  */
-export type HistoryRead = "events" | "turns" | "verification" | "retro";
+export type HistoryRead =
+	"events" | "turns" | "verification" | "retro" | "pull";
+
+/** The PR of an ended run: its URL, and its repo, number and size when its forge reads them. */
+export type RecordedPull = {
+	url: string;
+	target: PullTarget | null;
+	size: PullSize | null;
+};
 
 /** The `workflow.started` data of an entry graph gives the sha of the workflow package. */
 const workflowStart = z.object({
@@ -166,6 +175,7 @@ const queryableViews = [
 	"asks",
 	"verdicts",
 	"retros",
+	"pulls",
 	"host_samples",
 ];
 
@@ -287,6 +297,15 @@ export function runHistory(db: Database, path: string) {
 		from run_retros where record is not null
 	`);
 	db.run(`
+		create table if not exists run_pulls (
+			run_id text primary key, url text not null, repo text, number integer,
+			additions integer, deletions integer, changed_files integer, opened_at text, merged_at text
+		)
+	`);
+	db.run(
+		"create view if not exists pulls as select run_id, url, repo, number, additions, deletions, changed_files, opened_at, merged_at from run_pulls",
+	);
+	db.run(`
 		create table if not exists run_host_samples (
 			factory text not null, at text not null, snapshot text not null,
 			primary key (factory, at)
@@ -398,6 +417,7 @@ export function runHistory(db: Database, path: string) {
 					"run_packages",
 					"run_verifications",
 					"run_retros",
+					"run_pulls",
 					"run_history_reads",
 				]) {
 					db.query(`delete from ${table} where run_id = ?`).run(runId);
@@ -477,7 +497,7 @@ export function runHistory(db: Database, path: string) {
 		},
 		/**
 		 * The reads that an ended run still needs: its event log while it has no
-		 * stage rows or no package sha, its turns, its verification record and its retro.
+		 * stage rows or no package sha, its turns, its verification record, its retro and its PR.
 		 * Each read runs once for each end of the run, so a resumed run that ends again
 		 * gets its turns read again.
 		 */
@@ -499,7 +519,39 @@ export function runHistory(db: Database, path: string) {
 			if (!done.has("retro")) {
 				reads.push("retro");
 			}
+			if (!done.has("pull")) {
+				reads.push("pull");
+			}
 			return reads;
+		},
+		/**
+		 * Keep the PR of an ended run, and remember the read with the run's end time.
+		 * A null PR means the run opened none, so the run keeps no row.
+		 */
+		recordPull(
+			runId: string,
+			endedAt: string | null,
+			pull: RecordedPull | null,
+		): void {
+			db.transaction(() => {
+				db.query("delete from run_pulls where run_id = ?").run(runId);
+				if (pull !== null) {
+					db.query(
+						"insert into run_pulls (run_id, url, repo, number, additions, deletions, changed_files, opened_at, merged_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+					).run(
+						runId,
+						pull.url,
+						pull.target?.repo ?? null,
+						pull.target?.number ?? null,
+						pull.size?.additions ?? null,
+						pull.size?.deletions ?? null,
+						pull.size?.changedFiles ?? null,
+						pull.size?.openedAt ?? null,
+						pull.size?.mergedAt ?? null,
+					);
+				}
+				markRead.run(runId, "pull", endedAt);
+			})();
 		},
 		/**
 		 * Keep the verification record of an ended run, and remember the read with the
