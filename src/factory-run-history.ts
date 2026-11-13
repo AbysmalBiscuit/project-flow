@@ -118,7 +118,7 @@ export function runHistoryReader(deps: {
 				return null;
 			}
 			try {
-				const { pr, outputs } = await body(
+				const pull = await body(
 					await reader(
 						fetchImpl,
 						row.url,
@@ -126,14 +126,7 @@ export function runHistoryReader(deps: {
 					)(`/runs/${encodeURIComponent(runId)}`),
 					runPull,
 				);
-				return pr === null || pr === undefined
-					? "no pull"
-					: {
-							repo: `${pr.owner}/${pr.repo}`,
-							number: pr.number,
-							url: pr.url,
-							merged: (outputs?.merge_sha ?? "") !== "",
-						};
+				return pull ?? "no pull";
 			} catch (error) {
 				if (error instanceof NotServed) {
 					return "not served";

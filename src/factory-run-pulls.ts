@@ -8,18 +8,29 @@ import type { Fetch } from "./fetch.ts";
 import { githubHost } from "./github-pin.ts";
 import { WatchedMap } from "./watched.ts";
 
-/** `GET /runs/{id}`: the PR that the run opened, and its outputs. */
-export const runPull = z.object({
-	pr: z
-		.object({
-			owner: z.string(),
-			repo: z.string(),
-			number: z.number(),
-			url: z.string(),
-		})
-		.nullish(),
-	outputs: z.object({ merge_sha: z.string().nullish() }).nullish(),
-});
+/** `GET /runs/{id}`: the PR that the run opened, or null when it opened none. */
+export const runPull = z
+	.object({
+		pr: z
+			.object({
+				owner: z.string(),
+				repo: z.string(),
+				number: z.number(),
+				url: z.string(),
+			})
+			.nullish(),
+		outputs: z.object({ merge_sha: z.string().nullish() }).nullish(),
+	})
+	.transform(({ pr, outputs }): FactoryPull | null =>
+		pr === null || pr === undefined
+			? null
+			: {
+					repo: `${pr.owner}/${pr.repo}`,
+					number: pr.number,
+					url: pr.url,
+					merged: (outputs?.merge_sha ?? "") !== "",
+				},
+	);
 
 /** The host of a PR URL, for a PR off github.com. */
 function declaredHost(url: string): { host?: string } {
@@ -72,22 +83,13 @@ export function runPullReader(
 	const passedPulls = new Set<string>();
 	const readPull = async (read: Read, run: ReadRun["run"]): Promise<void> => {
 		try {
-			const { pr, outputs } = await body(
+			const pull = await body(
 				await read(`/runs/${encodeURIComponent(run.id)}`),
 				runPull,
 			);
 			pulls.set(run.id, {
 				endedAt: run.endedAt,
-				...(pr === null || pr === undefined
-					? {}
-					: {
-							pull: runPullOf({
-								repo: `${pr.owner}/${pr.repo}`,
-								number: pr.number,
-								url: pr.url,
-								merged: (outputs?.merge_sha ?? "") !== "",
-							}),
-						}),
+				...(pull === null ? {} : { pull: runPullOf(pull) }),
 			});
 		} catch (error) {
 			if (!(error instanceof Unreachable)) {
