@@ -85,6 +85,9 @@ const styles = stylex.create({
 		fontSize: type.kicker,
 		lineHeight: 1,
 	},
+	quiet: {
+		borderColor: "transparent",
+	},
 });
 
 type Content =
@@ -107,7 +110,8 @@ type Native = Omit<
 type ButtonProps = Content &
 	(Link | Native) & {
 		iconSide?: "left" | "right";
-		tone?: "primary" | "danger";
+		/** `quiet` drops the border and the fill at rest, for a button inside another surface. */
+		tone?: "primary" | "danger" | "quiet";
 		/** Marks a toggle button and shows its on state. */
 		pressed?: boolean;
 		/** A count badge after the label. */
@@ -146,6 +150,8 @@ export function Button(props: ButtonProps) {
 		styles.button,
 		tone === "primary" && control.primary,
 		tone === "danger" && control.danger,
+		tone === "quiet" && control.clear,
+		tone === "quiet" && styles.quiet,
 		pressed === true && control.on,
 		label === undefined && styles.iconOnly,
 		iconSide === "right" && styles.iconRight,
