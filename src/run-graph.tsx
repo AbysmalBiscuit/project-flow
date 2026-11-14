@@ -372,7 +372,10 @@ type StageNode = Node<
 
 type FrameNode = Node<Record<string, never>, "frame">;
 
-type RouteEdge = Edge<Pick<LaidEdge, "points" | "text" | "condition">, "route">;
+type RouteEdge = Edge<
+	Pick<LaidEdge, "points" | "text" | "condition"> & { faded: boolean },
+	"route"
+>;
 
 function Stage({
 	data: { facts, shape, kind, child, role, opens },
@@ -477,7 +480,11 @@ function Route({ id, data, markerEnd }: EdgeProps<RouteEdge>) {
 			{text === undefined ? null : (
 				<EdgeLabelRenderer>
 					<span
-						className={clsx(styles.edgeText)}
+						className={clsx(
+							styles.edgeText,
+							board.fades,
+							data?.faded === true && board.faded,
+						)}
 						data-edge-text={text.text}
 						title={data?.condition}
 						style={{
@@ -615,22 +622,23 @@ function flowOf(
 	});
 	const frameOf = new Set(laid.frames.keys());
 	const ends = (id: string) => (frameOf.has(id) ? stageFrameId(id) : id);
-	const edges: RouteEdge[] = laid.edges.map((edge) => ({
-		id: edge.id,
-		type: "route",
-		source: ends(edge.from),
-		target: ends(edge.to),
-		className: clsx(
-			board.fades,
-			focus !== null && !(seeded(edge.from) || seeded(edge.to)) && board.faded,
-		),
-		markerEnd: { type: MarkerType.ArrowClosed },
-		data: {
-			points: edge.points,
-			...(edge.text === undefined ? {} : { text: edge.text }),
-			...(edge.condition === undefined ? {} : { condition: edge.condition }),
-		},
-	}));
+	const edges: RouteEdge[] = laid.edges.map((edge) => {
+		const faded = focus !== null && !(seeded(edge.from) || seeded(edge.to));
+		return {
+			id: edge.id,
+			type: "route",
+			source: ends(edge.from),
+			target: ends(edge.to),
+			className: clsx(board.fades, faded && board.faded),
+			markerEnd: { type: MarkerType.ArrowClosed },
+			data: {
+				points: edge.points,
+				faded,
+				...(edge.text === undefined ? {} : { text: edge.text }),
+				...(edge.condition === undefined ? {} : { condition: edge.condition }),
+			},
+		};
+	});
 	return { nodes: [...frames, ...stages], edges };
 }
 
