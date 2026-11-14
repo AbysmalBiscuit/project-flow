@@ -20,6 +20,7 @@ import {
 	type,
 } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
+import { useUrlParam } from "./url-param.ts";
 import { useNow } from "./use-now.ts";
 import { WorkflowStagePane } from "./workflow-stage-pane.tsx";
 import type {
@@ -673,7 +674,7 @@ function callerNote(item: ShownGraphs[number], graphs: ShownGraphs): string {
 
 function Diagram({ detail }: { detail: WorkflowDetail }) {
 	const { graph } = detail;
-	const [picked, setPicked] = useState<string | null>(null);
+	const [picked, setPicked] = useUrlParam("graph");
 	const [stage, setStage] = useState<{ graph: string; id: string } | null>(
 		null,
 	);
