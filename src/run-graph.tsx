@@ -15,6 +15,7 @@ import {
 	ReactFlowProvider,
 	type Viewport,
 } from "@xyflow/react";
+import { ChevronRight } from "lucide-react";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 
 import { board } from "./board-styles.ts";
@@ -137,6 +138,38 @@ const styles = stylex.create({
 		position: "absolute",
 		top: `calc(-1 * ${space.sm})`,
 		right: `calc(-1 * ${space.sm})`,
+	},
+	opensButton: {
+		position: "absolute",
+		top: `calc(-1 * ${measure.glyph} / 2)`,
+		right: `calc(-1 * ${measure.glyph} / 2)`,
+		display: "inline-flex",
+		alignItems: "center",
+		justifyContent: "center",
+		boxSizing: "border-box",
+		width: measure.glyph,
+		height: measure.glyph,
+		padding: 0,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.laneLine,
+		borderRadius: radius.pill,
+		backgroundColor: {
+			default: colours.surface,
+			":hover": colours.surfaceMuted,
+		},
+		color: colours.ink,
+		cursor: "pointer",
+		outlineWidth: measure.focus,
+		outlineStyle: { default: "none", ":focus-visible": "solid" },
+		outlineColor: colours.focus,
+	},
+	opensIcon: {
+		width: measure.sortMark,
+		height: measure.sortMark,
+	},
+	opensRoom: {
+		paddingInline: `calc(${measure.glyph} / 2)`,
 	},
 	frame: {
 		boxSizing: "border-box",
@@ -398,7 +431,13 @@ function Stage({
 				{role === null ? (
 					<StageCard facts={facts} />
 				) : (
-					<span className={clsx(styles.roleCard)} title={facts.stage.label}>
+					<span
+						className={clsx(
+							styles.roleCard,
+							opens !== null && styles.opensRoom,
+						)}
+						title={facts.stage.label}
+					>
 						<span className={clsx(styles.roleLabel)}>{facts.stage.label}</span>
 						<span className={clsx(styles.roleName)}>
 							{role.name ?? stageKindLabel(kind)}
@@ -407,16 +446,18 @@ function Stage({
 				)}
 			</span>
 			{opens === null ? null : (
-				<span className={`nodrag nopan ${clsx(styles.toggle)}`}>
-					<Button
-						icon="chevron-right"
-						name={openSubgraphLabel(opens.graph)}
-						onClick={(event) => {
-							event.stopPropagation();
-							opens.open();
-						}}
-					/>
-				</span>
+				<button
+					type="button"
+					className={`nodrag nopan ${clsx(styles.opensButton)}`}
+					title={openSubgraphLabel(opens.graph)}
+					aria-label={openSubgraphLabel(opens.graph)}
+					onClick={(event) => {
+						event.stopPropagation();
+						opens.open();
+					}}
+				>
+					<ChevronRight className={clsx(styles.opensIcon)} aria-hidden />
+				</button>
 			)}
 			{child === null ? null : (
 				<span className={`nodrag nopan ${clsx(styles.toggle)}`}>
