@@ -19,7 +19,7 @@ import {
 import { focusChain } from "./focus-chain.ts";
 import { ClearFocusButton } from "./focus-controls.tsx";
 import { shownSeeds, useFocusView } from "./focus.ts";
-import { graphEdges, projectNodeId } from "./graph-flow.ts";
+import { graphEdges, graphTickets, projectNodeId } from "./graph-flow.ts";
 import { openUnlinkedPr } from "./open-unlinked-pr.ts";
 import { TicketPanel } from "./panel.tsx";
 import { RefreshButton } from "./poll-freshness.tsx";
@@ -39,6 +39,7 @@ import { RunFilterMenu } from "./run-filters.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell } from "./shell.tsx";
 import { groupByLabel, viewLabel } from "./terms.ts";
+import { useTicketCopy } from "./ticket-copy.tsx";
 import { ticketRefId } from "./ticket-key.ts";
 import { phoneGutter, projectHeaderLayout } from "./tokens.stylex.ts";
 import { frame, headerControlStyle, shell } from "./ui-styles.ts";
@@ -186,6 +187,24 @@ export function Page() {
 		queries: outsideNames.map((project) => pageQuery.project(project, "all")),
 	});
 	const outsideReports = outsideQueries.flatMap((item) => item.data ?? []);
+	const copyToast = useTicketCopy(() => {
+		if (report === null) {
+			return [];
+		}
+		const byId = new Map(
+			graphTickets(report, true, outsideReports).map((item) => [
+				projectNodeId(item.project, item.key),
+				item,
+			]),
+		);
+		const ids =
+			ticketFocus.focus.size > 0
+				? [...ticketFocus.focus]
+				: active === null
+					? []
+					: [projectNodeId(active.project, active.key)];
+		return ids.flatMap((id) => byId.get(id) ?? []);
+	});
 	const ticket = active?.key ?? null;
 	if (missing && !polling && pollError === null) {
 		return (
@@ -477,6 +496,7 @@ export function Page() {
 							)}
 						</div>
 					</main>
+					{copyToast}
 				</AppShell>
 			</TicketFocusContext.Provider>
 		</ReactFlowProvider>

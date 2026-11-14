@@ -9,14 +9,14 @@ import { clsx } from "./ui.ts";
 
 type Outcome = { id: number; tone: "saved" | "error"; message: string };
 
-/** Copies `text` to the clipboard. `toast` shows the outcome of the last copy. */
-export function useCopy(text: string): {
-	write: () => void;
+/** Copies text to the clipboard. `toast` shows the outcome of the last copy. */
+export function useClipboard(): {
+	write: (text: string) => void;
 	toast: ReactNode;
 } {
 	const [outcome, setOutcome] = useState<Outcome | null>(null);
 	const copies = useRef(0);
-	async function write(): Promise<void> {
+	async function write(text: string): Promise<void> {
 		copies.current += 1;
 		const id = copies.current;
 		try {
@@ -32,8 +32,8 @@ export function useCopy(text: string): {
 		}
 	}
 	return {
-		write: () => {
-			void write();
+		write: (text: string) => {
+			void write(text);
 		},
 		toast:
 			outcome === null ? null : (
@@ -45,6 +45,18 @@ export function useCopy(text: string): {
 					onClose={() => setOutcome(null)}
 				/>
 			),
+	};
+}
+
+/** Copies `text` to the clipboard. `toast` shows the outcome of the last copy. */
+export function useCopy(text: string): {
+	write: () => void;
+	toast: ReactNode;
+} {
+	const clipboard = useClipboard();
+	return {
+		write: () => clipboard.write(text),
+		toast: clipboard.toast,
 	};
 }
 
