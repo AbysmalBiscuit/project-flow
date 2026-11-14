@@ -94,6 +94,7 @@ const styles = stylex.create({
 		borderStyle: "solid",
 		borderColor: colours.laneLine,
 		borderRadius: radius.md,
+		overflow: "hidden",
 		backgroundColor: colours.raised,
 		"--xy-edge-stroke": colours.graphEdge,
 		"--xy-edge-stroke-width": measure.hairline,
