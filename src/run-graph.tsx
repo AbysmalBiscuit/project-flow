@@ -16,7 +16,7 @@ import {
 	type Viewport,
 } from "@xyflow/react";
 import { ChevronRight } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
 
 import { board } from "./board-styles.ts";
 import { Button } from "./button.tsx";
@@ -24,9 +24,12 @@ import type {
 	RunAgent,
 	RunCheckpoint,
 	RunGraph as Graph,
+	RunGraphEdge,
 	RunGraphNodeState,
 	ShownFactoryRun,
 } from "./domain.ts";
+import { ClearFocusButton } from "./focus-controls.tsx";
+import { shownSeeds, useClickOrDouble, useFocusView } from "./focus.ts";
 import { elk, FitLayout, LegendFrame } from "./graph-core-view.tsx";
 import type { Point } from "./graph-core.ts";
 import { float, FloatPanel } from "./graph-float.tsx";
@@ -53,8 +56,8 @@ import {
 } from "./run-stage.tsx";
 import {
 	calledGraphLabel,
+	callsGraphLabel,
 	floatPanelLabel,
-	openGraphLabel,
 	runGraphHelp,
 	runGraphLabel,
 	runGraphLegendLabel,
@@ -71,6 +74,12 @@ const styles = stylex.create({
 		flexWrap: "wrap",
 		alignItems: "flex-end",
 		gap: space.md,
+	},
+	paneTop: {
+		alignItems: "flex-start",
+	},
+	takesPointer: {
+		pointerEvents: "auto",
 	},
 	graphColumn: {
 		flexGrow: 1,
@@ -355,7 +364,7 @@ type StageNode = Node<
 		child: { open: boolean; toggle: () => void } | null;
 		/** Set when the graph shows the agent role of each stage instead of its run state. */
 		role: { name: string | undefined } | null;
-		/** The graph file that the stage calls, when a click on the stage opens it. */
+		/** The graph file that the stage calls. */
 		opens: string | null;
 	},
 	"stage"
@@ -375,7 +384,7 @@ function Stage({
 				inset[insetOf[shape] ?? "box"],
 				opens !== null && styles.opens,
 			)}
-			title={opens === null ? undefined : openGraphLabel(opens)}
+			title={opens === null ? undefined : callsGraphLabel(opens)}
 			data-opens={opens ?? undefined}
 			data-shape={shape}
 			data-kind={kind}
@@ -519,6 +528,25 @@ function useLaidWorkflow(
 	}).data;
 }
 
+/** The seed stages and their direct neighbours. A workflow graph loops, so a transitive chain would hold every stage. */
+type StageFocus = { seeds: ReadonlySet<string>; lit: ReadonlySet<string> };
+
+function stageFocus(
+	seeds: ReadonlySet<string>,
+	edges: readonly RunGraphEdge[],
+): StageFocus {
+	const lit = new Set(seeds);
+	for (const edge of edges) {
+		if (seeds.has(edge.from)) {
+			lit.add(edge.to);
+		}
+		if (seeds.has(edge.to)) {
+			lit.add(edge.from);
+		}
+	}
+	return { seeds, lit };
+}
+
 function flowOf(
 	graph: Graph,
 	laid: WorkflowLayout,
@@ -527,7 +555,11 @@ function flowOf(
 	toggle: (id: string) => void,
 	roles: boolean,
 	calls: ReadonlyMap<string, string>,
+	focus: StageFocus | null,
 ) {
+	const callerOf = (id: string) => id.split("/")[0] ?? id;
+	const kept = (id: string) => focus === null || focus.lit.has(callerOf(id));
+	const seeded = (id: string) => focus?.seeds.has(callerOf(id)) === true;
 	const frames: FrameNode[] = [...laid.frames].map(([caller, rect]) => ({
 		id: stageFrameId(caller),
 		type: "frame",
@@ -535,6 +567,10 @@ function flowOf(
 		width: rect.width,
 		height: rect.height,
 		zIndex: -1,
+		className: clsx(
+			board.moves,
+			focus !== null && !kept(caller) && board.faded,
+		),
 		data: {},
 	}));
 	const stages: StageNode[] = graph.nodes.flatMap((node) => {
@@ -554,6 +590,7 @@ function flowOf(
 							type: "stage",
 							position: at,
 							...(roles ? diagramStageScale : runStageScale).size,
+							className: clsx(board.moves, !kept(stage.id) && board.faded),
 							data: {
 								facts: factsOf(stage),
 								shape,
@@ -583,6 +620,10 @@ function flowOf(
 		type: "route",
 		source: ends(edge.from),
 		target: ends(edge.to),
+		className: clsx(
+			board.fades,
+			focus !== null && !(seeded(edge.from) || seeded(edge.to)) && board.faded,
+		),
 		markerEnd: { type: MarkerType.ArrowClosed },
 		data: {
 			points: edge.points,
@@ -785,13 +826,13 @@ function openingView(
 	};
 }
 
-/** The graph files that the stages of a diagram call, by stage id, and the action that opens one. */
+/** The graph files that the stages of a diagram call, by stage id, and the action on a click on a stage. */
 export type DiagramCalls = {
 	calls: ReadonlyMap<string, string>;
-	onOpen: (graph: string) => void;
+	onPick: (stage: string) => void;
 };
 
-const noCalls: DiagramCalls = { calls: new Map(), onOpen: () => {} };
+const noCalls: DiagramCalls = { calls: new Map(), onPick: () => {} };
 
 /** The graph view of a workflow. With no `run`, each stage border shows its agent role instead of its run state. */
 function GraphPane({
@@ -828,6 +869,12 @@ function GraphPane({
 		[graph, toggled],
 	);
 	const laid = useLaidWorkflow(graph, open, direction, scale);
+	const focus = useFocusView();
+	const clicks = useClickOrDouble();
+	const stagesFocus = useMemo(() => {
+		const seeds = shownSeeds(focus.focus, focus.preview);
+		return seeds.size === 0 ? null : stageFocus(seeds, graph.edges);
+	}, [focus.focus, focus.preview, graph]);
 	const flow = useMemo(
 		() =>
 			laid === undefined
@@ -844,8 +891,9 @@ function GraphPane({
 							setToggled((before) => new Map(before).set(id, !open.has(id))),
 						checkpoint === undefined,
 						diagram.calls,
+						stagesFocus,
 					),
-		[graph, laid, checkpoint, agents, open, diagram.calls],
+		[graph, laid, checkpoint, agents, open, diagram.calls, stagesFocus],
 	);
 	// The view opens on the live stage, or on the whole open frame that holds it.
 	const caller = liveStage(graph)?.id.split("/")[0];
@@ -908,16 +956,26 @@ function GraphPane({
 							nodesFocusable={false}
 							elementsSelectable={false}
 							zoomOnDoubleClick={false}
-							onNodeClick={(_, node) => {
+							onNodeMouseEnter={(_event, node) => {
+								if (node.type === "stage") {
+									focus.enter(node.id);
+								}
+							}}
+							onNodeMouseLeave={focus.leave}
+							onNodeDoubleClick={(_event, node) => {
+								if (node.type === "stage") {
+									clicks.double(() => focus.toggle(node.id));
+								}
+							}}
+							onNodeClick={(event, node) => {
 								if (node.type !== "stage") {
 									return;
 								}
-								const called = diagram.calls.get(node.id);
-								if (run !== null) {
-									run.onPick(node.id);
-								} else if (called !== undefined) {
-									diagram.onOpen(called);
-								}
+								const pick = run === null ? diagram.onPick : run.onPick;
+								clicks.click(event, {
+									focus: () => focus.toggle(node.id),
+									open: () => pick(node.id),
+								});
 							}}
 							minZoom={0.1}
 							proOptions={{ hideAttribution: true }}
@@ -931,6 +989,11 @@ function GraphPane({
 							byRole={run === null}
 							opens={diagram.calls.size > 0}
 						/>
+						{focus.focus.size === 0 ? null : (
+							<span className={clsx(styles.takesPointer)}>
+								<ClearFocusButton onClear={focus.clear} />
+							</span>
+						)}
 					</div>
 					<div className={clsx(float.corner)}>
 						<FloatPanel
@@ -963,15 +1026,24 @@ function GraphPane({
 	);
 }
 
-/** A workflow graph with no run: each stage in the shape of its node, its border in the colour of its role. */
+/** A workflow graph with no run: each stage in the shape of its node, its border in the colour of its role. The `aside` shows beside the graph. */
 export function WorkflowDiagram({
 	graph,
 	diagram,
+	aside,
 }: {
 	graph: Graph;
 	diagram: DiagramCalls;
+	aside: ReactNode;
 }) {
-	return <GraphPane graph={graph} run={null} diagram={diagram} />;
+	return (
+		<div className={clsx(styles.withPane, styles.paneTop)}>
+			<div className={clsx(styles.graphColumn)}>
+				<GraphPane graph={graph} run={null} diagram={diagram} />
+			</div>
+			{aside}
+		</div>
+	);
 }
 
 /** The run's workflow graph, each stage in the shape of its workflow node and marked from the run checkpoint. */

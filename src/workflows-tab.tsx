@@ -8,13 +8,7 @@ import { runPagePath } from "./page-links.ts";
 import { pageQuery } from "./queries.ts";
 import { roleInkOf, WorkflowDiagram } from "./run-graph.tsx";
 import { PageFrame } from "./shell.tsx";
-import {
-	costLabel,
-	navLabel,
-	runResultLabel,
-	spanText,
-	workflowsCopy,
-} from "./terms.ts";
+import { navLabel, runResultLabel, spanText, workflowsCopy } from "./terms.ts";
 import { ticketLabel } from "./ticket-key.ts";
 import {
 	colours,
@@ -27,6 +21,7 @@ import {
 } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { useNow } from "./use-now.ts";
+import { WorkflowStagePane } from "./workflow-stage-pane.tsx";
 import type {
 	WorkflowCard,
 	WorkflowDetail,
@@ -339,12 +334,6 @@ const shortSha = (sha: string) => sha.slice(0, 7);
 const versionKey = (card: Pick<WorkflowCard, "package" | "sha">) =>
 	JSON.stringify([card.package, card.sha]);
 
-const seconds = (value: number | null) =>
-	value === null ? workflowsCopy.none : spanText(value * 1_000);
-
-const cost = (value: number | null) =>
-	value === null ? workflowsCopy.none : costLabel(value);
-
 function Sha({
 	sha,
 	prefix = false,
@@ -424,8 +413,14 @@ function Card({
 					}
 					label={reading ? stats.mergedReading : stats.merged}
 				/>
-				<Stat value={seconds(card.medianS)} label={stats.median} />
-				<Stat value={cost(card.costPerRun)} label={stats.perRun} />
+				<Stat
+					value={workflowsCopy.seconds(card.medianS)}
+					label={stats.median}
+				/>
+				<Stat
+					value={workflowsCopy.cost(card.costPerRun)}
+					label={stats.perRun}
+				/>
 			</div>
 		</button>
 	);
@@ -508,13 +503,13 @@ function StagesTable({ stages }: { stages: WorkflowStage[] }) {
 						stage: stage.stage,
 						visits: workflowsCopy.visits(stage.visitsPerRun),
 						failRate: workflowsCopy.share(stage.failRate),
-						p50: seconds(stage.p50S),
-						p95: seconds(stage.p95S),
+						p50: workflowsCopy.seconds(stage.p50S),
+						p95: workflowsCopy.seconds(stage.p95S),
 						tokens:
 							stage.tokensPerRun === null
 								? workflowsCopy.none
 								: workflowsCopy.tokens(stage.tokensPerRun),
-						cost: cost(stage.costPerRun),
+						cost: workflowsCopy.cost(stage.costPerRun),
 					},
 				}))}
 			/>
@@ -578,7 +573,7 @@ function RunsTable({ runs }: { runs: WorkflowRun[] }) {
 						</a>
 					),
 					factory: run.factory,
-					duration: seconds(run.durationS),
+					duration: workflowsCopy.seconds(run.durationS),
 					rounds: run.rounds ?? workflowsCopy.none,
 					pr:
 						run.pull === undefined ? (
@@ -593,7 +588,7 @@ function RunsTable({ runs }: { runs: WorkflowRun[] }) {
 								{`#${run.pull.number}`}
 							</a>
 						),
-					cost: cost(run.costUsd),
+					cost: workflowsCopy.cost(run.costUsd),
 				},
 			}))}
 		/>
@@ -676,8 +671,12 @@ function callerNote(item: ShownGraphs[number], graphs: ShownGraphs): string {
 	return workflowsCopy.calledBy(stageLabel(graphs, first), more.length);
 }
 
-function Diagram({ graph }: { graph: WorkflowDetail["graph"] }) {
+function Diagram({ detail }: { detail: WorkflowDetail }) {
+	const { graph } = detail;
 	const [picked, setPicked] = useState<string | null>(null);
+	const [stage, setStage] = useState<{ graph: string; id: string } | null>(
+		null,
+	);
 	const shown =
 		graph?.graphs.find((item) => item.name === picked) ?? graph?.graphs[0];
 	const calls = useMemo(
@@ -694,6 +693,12 @@ function Diagram({ graph }: { graph: WorkflowDetail["graph"] }) {
 	if (graph === null || shown === undefined) {
 		return <p className={clsx(styles.empty)}>{workflowsCopy.noGraph}</p>;
 	}
+	const nodes = shown.graph.nodes;
+	const node =
+		stage === null || stage.graph !== shown.name
+			? undefined
+			: (nodes.find((item) => item.id === stage.id) ??
+				nodes.find((item) => item.id === stage.id.split("/")[0]));
 	return (
 		<>
 			<div className={clsx(styles.diagramHead)}>
@@ -734,7 +739,27 @@ function Diagram({ graph }: { graph: WorkflowDetail["graph"] }) {
 			<WorkflowDiagram
 				key={`${graph.runId ?? ""}\n${shown.name}`}
 				graph={shown.graph}
-				diagram={{ calls, onOpen: setPicked }}
+				diagram={{
+					calls,
+					onPick: (id) => setStage({ graph: shown.name, id }),
+				}}
+				aside={
+					node === undefined ? null : (
+						<WorkflowStagePane
+							graph={shown.graph}
+							stage={node}
+							stats={
+								shown.entry
+									? detail.stages.find((item) => item.stage === node.id)
+									: undefined
+							}
+							role={detail.roles?.find((item) => item.role === node.role)}
+							opens={calls.get(node.id) ?? null}
+							onOpen={setPicked}
+							onClose={() => setStage(null)}
+						/>
+					)
+				}
 			/>
 		</>
 	);
@@ -782,7 +807,7 @@ function Detail({ card }: { card: WorkflowCard }) {
 				))}
 			</div>
 			{detail === undefined ? null : tab === "diagram" ? (
-				<Diagram graph={detail.graph} />
+				<Diagram detail={detail} />
 			) : tab === "stages" ? (
 				<StagesTable stages={detail.stages} />
 			) : tab === "roles" && roles !== null ? (
