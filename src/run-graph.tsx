@@ -269,7 +269,7 @@ const outlines: Record<string, Mark[]> = {
 	house: [{ points: "50,0 100,30 100,100 0,100 0,30", closed: true }],
 };
 
-/** The border of a workflow stage in the colour of its agent role. A stage with no role is a tool stage. */
+/** The border of a workflow stage in the colour of its agent role. A stage with no role is a tool stage, with a thin border. */
 const roleStroke = stylex.create({
 	implementer: { stroke: colours.accent },
 	verifier: { stroke: colours.awaitingMerge },
@@ -282,7 +282,9 @@ const roleStroke = stylex.create({
 
 const roleOutline = stylex.create({
 	other: { stroke: colours.inkMuted },
-	all: { fill: colours.raised, strokeWidth: measure.focus },
+	all: { fill: colours.raised },
+	role: { strokeWidth: measure.focus },
+	noRole: { strokeWidth: measure.hairline },
 });
 
 const roleStrokes: ReadonlyMap<string, stylex.StyleXStyles> = new Map(
@@ -308,12 +310,13 @@ export const roleInkOf = (role: string): stylex.StyleXStyles =>
 	roleInks.get(role) ?? roleInk.other;
 
 function roleStrokeOf(role: string | undefined): stylex.StyleXStyles {
-	return [
-		roleOutline.all,
-		role === undefined
-			? roleStroke.tool
-			: (roleStrokes.get(role) ?? roleOutline.other),
-	];
+	return role === undefined
+		? [roleOutline.all, roleOutline.noRole, roleStroke.tool]
+		: [
+				roleOutline.all,
+				roleOutline.role,
+				roleStrokes.get(role) ?? roleOutline.other,
+			];
 }
 
 function Outline({
