@@ -548,7 +548,7 @@ export const currentStageLabel = "Current";
 export const runGraphLabel = "Workflow";
 
 export const runGraphHelp =
-	"Each stage has the shape of its workflow node. Drag to pan and scroll to zoom. Hover a stage to light its chain. Click a stage to open its details. Double-click or Shift-click a stage to focus its chain. Escape clears the focus, then closes the details.";
+	"Each stage has the shape of its workflow node. Drag to pan and scroll to zoom. Hover a stage to light its chain. Click a stage to open its details, or its arrow to open its subgraph. Double-click or Shift-click a stage to focus its chain. Escape clears the focus, then closes the details.";
 
 export const runStageStateLabel = {
 	current: "Current",
@@ -587,7 +587,7 @@ export const runGraphLegendLabel = {
 	calledGraphDiagram:
 		"A frame holds the stages of the graph that a stage calls",
 	opensGraph:
-		"An arrow marks a stage that calls a graph. Its details open that graph",
+		"The arrow button on a stage opens the subgraph that the stage calls",
 } as const;
 
 export function calledGraphLabel(open: boolean, stage: string): string {
@@ -596,6 +596,8 @@ export function calledGraphLabel(open: boolean, stage: string): string {
 
 export const openGraphLabel = (graph: string): string => `Open ${graph}`;
 export const callsGraphLabel = (graph: string): string => `Calls ${graph}`;
+export const openSubgraphLabel = (graph: string): string =>
+	`Open the subgraph ${graph}`;
 
 export function stageVisitsLabel(visits: number): string {
 	return `${visits} ${visits === 1 ? "visit" : "visits"}`;

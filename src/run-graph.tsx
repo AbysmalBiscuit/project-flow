@@ -15,7 +15,6 @@ import {
 	ReactFlowProvider,
 	type Viewport,
 } from "@xyflow/react";
-import { ChevronRight } from "lucide-react";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 
 import { board } from "./board-styles.ts";
@@ -58,6 +57,7 @@ import {
 	calledGraphLabel,
 	callsGraphLabel,
 	floatPanelLabel,
+	openSubgraphLabel,
 	runGraphHelp,
 	runGraphLabel,
 	runGraphLegendLabel,
@@ -131,24 +131,6 @@ const styles = stylex.create({
 	},
 	opens: {
 		cursor: "pointer",
-	},
-	opensMark: {
-		display: "inline-flex",
-		alignItems: "center",
-		justifyContent: "center",
-		width: measure.badge,
-		height: measure.badge,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.laneLine,
-		borderRadius: radius.pill,
-		backgroundColor: colours.surface,
-		color: colours.ink,
-		pointerEvents: "none",
-	},
-	opensIcon: {
-		width: measure.buttonIcon,
-		height: measure.buttonIcon,
 	},
 	toggle: {
 		position: "absolute",
@@ -367,8 +349,8 @@ type StageNode = Node<
 		child: { open: boolean; toggle: () => void } | null;
 		/** Set when the graph shows the agent role of each stage instead of its run state. */
 		role: { name: string | undefined } | null;
-		/** The graph file that the stage calls. */
-		opens: string | null;
+		/** The graph file that the stage calls, and the action that opens it. */
+		opens: { graph: string; open: () => void } | null;
 	},
 	"stage"
 >;
@@ -390,8 +372,8 @@ function Stage({
 				inset[insetOf[shape] ?? "box"],
 				opens !== null && styles.opens,
 			)}
-			title={opens === null ? undefined : callsGraphLabel(opens)}
-			data-opens={opens ?? undefined}
+			title={opens === null ? undefined : callsGraphLabel(opens.graph)}
+			data-opens={opens?.graph}
 			data-shape={shape}
 			data-kind={kind}
 			data-role={role?.name}
@@ -424,8 +406,15 @@ function Stage({
 				)}
 			</span>
 			{opens === null ? null : (
-				<span className={clsx(styles.toggle, styles.opensMark)}>
-					<ChevronRight className={clsx(styles.opensIcon)} aria-hidden />
+				<span className={`nodrag nopan ${clsx(styles.toggle)}`}>
+					<Button
+						icon="chevron-right"
+						name={openSubgraphLabel(opens.graph)}
+						onClick={(event) => {
+							event.stopPropagation();
+							opens.open();
+						}}
+					/>
 				</span>
 			)}
 			{child === null ? null : (
@@ -434,7 +423,10 @@ function Stage({
 						icon={child.open ? "shrink" : "expand"}
 						name={calledGraphLabel(child.open, facts.stage.label)}
 						pressed={child.open}
-						onClick={child.toggle}
+						onClick={(event) => {
+							event.stopPropagation();
+							child.toggle();
+						}}
 					/>
 				</span>
 			)}
@@ -565,6 +557,7 @@ function flowOf(
 	toggle: (id: string) => void,
 	roles: boolean,
 	calls: ReadonlyMap<string, string>,
+	openGraph: (graph: string) => void,
 	focus: StageFocus | null,
 ) {
 	const callerOf = (id: string) => id.split("/")[0] ?? id;
@@ -607,7 +600,12 @@ function flowOf(
 								kind,
 								child,
 								role: roles ? { name: role } : null,
-								opens: calls.get(stage.id) ?? null,
+								opens: (() => {
+									const graph = calls.get(stage.id);
+									return graph === undefined
+										? null
+										: { graph, open: () => openGraph(graph) };
+								})(),
 							},
 						},
 					];
@@ -837,13 +835,18 @@ function openingView(
 	};
 }
 
-/** The graph files that the stages of a diagram call, by stage id, and the action on a click on a stage. */
+/** The graph files that the stages of a diagram call, by stage id, the action that opens one, and the action on a click on a stage. */
 export type DiagramCalls = {
 	calls: ReadonlyMap<string, string>;
+	onOpen: (graph: string) => void;
 	onPick: (stage: string) => void;
 };
 
-const noCalls: DiagramCalls = { calls: new Map(), onPick: () => {} };
+const noCalls: DiagramCalls = {
+	calls: new Map(),
+	onOpen: () => {},
+	onPick: () => {},
+};
 
 /** The graph view of a workflow. With no `run`, each stage border shows its agent role instead of its run state. */
 function GraphPane({
@@ -902,9 +905,19 @@ function GraphPane({
 							setToggled((before) => new Map(before).set(id, !open.has(id))),
 						checkpoint === undefined,
 						diagram.calls,
+						diagram.onOpen,
 						stagesFocus,
 					),
-		[graph, laid, checkpoint, agents, open, diagram.calls, stagesFocus],
+		[
+			graph,
+			laid,
+			checkpoint,
+			agents,
+			open,
+			diagram.calls,
+			diagram.onOpen,
+			stagesFocus,
+		],
 	);
 	// The view opens on the live stage, or on the whole open frame that holds it.
 	const caller = liveStage(graph)?.id.split("/")[0];

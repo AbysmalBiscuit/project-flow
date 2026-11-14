@@ -741,6 +741,7 @@ function Diagram({ detail }: { detail: WorkflowDetail }) {
 				graph={shown.graph}
 				diagram={{
 					calls,
+					onOpen: setPicked,
 					onPick: (id) => setStage({ graph: shown.name, id }),
 				}}
 				aside={
