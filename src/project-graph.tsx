@@ -128,8 +128,10 @@ export function ProjectGraph({
 	assignees,
 	openKey,
 	seeds,
+	focus,
 	onOpen,
 	onFocus,
+	onSelect,
 	onPreview,
 	onPreviewEnd,
 	onDirection,
@@ -143,8 +145,10 @@ export function ProjectGraph({
 	assignees: readonly string[];
 	openKey: string | null;
 	seeds: ReadonlySet<string>;
+	focus: ReadonlySet<string>;
 	onOpen: (ticket: OpenedNode) => void;
 	onFocus: (nodeId: string) => void;
+	onSelect: (nodeIds: string[]) => void;
 	onPreview: (nodeId: string) => void;
 	onPreviewEnd: () => void;
 	onDirection: (direction: GraphDirection) => void;
@@ -284,6 +288,8 @@ export function ProjectGraph({
 				}
 				runOf={({ ticket }) => ticket.factoryRun?.id}
 				onFocus={onFocus}
+				focus={focus}
+				onSelect={onSelect}
 				onPreview={onPreview}
 				onPreviewEnd={onPreviewEnd}
 				probes={

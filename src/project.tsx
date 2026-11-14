@@ -446,6 +446,8 @@ export function Page() {
 									assignees={settings.assignees}
 									openKey={ticket}
 									seeds={seeds}
+									focus={ticketFocus.focus}
+									onSelect={ticketFocus.add}
 									onFocus={ticketFocus.toggle}
 									onPreview={ticketFocus.enter}
 									onPreviewEnd={ticketFocus.leave}
