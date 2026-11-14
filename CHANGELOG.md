@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.1.4](https://github.com/AbysmalBiscuit/project-flow/compare/v0.1.3...v0.1.4) (2026-11-14)
+
+
+### Features
+
+* **factories:** keep last values on a silent card ([ec37069](https://github.com/AbysmalBiscuit/project-flow/commit/ec37069638231b3cd6b1302afbc4cf52ea69e557))
+* **factories:** save tab view, page lists, chart axes ([5ee60bc](https://github.com/AbysmalBiscuit/project-flow/commit/5ee60bcd1cdb3979ec24be3ddf776f50999f2104))
+* **graph:** shortcuts dialog, drag-select and copy keys ([6f80988](https://github.com/AbysmalBiscuit/project-flow/commit/6f80988b69d0a33686c51b2f408846909f0bfb8a))
+* **insights:** keep the size of each run PR ([11e516f](https://github.com/AbysmalBiscuit/project-flow/commit/11e516f9936bdc6e9ccf6bec7e9dc4427e0e18dc))
+* **runs:** link the ticket on the run page, with a copy button ([a59a07f](https://github.com/AbysmalBiscuit/project-flow/commit/a59a07f176b560da4c77b6c9e3b50495f6600ecf))
+* **workflows:** legend, version dates, fixed graph height ([e678c77](https://github.com/AbysmalBiscuit/project-flow/commit/e678c770cd3a8494ef10651fd692ba6e666b8ec8))
+* **workflows:** open stage details from the graph ([b72a692](https://github.com/AbysmalBiscuit/project-flow/commit/b72a69264637ef2ecc50e6115a61cb3dc34633a5))
+* **workflows:** show main flow and graph callers ([fc7f73c](https://github.com/AbysmalBiscuit/project-flow/commit/fc7f73cbfeecb7774e3aabce735811da08b842e4))
+
+
+### Bug Fixes
+
+* **factories:** match running and attention heights ([9835f0d](https://github.com/AbysmalBiscuit/project-flow/commit/9835f0d0e1c51c989fdc60f4dc63a8069a9c079e))
+* **factories:** name the disk in the full-disk note ([fedc27b](https://github.com/AbysmalBiscuit/project-flow/commit/fedc27b3748c78de057e36c5dc56269dcc03c9d8))
+* **graph:** bend arrows at right angles between rows ([1605a2f](https://github.com/AbysmalBiscuit/project-flow/commit/1605a2fef830a7424576419017b2d17eb2eb5336))
+* **history:** log, pace and keep PR reads ([e9f51e9](https://github.com/AbysmalBiscuit/project-flow/commit/e9f51e95f9465d915cf95a7c762dd6db7b83af8a))
+
 ## [0.1.3](https://github.com/AbysmalBiscuit/project-flow/compare/v0.1.2...v0.1.3) (2026-11-06)
 
 
