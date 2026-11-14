@@ -16,7 +16,7 @@ import {
 	type Viewport,
 } from "@xyflow/react";
 import { ChevronRight } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
 
 import { board } from "./board-styles.ts";
 import { Button } from "./button.tsx";
@@ -24,9 +24,12 @@ import type {
 	RunAgent,
 	RunCheckpoint,
 	RunGraph as Graph,
+	RunGraphEdge,
 	RunGraphNodeState,
 	ShownFactoryRun,
 } from "./domain.ts";
+import { ClearFocusButton } from "./focus-controls.tsx";
+import { shownSeeds, useClickOrDouble, useFocusView } from "./focus.ts";
 import { elk, FitLayout, LegendFrame } from "./graph-core-view.tsx";
 import type { Point } from "./graph-core.ts";
 import { float, FloatPanel } from "./graph-float.tsx";
@@ -53,8 +56,9 @@ import {
 } from "./run-stage.tsx";
 import {
 	calledGraphLabel,
+	callsGraphLabel,
 	floatPanelLabel,
-	openGraphLabel,
+	openSubgraphLabel,
 	runGraphHelp,
 	runGraphLabel,
 	runGraphLegendLabel,
@@ -72,6 +76,12 @@ const styles = stylex.create({
 		alignItems: "flex-end",
 		gap: space.md,
 	},
+	paneTop: {
+		alignItems: "flex-start",
+	},
+	takesPointer: {
+		pointerEvents: "auto",
+	},
 	graphColumn: {
 		flexGrow: 1,
 		flexBasis: measure.diagram,
@@ -85,6 +95,7 @@ const styles = stylex.create({
 		borderStyle: "solid",
 		borderColor: colours.laneLine,
 		borderRadius: radius.md,
+		overflow: "hidden",
 		backgroundColor: colours.raised,
 		"--xy-edge-stroke": colours.graphEdge,
 		"--xy-edge-stroke-width": measure.hairline,
@@ -123,28 +134,42 @@ const styles = stylex.create({
 	opens: {
 		cursor: "pointer",
 	},
-	opensMark: {
-		display: "inline-flex",
-		alignItems: "center",
-		justifyContent: "center",
-		width: measure.badge,
-		height: measure.badge,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.laneLine,
-		borderRadius: radius.pill,
-		backgroundColor: colours.surface,
-		color: colours.ink,
-		pointerEvents: "none",
-	},
-	opensIcon: {
-		width: measure.buttonIcon,
-		height: measure.buttonIcon,
-	},
 	toggle: {
 		position: "absolute",
 		top: `calc(-1 * ${space.sm})`,
 		right: `calc(-1 * ${space.sm})`,
+	},
+	opensButton: {
+		position: "absolute",
+		top: `calc(-1 * ${measure.glyph} / 2)`,
+		right: `calc(-1 * ${measure.glyph} / 2)`,
+		display: "inline-flex",
+		alignItems: "center",
+		justifyContent: "center",
+		boxSizing: "border-box",
+		width: measure.glyph,
+		height: measure.glyph,
+		padding: 0,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.laneLine,
+		borderRadius: radius.pill,
+		backgroundColor: {
+			default: colours.surface,
+			":hover": colours.surfaceMuted,
+		},
+		color: colours.ink,
+		cursor: "pointer",
+		outlineWidth: measure.focus,
+		outlineStyle: { default: "none", ":focus-visible": "solid" },
+		outlineColor: colours.focus,
+	},
+	opensIcon: {
+		width: measure.sortMark,
+		height: measure.sortMark,
+	},
+	opensRoom: {
+		paddingInline: `calc(${measure.glyph} / 2)`,
 	},
 	frame: {
 		boxSizing: "border-box",
@@ -260,7 +285,7 @@ const outlines: Record<string, Mark[]> = {
 	house: [{ points: "50,0 100,30 100,100 0,100 0,30", closed: true }],
 };
 
-/** The border of a workflow stage in the colour of its agent role. A stage with no role is a tool stage. */
+/** The border of a workflow stage in the colour of its agent role. A stage with no role is a tool stage, with a thin border. */
 const roleStroke = stylex.create({
 	implementer: { stroke: colours.accent },
 	verifier: { stroke: colours.awaitingMerge },
@@ -273,7 +298,9 @@ const roleStroke = stylex.create({
 
 const roleOutline = stylex.create({
 	other: { stroke: colours.inkMuted },
-	all: { fill: colours.raised, strokeWidth: measure.focus },
+	all: { fill: colours.raised },
+	role: { strokeWidth: measure.focus },
+	noRole: { strokeWidth: measure.hairline },
 });
 
 const roleStrokes: ReadonlyMap<string, stylex.StyleXStyles> = new Map(
@@ -299,12 +326,13 @@ export const roleInkOf = (role: string): stylex.StyleXStyles =>
 	roleInks.get(role) ?? roleInk.other;
 
 function roleStrokeOf(role: string | undefined): stylex.StyleXStyles {
-	return [
-		roleOutline.all,
-		role === undefined
-			? roleStroke.tool
-			: (roleStrokes.get(role) ?? roleOutline.other),
-	];
+	return role === undefined
+		? [roleOutline.all, roleOutline.noRole, roleStroke.tool]
+		: [
+				roleOutline.all,
+				roleOutline.role,
+				roleStrokes.get(role) ?? roleOutline.other,
+			];
 }
 
 function Outline({
@@ -355,15 +383,18 @@ type StageNode = Node<
 		child: { open: boolean; toggle: () => void } | null;
 		/** Set when the graph shows the agent role of each stage instead of its run state. */
 		role: { name: string | undefined } | null;
-		/** The graph file that the stage calls, when a click on the stage opens it. */
-		opens: string | null;
+		/** The graph file that the stage calls, and the action that opens it. */
+		opens: { graph: string; open: () => void } | null;
 	},
 	"stage"
 >;
 
 type FrameNode = Node<Record<string, never>, "frame">;
 
-type RouteEdge = Edge<Pick<LaidEdge, "points" | "text" | "condition">, "route">;
+type RouteEdge = Edge<
+	Pick<LaidEdge, "points" | "text" | "condition"> & { faded: boolean },
+	"route"
+>;
 
 function Stage({
 	data: { facts, shape, kind, child, role, opens },
@@ -375,8 +406,8 @@ function Stage({
 				inset[insetOf[shape] ?? "box"],
 				opens !== null && styles.opens,
 			)}
-			title={opens === null ? undefined : openGraphLabel(opens)}
-			data-opens={opens ?? undefined}
+			title={opens === null ? undefined : callsGraphLabel(opens.graph)}
+			data-opens={opens?.graph}
 			data-shape={shape}
 			data-kind={kind}
 			data-role={role?.name}
@@ -400,7 +431,13 @@ function Stage({
 				{role === null ? (
 					<StageCard facts={facts} />
 				) : (
-					<span className={clsx(styles.roleCard)} title={facts.stage.label}>
+					<span
+						className={clsx(
+							styles.roleCard,
+							opens !== null && styles.opensRoom,
+						)}
+						title={facts.stage.label}
+					>
 						<span className={clsx(styles.roleLabel)}>{facts.stage.label}</span>
 						<span className={clsx(styles.roleName)}>
 							{role.name ?? stageKindLabel(kind)}
@@ -409,9 +446,18 @@ function Stage({
 				)}
 			</span>
 			{opens === null ? null : (
-				<span className={clsx(styles.toggle, styles.opensMark)}>
+				<button
+					type="button"
+					className={`nodrag nopan ${clsx(styles.opensButton)}`}
+					title={openSubgraphLabel(opens.graph)}
+					aria-label={openSubgraphLabel(opens.graph)}
+					onClick={(event) => {
+						event.stopPropagation();
+						opens.open();
+					}}
+				>
 					<ChevronRight className={clsx(styles.opensIcon)} aria-hidden />
-				</span>
+				</button>
 			)}
 			{child === null ? null : (
 				<span className={`nodrag nopan ${clsx(styles.toggle)}`}>
@@ -419,7 +465,10 @@ function Stage({
 						icon={child.open ? "shrink" : "expand"}
 						name={calledGraphLabel(child.open, facts.stage.label)}
 						pressed={child.open}
-						onClick={child.toggle}
+						onClick={(event) => {
+							event.stopPropagation();
+							child.toggle();
+						}}
 					/>
 				</span>
 			)}
@@ -468,7 +517,11 @@ function Route({ id, data, markerEnd }: EdgeProps<RouteEdge>) {
 			{text === undefined ? null : (
 				<EdgeLabelRenderer>
 					<span
-						className={clsx(styles.edgeText)}
+						className={clsx(
+							styles.edgeText,
+							board.fades,
+							data?.faded === true && board.faded,
+						)}
 						data-edge-text={text.text}
 						title={data?.condition}
 						style={{
@@ -519,6 +572,25 @@ function useLaidWorkflow(
 	}).data;
 }
 
+/** The seed stages and their direct neighbours. A workflow graph loops, so a transitive chain would hold every stage. */
+type StageFocus = { seeds: ReadonlySet<string>; lit: ReadonlySet<string> };
+
+function stageFocus(
+	seeds: ReadonlySet<string>,
+	edges: readonly RunGraphEdge[],
+): StageFocus {
+	const lit = new Set(seeds);
+	for (const edge of edges) {
+		if (seeds.has(edge.from)) {
+			lit.add(edge.to);
+		}
+		if (seeds.has(edge.to)) {
+			lit.add(edge.from);
+		}
+	}
+	return { seeds, lit };
+}
+
 function flowOf(
 	graph: Graph,
 	laid: WorkflowLayout,
@@ -527,7 +599,12 @@ function flowOf(
 	toggle: (id: string) => void,
 	roles: boolean,
 	calls: ReadonlyMap<string, string>,
+	openGraph: (graph: string) => void,
+	focus: StageFocus | null,
 ) {
+	const callerOf = (id: string) => id.split("/")[0] ?? id;
+	const kept = (id: string) => focus === null || focus.lit.has(callerOf(id));
+	const seeded = (id: string) => focus?.seeds.has(callerOf(id)) === true;
 	const frames: FrameNode[] = [...laid.frames].map(([caller, rect]) => ({
 		id: stageFrameId(caller),
 		type: "frame",
@@ -535,6 +612,10 @@ function flowOf(
 		width: rect.width,
 		height: rect.height,
 		zIndex: -1,
+		className: clsx(
+			board.moves,
+			focus !== null && !kept(caller) && board.faded,
+		),
 		data: {},
 	}));
 	const stages: StageNode[] = graph.nodes.flatMap((node) => {
@@ -554,13 +635,19 @@ function flowOf(
 							type: "stage",
 							position: at,
 							...(roles ? diagramStageScale : runStageScale).size,
+							className: clsx(board.moves, !kept(stage.id) && board.faded),
 							data: {
 								facts: factsOf(stage),
 								shape,
 								kind,
 								child,
 								role: roles ? { name: role } : null,
-								opens: calls.get(stage.id) ?? null,
+								opens: (() => {
+									const graph = calls.get(stage.id);
+									return graph === undefined
+										? null
+										: { graph, open: () => openGraph(graph) };
+								})(),
 							},
 						},
 					];
@@ -578,18 +665,23 @@ function flowOf(
 	});
 	const frameOf = new Set(laid.frames.keys());
 	const ends = (id: string) => (frameOf.has(id) ? stageFrameId(id) : id);
-	const edges: RouteEdge[] = laid.edges.map((edge) => ({
-		id: edge.id,
-		type: "route",
-		source: ends(edge.from),
-		target: ends(edge.to),
-		markerEnd: { type: MarkerType.ArrowClosed },
-		data: {
-			points: edge.points,
-			...(edge.text === undefined ? {} : { text: edge.text }),
-			...(edge.condition === undefined ? {} : { condition: edge.condition }),
-		},
-	}));
+	const edges: RouteEdge[] = laid.edges.map((edge) => {
+		const faded = focus !== null && !(seeded(edge.from) || seeded(edge.to));
+		return {
+			id: edge.id,
+			type: "route",
+			source: ends(edge.from),
+			target: ends(edge.to),
+			className: clsx(board.fades, faded && board.faded),
+			markerEnd: { type: MarkerType.ArrowClosed },
+			data: {
+				points: edge.points,
+				faded,
+				...(edge.text === undefined ? {} : { text: edge.text }),
+				...(edge.condition === undefined ? {} : { condition: edge.condition }),
+			},
+		};
+	});
 	return { nodes: [...frames, ...stages], edges };
 }
 
@@ -785,13 +877,18 @@ function openingView(
 	};
 }
 
-/** The graph files that the stages of a diagram call, by stage id, and the action that opens one. */
+/** The graph files that the stages of a diagram call, by stage id, the action that opens one, and the action on a click on a stage. */
 export type DiagramCalls = {
 	calls: ReadonlyMap<string, string>;
 	onOpen: (graph: string) => void;
+	onPick: (stage: string) => void;
 };
 
-const noCalls: DiagramCalls = { calls: new Map(), onOpen: () => {} };
+const noCalls: DiagramCalls = {
+	calls: new Map(),
+	onOpen: () => {},
+	onPick: () => {},
+};
 
 /** The graph view of a workflow. With no `run`, each stage border shows its agent role instead of its run state. */
 function GraphPane({
@@ -828,6 +925,12 @@ function GraphPane({
 		[graph, toggled],
 	);
 	const laid = useLaidWorkflow(graph, open, direction, scale);
+	const focus = useFocusView();
+	const clicks = useClickOrDouble();
+	const stagesFocus = useMemo(() => {
+		const seeds = shownSeeds(focus.focus, focus.preview);
+		return seeds.size === 0 ? null : stageFocus(seeds, graph.edges);
+	}, [focus.focus, focus.preview, graph]);
 	const flow = useMemo(
 		() =>
 			laid === undefined
@@ -844,8 +947,19 @@ function GraphPane({
 							setToggled((before) => new Map(before).set(id, !open.has(id))),
 						checkpoint === undefined,
 						diagram.calls,
+						diagram.onOpen,
+						stagesFocus,
 					),
-		[graph, laid, checkpoint, agents, open, diagram.calls],
+		[
+			graph,
+			laid,
+			checkpoint,
+			agents,
+			open,
+			diagram.calls,
+			diagram.onOpen,
+			stagesFocus,
+		],
 	);
 	// The view opens on the live stage, or on the whole open frame that holds it.
 	const caller = liveStage(graph)?.id.split("/")[0];
@@ -908,16 +1022,26 @@ function GraphPane({
 							nodesFocusable={false}
 							elementsSelectable={false}
 							zoomOnDoubleClick={false}
-							onNodeClick={(_, node) => {
+							onNodeMouseEnter={(_event, node) => {
+								if (node.type === "stage") {
+									focus.enter(node.id);
+								}
+							}}
+							onNodeMouseLeave={focus.leave}
+							onNodeDoubleClick={(_event, node) => {
+								if (node.type === "stage") {
+									clicks.double(() => focus.toggle(node.id));
+								}
+							}}
+							onNodeClick={(event, node) => {
 								if (node.type !== "stage") {
 									return;
 								}
-								const called = diagram.calls.get(node.id);
-								if (run !== null) {
-									run.onPick(node.id);
-								} else if (called !== undefined) {
-									diagram.onOpen(called);
-								}
+								const pick = run === null ? diagram.onPick : run.onPick;
+								clicks.click(event, {
+									focus: () => focus.toggle(node.id),
+									open: () => pick(node.id),
+								});
 							}}
 							minZoom={0.1}
 							proOptions={{ hideAttribution: true }}
@@ -931,6 +1055,11 @@ function GraphPane({
 							byRole={run === null}
 							opens={diagram.calls.size > 0}
 						/>
+						{focus.focus.size === 0 ? null : (
+							<span className={clsx(styles.takesPointer)}>
+								<ClearFocusButton onClear={focus.clear} />
+							</span>
+						)}
 					</div>
 					<div className={clsx(float.corner)}>
 						<FloatPanel
@@ -963,15 +1092,24 @@ function GraphPane({
 	);
 }
 
-/** A workflow graph with no run: each stage in the shape of its node, its border in the colour of its role. */
+/** A workflow graph with no run: each stage in the shape of its node, its border in the colour of its role. The `aside` shows beside the graph. */
 export function WorkflowDiagram({
 	graph,
 	diagram,
+	aside,
 }: {
 	graph: Graph;
 	diagram: DiagramCalls;
+	aside: ReactNode;
 }) {
-	return <GraphPane graph={graph} run={null} diagram={diagram} />;
+	return (
+		<div className={clsx(styles.withPane, styles.paneTop)}>
+			<div className={clsx(styles.graphColumn)}>
+				<GraphPane graph={graph} run={null} diagram={diagram} />
+			</div>
+			{aside}
+		</div>
+	);
 }
 
 /** The run's workflow graph, each stage in the shape of its workflow node and marked from the run checkpoint. */

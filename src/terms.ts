@@ -548,7 +548,7 @@ export const currentStageLabel = "Current";
 export const runGraphLabel = "Workflow";
 
 export const runGraphHelp =
-	"Each stage has the shape of its workflow node. Drag to pan, scroll to zoom, and open the graph that a stage calls from that stage.";
+	"Each stage has the shape of its workflow node. Drag to pan and scroll to zoom. Hover a stage to light its chain. Click a stage to open its details, or its arrow to open its subgraph. Double-click or Shift-click a stage to focus its chain. Escape clears the focus, then closes the details.";
 
 export const runStageStateLabel = {
 	current: "Current",
@@ -586,7 +586,8 @@ export const runGraphLegendLabel = {
 	noRole: "no role",
 	calledGraphDiagram:
 		"A frame holds the stages of the graph that a stage calls",
-	opensGraph: "Click a stage with an arrow to open the graph that it calls",
+	opensGraph:
+		"The arrow button on a stage opens the subgraph that the stage calls",
 } as const;
 
 export function calledGraphLabel(open: boolean, stage: string): string {
@@ -594,6 +595,9 @@ export function calledGraphLabel(open: boolean, stage: string): string {
 }
 
 export const openGraphLabel = (graph: string): string => `Open ${graph}`;
+export const callsGraphLabel = (graph: string): string => `Calls ${graph}`;
+export const openSubgraphLabel = (graph: string): string =>
+	`Open the subgraph ${graph}`;
 
 export function stageVisitsLabel(visits: number): string {
 	return `${visits} ${visits === 1 ? "visit" : "visits"}`;
@@ -1179,6 +1183,27 @@ export const workflowsCopy = {
 		costShare: "Cost share",
 	},
 	none: "-",
+	/** A time in seconds as a span, or a dash. */
+	seconds: (value: number | null): string =>
+		value === null ? "-" : spanText(value * 1_000),
+	/** A cost in USD, or a dash. */
+	cost: (value: number | null): string =>
+		value === null ? "-" : costLabel(value),
+	pane: {
+		label: "Stage detail",
+		close: "Close the stage detail",
+		kind: "Kind",
+		role: "Role",
+		harness: "Harness",
+		model: "Model",
+		noRole: "no role",
+		calls: "Calls",
+		stats: "Per run of this version",
+		noStats: "No run of this version visited the stage.",
+		from: "Comes from",
+		to: "Goes to",
+		noEdge: "No edge.",
+	},
 } as const;
 
 /** The percentage of `part` in `whole`, rounded, or a dash when `whole` is 0. */
