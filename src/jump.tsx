@@ -12,6 +12,7 @@ import { jump } from "./jump-styles.ts";
 import { PageQueryRoot } from "./page-query.tsx";
 import { TicketPanel } from "./panel.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
+import { useShortcut } from "./shortcuts.ts";
 import { stateLabel } from "./terms.ts";
 import { TextInput } from "./text-input.tsx";
 import { ticketRefId, type TicketSearchHit } from "./ticket-key.ts";
@@ -89,16 +90,7 @@ export function JumpBox() {
 			queryRef.current?.focus();
 		}
 	}, [open]);
-	useEffect(() => {
-		const onKey = (event: KeyboardEvent) => {
-			if (event.key === "k" && (event.metaKey || event.ctrlKey)) {
-				event.preventDefault();
-				openJumpBox();
-			}
-		};
-		window.addEventListener("keydown", onKey);
-		return () => window.removeEventListener("keydown", onKey);
-	}, []);
+	useShortcut("openSearch", openJumpBox);
 	useEffect(() => {
 		if (!open) {
 			return;
