@@ -37,7 +37,8 @@ export function clickCard(event: ClickKeys, click: CardClick): void {
 /**
  * The focus set of a view. Ctrl+Escape always clears it. A plain Escape
  * clears it before the side panel sees the key, unless a menu or dialog is
- * open or the key lands in a text box.
+ * open or the key lands in a text box. The set keeps insertion order, and its
+ * last id is the current focus.
  */
 export function useFocusSet() {
 	const [focus, setFocus] = useState<ReadonlySet<string>>(() => new Set());
@@ -45,6 +46,19 @@ export function useFocusSet() {
 		setFocus((current) => {
 			const next = new Set(current);
 			if (!next.delete(id)) {
+				next.add(id);
+			}
+			return next;
+		});
+	}, []);
+	const add = useCallback((ids: readonly string[]) => {
+		setFocus((current) => {
+			if (ids.length === 0) {
+				return current;
+			}
+			const next = new Set(current);
+			for (const id of ids) {
+				next.delete(id);
 				next.add(id);
 			}
 			return next;
@@ -68,7 +82,7 @@ export function useFocusSet() {
 		window.addEventListener("keydown", onKey, true);
 		return () => window.removeEventListener("keydown", onKey, true);
 	}, [focused, clear]);
-	return { focus, toggle, clear };
+	return { focus, toggle, add, clear };
 }
 
 /**
@@ -88,7 +102,8 @@ function escapeTaken(event: KeyboardEvent): boolean {
 	return event.defaultPrevented || isTextBox(event.target) || menuOwnsEscape();
 }
 
-function isTextBox(target: EventTarget | null): boolean {
+/** True when the key event target is a text box, which keeps typed keys for itself. */
+export function isTextBox(target: EventTarget | null): boolean {
 	return (
 		target instanceof HTMLTextAreaElement ||
 		(target instanceof HTMLInputElement &&

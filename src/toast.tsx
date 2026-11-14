@@ -96,7 +96,7 @@ export function Toast({
 			>
 				{message}
 			</p>
-			<Button icon="x" name={toastCloseLabel} onClick={onClose} />
+			<Button icon="x" name={toastCloseLabel} onClick={onClose} tone="quiet" />
 		</div>,
 		document.body,
 	);

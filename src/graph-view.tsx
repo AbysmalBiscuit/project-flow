@@ -17,6 +17,7 @@ import {
 	useCallback,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 
@@ -270,6 +271,8 @@ export function GraphView<
 	onOpen,
 	runOf,
 	onFocus,
+	onSelect,
+	focus,
 	onPreview,
 	onPreviewEnd,
 	overlay,
@@ -294,6 +297,10 @@ export function GraphView<
 	/** The id of the latest run of a card, which Ctrl-click opens. */
 	runOf?: (card: CardData) => string | undefined;
 	onFocus: (ticket: string) => void;
+	/** Takes the tickets of a Shift-drag selection box. */
+	onSelect: (tickets: string[]) => void;
+	/** The focus set of ticket ids. Its last id is the current focus. */
+	focus: ReadonlySet<string>;
 	onPreview: (ticket: string) => void;
 	onPreviewEnd: () => void;
 	overlay?: ReactNode;
@@ -317,7 +324,16 @@ export function GraphView<
 		const data = card(item);
 		return data === null ? [] : [{ item, data }];
 	});
+	const current = [...focus].at(-1);
+	const focusClass = (ticket: string) =>
+		[
+			focus.has(ticket) ? clsx(board.focusPick) : "",
+			ticket === current ? clsx(board.focusCurrent) : "",
+		]
+			.filter(Boolean)
+			.join(" ");
 	const ticketOf = new Map(shown.map(({ item }) => [item.id, item.ticket]));
+	const picked = useRef<Set<string> | null>(null);
 	const measured = unplaced.flatMap((item) => {
 		const data = card(item);
 		return data === null
@@ -330,6 +346,7 @@ export function GraphView<
 							position: { x: 0, y: 0 },
 							data,
 							className: measuring,
+							selectable: false,
 						},
 						laid.card,
 					),
@@ -344,7 +361,7 @@ export function GraphView<
 				sourcePosition: horizontal ? Position.Right : Position.Bottom,
 				targetPosition: horizontal ? Position.Left : Position.Top,
 				data,
-				className: kept(item.ticket) ? moves : movesFaded,
+				className: `${kept(item.ticket) ? moves : movesFaded} ${focusClass(item.ticket)}`,
 			},
 			laid.sizes.get(item.id) ?? laid.card,
 		),
@@ -427,7 +444,40 @@ export function GraphView<
 					nodesDraggable={false}
 					nodesConnectable={false}
 					nodesFocusable={false}
-					elementsSelectable={false}
+					elementsSelectable
+					selectionKeyCode="Shift"
+					multiSelectionKeyCode={null}
+					selectNodesOnDrag={false}
+					onSelectionStart={() => {
+						picked.current = new Set();
+					}}
+					onNodesChange={(changes) => {
+						const set = picked.current;
+						if (set === null) {
+							return;
+						}
+						for (const change of changes) {
+							if (change.type !== "select") {
+								continue;
+							}
+							const ticket = ticketOf.get(change.id);
+							if (ticket === undefined) {
+								continue;
+							}
+							if (change.selected) {
+								set.add(ticket);
+							} else {
+								set.delete(ticket);
+							}
+						}
+					}}
+					onSelectionEnd={() => {
+						const set = picked.current;
+						picked.current = null;
+						if (set !== null && set.size > 0) {
+							onSelect([...set]);
+						}
+					}}
 					panOnDrag
 					zoomOnDoubleClick={false}
 					fitView

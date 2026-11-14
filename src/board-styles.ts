@@ -64,6 +64,14 @@ export const board = stylex.create({
 		},
 		animationDuration: measure.move,
 	},
+	focusPick: {
+		outline: `${measure.focus} solid ${colours.accent}`,
+		outlineOffset: measure.focus,
+		borderRadius: radius.md,
+	},
+	focusCurrent: {
+		outlineWidth: `calc(${measure.focus} * 2)`,
+	},
 	edgeEnters: {
 		animationName: {
 			default: edgeEnter,

@@ -238,6 +238,8 @@ export function OverviewGraph({
 			refit={0}
 			onOpen={(item) => openProject(item.project.name)}
 			onFocus={focus.toggle}
+			focus={focus.focus}
+			onSelect={focus.add}
 			onPreview={focus.enter}
 			onPreviewEnd={focus.leave}
 		/>
