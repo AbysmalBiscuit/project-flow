@@ -3,11 +3,15 @@ import type { HistoryAnswer } from "./factory-run-history.ts";
 import {
 	historyAnswer,
 	type MemoriesPage,
+	memoryCorrection,
 	type MemoryHistory,
 	type MemoryRepo,
 	type MemoryReview,
 	memoryRow,
 	memoryStanceBody,
+	type MemoryWriteResult,
+	mergeBody,
+	supersedeBody,
 } from "./memories-page.ts";
 import type { FactoryReader } from "./ports.ts";
 import { routeTable } from "./route-table.ts";
@@ -15,11 +19,17 @@ import { routeTable } from "./route-table.ts";
 export type MemoriesRouteOptions = {
 	factories: Pick<
 		FactoryReader,
-		"runs" | "memoryFactory" | "memories" | "memory" | "vote"
+		| "runs"
+		| "memoryFactory"
+		| "memories"
+		| "memory"
+		| "vote"
+		| "correct"
+		| "merge"
 	>;
 };
 
-/** The routes of the Memories tab: the memories of each repo, and the history and votes of one memory. */
+/** The routes of the Memories tab: the memories of each repo, and the history, votes and corrections of one memory. */
 export function memoriesRoutes(options: MemoriesRouteOptions) {
 	return routeTable({
 		"/api/memories": {
@@ -53,22 +63,72 @@ export function memoriesRoutes(options: MemoriesRouteOptions) {
 				}
 				const { owner, name, id } = request.params;
 				const repo = `${owner}/${name}`;
-				const result = await options.factories.vote(
+				return writeResponse(
 					repo,
-					id,
-					parsed.data.stance,
+					await options.factories.vote(repo, id, parsed.data.stance),
 				);
-				if (
-					typeof result === "object" &&
-					result !== null &&
-					"refused" in result
-				) {
-					return Response.json({ error: result.refused }, { status: 422 });
+			},
+		},
+		"/api/memories/:owner/:name/merges": {
+			POST: async (request) => {
+				const parsed = mergeBody.safeParse(
+					await request.json().catch(() => null),
+				);
+				if (!parsed.success) {
+					return Response.json({ error: "invalid merge" }, { status: 400 });
 				}
-				return historyResponse(repo, result);
+				const { owner, name } = request.params;
+				const repo = `${owner}/${name}`;
+				return writeResponse(
+					repo,
+					await options.factories.merge(repo, parsed.data),
+				);
+			},
+		},
+		"/api/memories/:owner/:name/:id/:correction": {
+			POST: async (request) => {
+				const parsedCorrection = memoryCorrection.safeParse(
+					request.params.correction,
+				);
+				if (!parsedCorrection.success) {
+					return Response.json(
+						{ error: "unknown correction" },
+						{ status: 404 },
+					);
+				}
+				const { owner, name, id } = request.params;
+				const repo = `${owner}/${name}`;
+				if (parsedCorrection.data !== "supersede") {
+					return writeResponse(
+						repo,
+						await options.factories.correct(repo, id, {
+							correction: parsedCorrection.data,
+						}),
+					);
+				}
+				const parsedSupersede = supersedeBody.safeParse(
+					await request.json().catch(() => null),
+				);
+				if (!parsedSupersede.success) {
+					return Response.json({ error: "invalid supersede" }, { status: 400 });
+				}
+				return writeResponse(
+					repo,
+					await options.factories.correct(repo, id, {
+						correction: "supersede",
+						...parsedSupersede.data,
+					}),
+				);
 			},
 		},
 	});
+}
+
+function writeResponse(repo: string, result: MemoryWriteResult): Response {
+	if (typeof result === "object" && result !== null && "refused" in result) {
+		return Response.json({ error: result.refused }, { status: 422 });
+	}
+	return historyResponse(repo, result);
 }
 
 /** The distinct repos of the runs, each with the factory its memory reads go to, or else the factory of its first run. */

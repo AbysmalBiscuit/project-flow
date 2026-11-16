@@ -67,7 +67,7 @@ async function notTaken(
 	return { failed: await reasonOf(response) };
 }
 
-/** The sender of each write that the app sends to a factory: answers, steers and memory votes. */
+/** The sender of each write that the app sends to a factory: answers, steers, memory votes and memory corrections. */
 export const levSender = "lev";
 
 /** The answer, steer, cancel, resume, restart, delete and archive writes that Lev sends to the factory that reports a run. */

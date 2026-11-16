@@ -38,10 +38,12 @@ import type { RunSettingsRead } from "./factory-run-settings.ts";
 import type { SourceRead } from "./factory-run-source.ts";
 import type { TranscriptRead } from "./factory-run-transcript.ts";
 import type {
+	MemoryCorrectionRequest,
 	MemoryHistory,
 	MemoryReview,
 	MemoryStance,
-	MemoryVoteResult,
+	MemoryWriteResult,
+	MergeBody,
 } from "./memories-page.ts";
 import type { ProjectRef } from "./project-ref.ts";
 import type { RetroRecord } from "./retros-page.ts";
@@ -273,7 +275,15 @@ export type FactoryReader = {
 		repo: string,
 		memoryId: string,
 		stance: MemoryStance,
-	) => Promise<MemoryVoteResult>;
+	) => Promise<MemoryWriteResult>;
+	/** `POST /repos/{owner}/{name}/memories/{id}/{correction}` of the factory whose row gives the newest run of the repo its status. */
+	correct: (
+		repo: string,
+		memoryId: string,
+		request: MemoryCorrectionRequest,
+	) => Promise<MemoryWriteResult>;
+	/** `POST /repos/{owner}/{name}/memories/merges` of the factory whose row gives the newest run of the repo its status. */
+	merge: (repo: string, merge: MergeBody) => Promise<MemoryWriteResult>;
 	/** The PR of the run from `GET /runs/{id}` of the factory whose row gives the run its status. */
 	pull: (runId: string) => Promise<HistoryAnswer<FactoryPull | "no pull">>;
 	/**
@@ -336,7 +346,7 @@ export type FactoryReader = {
 	settings: (runId: string) => Promise<RunSettingsRead>;
 	/**
 	 * Post an answer to an open question of a run, on the factory whose row gives the run its status.
-	 * Answers, steers, cancels, resumes, restarts, deletes, archives and memory votes are the only write requests that the app sends to a factory.
+	 * Answers, steers, cancels, resumes, restarts, deletes, archives, memory votes, memory corrections and memory merges are the only write requests that the app sends to a factory.
 	 */
 	answer: (
 		run: string,
