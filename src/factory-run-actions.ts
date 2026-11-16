@@ -48,7 +48,9 @@ const startedRun = z.object({ id: z.string() });
 const reason = z.object({ error: z.string().trim().min(1) });
 
 /** The reason that the `error` of a factory's error body names, if any. */
-async function reasonOf(response: Response): Promise<string | undefined> {
+export async function reasonOf(
+	response: Response,
+): Promise<string | undefined> {
 	return reason.safeParse(await response.json().catch(() => null)).data?.error;
 }
 
@@ -65,8 +67,8 @@ async function notTaken(
 	return { failed: await reasonOf(response) };
 }
 
-/** Project Flow writes to a factory as Lev: the factory records this sender on each answer and steer. */
-const levSender = "lev";
+/** The sender of each write that the app sends to a factory: answers, steers and memory votes. */
+export const levSender = "lev";
 
 /** The answer, steer, cancel, resume, restart, delete and archive writes that Lev sends to the factory that reports a run. */
 export function runActions(deps: {

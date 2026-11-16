@@ -27,6 +27,7 @@ import { inboxEntries } from "./inbox-entries.ts";
 import { inboxRoutes } from "./inbox-routes.ts";
 import page from "./index.html";
 import { insightRoutes } from "./insight-routes.ts";
+import { memoriesRoutes } from "./memories-routes.ts";
 import { memoryNotifier } from "./notifier.ts";
 import { paintPage } from "./page-theme.ts";
 import { poll, type PollOptions, runningOverview } from "./poll.ts";
@@ -597,6 +598,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			pathname === "/workflows" ||
 			pathname === "/verification" ||
 			pathname === "/retros" ||
+			pathname === "/memories" ||
 			pathname === "/insights"
 		) {
 			return undefined;
@@ -632,6 +634,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				"/workflows": pageResponse,
 				"/verification": pageResponse,
 				"/retros": pageResponse,
+				"/memories": pageResponse,
 				"/insights": pageResponse,
 				"/api/overview": {
 					GET: () => {
@@ -774,6 +777,7 @@ export async function start(options: StartOptions): Promise<Running> {
 					runList: () => factoryRunList(pollOptions, configuration),
 					recordRuns,
 				}),
+				...memoriesRoutes({ factories }),
 				...replyRoutes({
 					trackerOf,
 					pollOptions,

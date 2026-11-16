@@ -37,6 +37,12 @@ import type { SandboxRead } from "./factory-run-sandbox.ts";
 import type { RunSettingsRead } from "./factory-run-settings.ts";
 import type { SourceRead } from "./factory-run-source.ts";
 import type { TranscriptRead } from "./factory-run-transcript.ts";
+import type {
+	MemoryHistory,
+	MemoryReview,
+	MemoryStance,
+	MemoryVoteResult,
+} from "./memories-page.ts";
 import type { ProjectRef } from "./project-ref.ts";
 import type { RetroRecord } from "./retros-page.ts";
 import type { StageEvent } from "./run-history.ts";
@@ -253,6 +259,21 @@ export type FactoryReader = {
 	verification: (runId: string) => Promise<HistoryAnswer<VerificationRecord>>;
 	/** `GET /runs/{id}/retro` of the factory whose row gives the run its status. */
 	retro: (runId: string) => Promise<HistoryAnswer<RetroRecord>>;
+	/** The name of the factory that the memory reads of the repo go to. Null when no run of the repo has a status row. */
+	memoryFactory: (repo: string) => string | null;
+	/** `GET /repos/{owner}/{name}/memories` of the factory whose row gives the newest run of the repo its status. */
+	memories: (repo: string) => Promise<HistoryAnswer<MemoryReview>>;
+	/** `GET /repos/{owner}/{name}/memories/{id}` of the factory whose row gives the newest run of the repo its status. */
+	memory: (
+		repo: string,
+		memoryId: string,
+	) => Promise<HistoryAnswer<MemoryHistory>>;
+	/** `POST /repos/{owner}/{name}/memories/{id}/votes` of the factory whose row gives the newest run of the repo its status. */
+	vote: (
+		repo: string,
+		memoryId: string,
+		stance: MemoryStance,
+	) => Promise<MemoryVoteResult>;
 	/** The PR of the run from `GET /runs/{id}` of the factory whose row gives the run its status. */
 	pull: (runId: string) => Promise<HistoryAnswer<FactoryPull | "no pull">>;
 	/**
@@ -315,7 +336,7 @@ export type FactoryReader = {
 	settings: (runId: string) => Promise<RunSettingsRead>;
 	/**
 	 * Post an answer to an open question of a run, on the factory whose row gives the run its status.
-	 * Answers, steers, cancels, resumes, restarts, deletes and archives are the only write requests that the app sends to a factory.
+	 * Answers, steers, cancels, resumes, restarts, deletes, archives and memory votes are the only write requests that the app sends to a factory.
 	 */
 	answer: (
 		run: string,

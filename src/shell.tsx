@@ -166,6 +166,7 @@ const links = [
 	{ href: "/workflows", label: navLabel.workflows },
 	{ href: "/verification", label: navLabel.verification },
 	{ href: "/retros", label: navLabel.retros },
+	{ href: "/memories", label: navLabel.memories },
 	{ href: "/insights", label: navLabel.insights },
 	{
 		href: "/needs-you",

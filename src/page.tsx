@@ -32,6 +32,7 @@ const pages = [
 	{ path: "/workflows", load: () => import("./workflows-tab.tsx") },
 	{ path: "/verification", load: () => import("./verification-tab.tsx") },
 	{ path: "/retros", load: () => import("./retros-tab.tsx") },
+	{ path: "/memories", load: () => import("./memories-tab.tsx") },
 	{ path: "/insights", load: () => import("./insights.tsx") },
 	{ path: "/settings", load: () => import("./settings.tsx") },
 ] as const;

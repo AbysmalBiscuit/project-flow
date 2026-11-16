@@ -39,6 +39,7 @@ import {
 	factoryKind,
 	type Slots,
 } from "./factory-kind.ts";
+import { factoryMemoryReader } from "./factory-memories.ts";
 import { factoryPackagesReader } from "./factory-packages.ts";
 import { claimStart, runActions } from "./factory-run-actions.ts";
 import { runArtifactsReader } from "./factory-run-artifacts.ts";
@@ -791,6 +792,13 @@ export function factoryReader(
 		}),
 		events: runEventsReader({ fetchImpl, signal, statusRowOf }),
 		...runHistoryReader({ fetchImpl, signal, statusRowOf }),
+		...factoryMemoryReader({
+			fetchImpl,
+			signal,
+			runs: runList,
+			statusRowOf,
+			listed,
+		}),
 		...runArtifactsReader({ fetchImpl, signal, statusRowOf }),
 		sandbox,
 		files: runFilesReader({ fetchImpl, signal, statusRowOf, sandbox }),

@@ -125,6 +125,7 @@ export const navLabel = {
 	workflows: "Workflows",
 	verification: "Verification",
 	retros: "Retros",
+	memories: "Memories",
 	insights: "Insights",
 	refreshing: "Refreshing",
 	settings: "Settings",
@@ -1334,4 +1335,32 @@ export const retrosCopy = {
 	noPoints: "The run had no friction point.",
 	noRetro: "The factory has no retro of this run yet.",
 	runNotServed: "The factory of this run does not serve GET /runs/{id}/retro.",
+} as const;
+
+export const memoriesCopy = {
+	subtitle: "What workcell remembers for each repo, and how people vote on it.",
+	sources: {
+		review: "GET /repos/{owner}/{name}/memories",
+		history: "GET /repos/{owner}/{name}/memories/{id}",
+	},
+	conflicting: "Conflicting",
+	recent: "Newest",
+	noRepos: "No factory run names a repo yet.",
+	noMemories: "The repo has no memory yet.",
+	notServed: (factory: string): string =>
+		`${factory} does not serve memories for this repo.`,
+	unreachable: (factory: string): string =>
+		`${factory} did not answer the memory read.`,
+	votes: (votesFor: number, votesAgainst: number): string =>
+		`${votesFor} for, ${votesAgainst} against`,
+	voteFor: "Vote for",
+	voteAgainst: "Vote against",
+	history: "History",
+	changes: "State changes",
+	evidence: "Evidence",
+	noChanges: "The memory has no state change.",
+	noEvidence: "The memory has no evidence.",
+	noHistory: "The factory gives no history of this memory.",
+	pick: "Pick a memory to see its history.",
+	voteFailed: "The vote did not reach the factory.",
 } as const;
