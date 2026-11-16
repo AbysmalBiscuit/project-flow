@@ -45,8 +45,10 @@ import type { FactoryTokenReport } from "./factory-tokens.ts";
 import { liveRunStatusKinds } from "./kinds.ts";
 import type {
 	MemoriesPage,
+	MemoryCorrectionRequest,
 	MemoryHistoryAnswer,
 	MemoryStance,
+	MergeBody,
 } from "./memories-page.ts";
 import { pullMergeCopy, requestChangesCopy } from "./pull-terms.ts";
 import type { RetrosPage, RunRetro } from "./retros-page.ts";
@@ -308,8 +310,12 @@ async function fetchJson<T>(path: string): Promise<T> {
 	return (await response.json()) as T;
 }
 
+function memoriesPath(repo: string): string {
+	return `/api/memories/${repo.split("/").map(encodeURIComponent).join("/")}`;
+}
+
 function memoryPath(repo: string, memoryId: string): string {
-	return `/api/memories/${repo.split("/").map(encodeURIComponent).join("/")}/${encodeURIComponent(memoryId)}`;
+	return `${memoriesPath(repo)}/${encodeURIComponent(memoryId)}`;
 }
 
 export function configurationOf(
@@ -739,27 +745,76 @@ export function useSaveSettings({
 	});
 }
 
-export function useMemoryVote(repo: string, memoryId: string) {
+async function postMemory(
+	path: string,
+	body: unknown,
+	failed: string,
+): Promise<MemoryHistoryAnswer> {
+	const response = await fetch(path, {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify(body),
+	});
+	if (!response.ok) {
+		const reply = (await response.json().catch(() => null)) as {
+			error?: string;
+		} | null;
+		throw new Error(reply?.error ?? failed);
+	}
+	return (await response.json()) as MemoryHistoryAnswer;
+}
+
+function useStoreMemoryAnswer(repo: string) {
 	const queries = useQueryClient();
+	return (answer: MemoryHistoryAnswer) => {
+		if (answer.memory !== null) {
+			queries.setQueryData(
+				pageQuery.memory(repo, answer.memory.id).queryKey,
+				answer,
+			);
+		}
+		void queries.invalidateQueries({ queryKey: ["memories"] });
+	};
+}
+
+export function useMemoryVote(repo: string, memoryId: string) {
+	const storeAnswer = useStoreMemoryAnswer(repo);
 	return useMutation({
-		mutationFn: async (stance: MemoryStance): Promise<MemoryHistoryAnswer> => {
-			const response = await fetch(`${memoryPath(repo, memoryId)}/votes`, {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ stance }),
-			});
-			if (!response.ok) {
-				const failed = (await response.json().catch(() => null)) as {
-					error?: string;
-				} | null;
-				throw new Error(failed?.error ?? memoriesCopy.voteFailed);
-			}
-			return (await response.json()) as MemoryHistoryAnswer;
-		},
-		onSuccess: (answer) => {
-			queries.setQueryData(pageQuery.memory(repo, memoryId).queryKey, answer);
-			void queries.invalidateQueries({ queryKey: ["memories"] });
-		},
+		mutationFn: (stance: MemoryStance) =>
+			postMemory(
+				`${memoryPath(repo, memoryId)}/votes`,
+				{ stance },
+				memoriesCopy.voteFailed,
+			),
+		onSuccess: storeAnswer,
+	});
+}
+
+export function useMemoryCorrection(repo: string, memoryId: string) {
+	const storeAnswer = useStoreMemoryAnswer(repo);
+	return useMutation({
+		mutationFn: (request: MemoryCorrectionRequest) =>
+			postMemory(
+				`${memoryPath(repo, memoryId)}/${request.correction}`,
+				request.correction === "supersede"
+					? { text: request.text, evidence: request.evidence }
+					: {},
+				memoriesCopy.correctionFailed,
+			),
+		onSuccess: storeAnswer,
+	});
+}
+
+export function useMemoryMerge(repo: string) {
+	const storeAnswer = useStoreMemoryAnswer(repo);
+	return useMutation({
+		mutationFn: (merge: MergeBody) =>
+			postMemory(
+				`${memoriesPath(repo)}/merges`,
+				merge,
+				memoriesCopy.mergeFailed,
+			),
+		onSuccess: storeAnswer,
 	});
 }
 
