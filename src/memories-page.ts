@@ -15,6 +15,9 @@ export const storedMemory = z.object({
 	paths: z.array(z.string()),
 	concepts: z.array(z.string()),
 	created_at: z.string(),
+	supersedes: z.string().nullable().default(null),
+	basis: z.string().nullable().default(null),
+	duplicates: z.array(z.string()).default([]),
 });
 
 /** One evidence record of a memory: an event of a run, or the vote of a person. */
@@ -52,12 +55,46 @@ export const memoryHistory = z.object({
 /** The body of `POST /api/memories/:owner/:name/:id/votes`. */
 export const memoryStanceBody = z.object({ stance: memoryStance });
 
+/** The corrections of one memory, each a route of the daemon under `/repos/{owner}/{name}/memories/{id}`. */
+export const memoryCorrection = z.enum([
+	"supersede",
+	"undo",
+	"suppress",
+	"restore",
+]);
+
+/** The body of a supersede: the new text, and the evidence that the claim of the old memory is wrong. */
+export const supersedeBody = z.object({
+	text: z.string().trim().min(1),
+	evidence: z.string().trim().min(1),
+});
+
+/** The body of `POST /api/memories/:owner/:name/merges`: the duplicate memories, and the one text that replaces them. */
+export const mergeBody = z.object({
+	memories: z.array(z.string().min(1)).min(2),
+	text: z.string().trim().min(1),
+});
+
 export type MemoryStance = z.infer<typeof memoryStance>;
 export type MemoryReview = z.infer<typeof memoryReview>;
 export type MemoryHistory = z.infer<typeof memoryHistory>;
+export type MemoryCorrection = z.infer<typeof memoryCorrection>;
+export type SupersedeBody = z.infer<typeof supersedeBody>;
+export type MergeBody = z.infer<typeof mergeBody>;
 
-/** A vote: the history that the factory answers, "not served" on 404, the reason of a refusal, or null when the factory did not answer. */
-export type MemoryVoteResult =
+/** A review as the daemon sends it, before the defaults of the schema apply. */
+export type MemoryReviewReply = z.input<typeof memoryReview>;
+
+/** A history as the daemon sends it, before the defaults of the schema apply. */
+export type MemoryHistoryReply = z.input<typeof memoryHistory>;
+
+/** A correction of one memory, as the factory reader sends it. Only a supersede has a body. */
+export type MemoryCorrectionRequest =
+	| ({ correction: "supersede" } & SupersedeBody)
+	| { correction: Exclude<MemoryCorrection, "supersede"> };
+
+/** A vote or a correction: the history that the factory answers, the reason of a refusal, "not served" on a 404 that names no reason, or null when the factory did not answer. */
+export type MemoryWriteResult =
 	MemoryHistory | "not served" | { refused: string } | null;
 
 /** A memory as the Memories tab shows it. */
@@ -70,6 +107,12 @@ export type MemoryRow = {
 	paths: string[];
 	concepts: string[];
 	createdAt: string;
+	/** The memory that this memory supersedes. */
+	supersedes: string | null;
+	/** The evidence that the author of a supersede gave. */
+	basis: string | null;
+	/** The memories that a merge replaced with this memory. */
+	duplicates: string[];
 	/** The voters whose newest vote is for the memory. */
 	votesFor: number;
 	/** The voters whose newest vote is against the memory. */
@@ -148,6 +191,9 @@ export function memoryRow(
 		paths: memory.paths,
 		concepts: memory.concepts,
 		createdAt: memory.created_at,
+		supersedes: memory.supersedes,
+		basis: memory.basis,
+		duplicates: memory.duplicates,
 		...votesOf(evidence, memory.id),
 	};
 }

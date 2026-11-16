@@ -313,8 +313,24 @@ _Avoid_: confirmed, approved
 A verified memory that a newer memory supersedes, while that newer memory is not yet verified. The Memories tab lists the conflicting memories of each repo first.
 _Avoid_: contested, disputed
 
+**Supersede**:
+A person or a run replaces a memory with a new memory, and gives the evidence that the old claim is wrong. A verified memory becomes conflicting, and any other memory becomes superseded. The new memory starts unverified.
+_Avoid_: replace, overwrite, edit
+
+**Undo**:
+A person reverses a supersede. The new memory leaves search, and the old memory takes back its earlier state.
+_Avoid_: revert, rollback
+
+**Suppress**:
+A person takes a memory out of search. Only a person restores a suppressed memory, and a restored memory is unverified again.
+_Avoid_: mute, silence
+
+**Memory merge**:
+A person replaces two or more duplicate memories with one new memory. The new memory keeps the evidence of each duplicate, and each duplicate becomes superseded.
+_Avoid_: dedupe, combine
+
 **Memories tab**:
-The page that shows the memories of each repo that a factory run names: its conflicting memories first, then its newest memories. A person picks a memory to see its history, and votes for or against it as Lev. A factory that does not serve memories shows as such, and the other repos keep working.
+The page that shows the memories of each repo that a factory run names: its conflicting memories first, then its newest memories. A person picks a memory to see its history, and votes for or against it as Lev. The history of a memory also supersedes, undoes, suppresses and restores it. A person selects duplicate memories in the list to merge them. Each correction asks for confirmation, and a refusal of the daemon shows its reason. A factory that does not serve memories shows as such, and the other repos keep working.
 _Avoid_: Memory page, review screen
 
 **Factories tab**:

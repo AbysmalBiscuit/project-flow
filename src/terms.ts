@@ -1338,7 +1338,8 @@ export const retrosCopy = {
 } as const;
 
 export const memoriesCopy = {
-	subtitle: "What workcell remembers for each repo, and how people vote on it.",
+	subtitle:
+		"What workcell remembers for each repo, and how people vote on it and correct it.",
 	sources: {
 		review: "GET /repos/{owner}/{name}/memories",
 		history: "GET /repos/{owner}/{name}/memories/{id}",
@@ -1363,4 +1364,31 @@ export const memoriesCopy = {
 	noHistory: "The factory gives no history of this memory.",
 	pick: "Pick a memory to see its history.",
 	voteFailed: "The vote did not reach the factory.",
+	correctionFailed: "The correction did not reach the factory.",
+	mergeFailed: "The merge did not reach the factory.",
+	supersede: "Supersede",
+	supersedeTitle: "Supersede this memory?",
+	supersedeBody:
+		"A new memory replaces this one. Give the evidence that its claim is wrong.",
+	newText: "New text",
+	evidenceField: "Evidence that the claim is wrong",
+	undo: "Undo supersede",
+	undoTitle: "Undo this supersede?",
+	undoBody: (old: string): string =>
+		`This memory leaves search, and ${old} takes back its earlier state.`,
+	suppress: "Suppress",
+	suppressTitle: "Suppress this memory?",
+	suppressBody: "The memory leaves search until a person restores it.",
+	restore: "Restore",
+	restoreTitle: "Restore this memory?",
+	restoreBody: "The memory comes back into search, unverified.",
+	merge: (count: number): string => `Merge ${count} memories`,
+	mergeTitle: "Merge these memories?",
+	mergeBody: (count: number): string =>
+		`One new memory replaces the ${count} selected memories and keeps the evidence of each.`,
+	mergeText: "Text of the merged memory",
+	select: "Select to merge",
+	supersedes: (id: string): string => `Supersedes ${id}`,
+	basis: (basis: string): string => `Evidence: ${basis}`,
+	duplicates: (ids: readonly string[]): string => `Merges ${ids.join(", ")}`,
 } as const;

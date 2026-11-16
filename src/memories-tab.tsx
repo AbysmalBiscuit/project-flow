@@ -3,12 +3,25 @@ import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useState } from "react";
 
+import { board } from "./board-styles.ts";
+import { ConfirmDialog } from "./confirm-dialog.tsx";
 import { PageLoading } from "./loading.tsx";
-import type { MemoryRepo, MemoryRow } from "./memories-page.ts";
+import type {
+	MemoryCorrection,
+	MemoryCorrectionRequest,
+	MemoryRepo,
+	MemoryRow,
+} from "./memories-page.ts";
 import { runTime } from "./panel-sections.tsx";
-import { pageQuery, useMemoryVote } from "./queries.ts";
+import {
+	pageQuery,
+	useMemoryCorrection,
+	useMemoryMerge,
+	useMemoryVote,
+} from "./queries.ts";
 import { PageFrame } from "./shell.tsx";
 import { memoriesCopy, navLabel } from "./terms.ts";
+import { TextInput } from "./text-input.tsx";
 import { ticketLabel } from "./ticket-key.ts";
 import {
 	colours,
@@ -106,7 +119,7 @@ const styles = stylex.create({
 		borderBottomStyle: "solid",
 		borderBottomColor: colours.line,
 		backgroundColor: {
-			default: null,
+			default: "transparent",
 			":hover": colours.surface,
 		},
 		color: colours.ink,
@@ -180,6 +193,14 @@ const styles = stylex.create({
 		padding: 0,
 		listStyle: "none",
 	},
+	row: {
+		display: "flex",
+		gap: space.sm,
+		alignItems: "flex-start",
+	},
+	check: {
+		marginTop: space.sm,
+	},
 	item: {
 		display: "flex",
 		gap: space.sm,
@@ -217,6 +238,8 @@ const styles = stylex.create({
 });
 
 type Picked = { repo: string; id: string };
+
+type MemorySelection = { repo: string; ids: string[] };
 
 function Source({ children }: { children: string }) {
 	return <span className={clsx(styles.source)}>{children}</span>;
@@ -292,19 +315,30 @@ function MemorySection({
 	repo,
 	picked,
 	onPick,
+	selected,
+	onToggle,
 }: {
 	title: string;
 	rows: MemoryRow[];
 	repo: string;
 	picked: Picked | null;
 	onPick: (picked: Picked) => void;
+	selected: string[];
+	onToggle: (id: string) => void;
 }) {
 	return (
 		<div className={clsx(styles.section)}>
 			<div className={clsx(styles.kicker, styles.sectionKicker)}>{title}</div>
 			<ul className={clsx(styles.list)}>
 				{rows.map((row) => (
-					<li key={row.id}>
+					<li key={row.id} className={clsx(styles.row)}>
+						<input
+							type="checkbox"
+							className={clsx(board.check, styles.check)}
+							aria-label={memoriesCopy.select}
+							checked={selected.includes(row.id)}
+							onChange={() => onToggle(row.id)}
+						/>
 						<MemoryButton
 							row={row}
 							on={picked?.repo === repo && picked.id === row.id}
@@ -321,10 +355,16 @@ function RepoBody({
 	repo,
 	picked,
 	onPick,
+	selected,
+	onToggle,
+	onMerged,
 }: {
 	repo: MemoryRepo;
 	picked: Picked | null;
 	onPick: (picked: Picked) => void;
+	selected: string[];
+	onToggle: (id: string) => void;
+	onMerged: (id: string) => void;
 }) {
 	if (repo.notServed) {
 		return (
@@ -352,6 +392,8 @@ function RepoBody({
 					repo={repo.repo}
 					picked={picked}
 					onPick={onPick}
+					selected={selected}
+					onToggle={onToggle}
 				/>
 			)}
 			{repo.recent.length === 0 ? null : (
@@ -361,8 +403,76 @@ function RepoBody({
 					repo={repo.repo}
 					picked={picked}
 					onPick={onPick}
+					selected={selected}
+					onToggle={onToggle}
 				/>
 			)}
+			{selected.length >= 2 ? (
+				<MergeBar repo={repo.repo} ids={selected} onMerged={onMerged} />
+			) : null}
+		</>
+	);
+}
+
+function MergeBar({
+	repo,
+	ids,
+	onMerged,
+}: {
+	repo: string;
+	ids: string[];
+	onMerged: (id: string) => void;
+}) {
+	const merge = useMemoryMerge(repo);
+	const [open, setOpen] = useState(false);
+	const [text, setText] = useState("");
+	const closeDialog = () => {
+		setOpen(false);
+		setText("");
+	};
+	return (
+		<>
+			<div className={clsx(styles.actions)}>
+				<button
+					type="button"
+					className={clsx(headerControlStyle.control, styles.voteButton)}
+					disabled={merge.isPending}
+					onClick={() => setOpen(true)}
+				>
+					{memoriesCopy.merge(ids.length)}
+				</button>
+			</div>
+			{merge.isError ? (
+				<p className={clsx(styles.warn)}>{merge.error.message}</p>
+			) : null}
+			<ConfirmDialog
+				id={`memory-merge-dialog-${repo.replaceAll("/", "-")}`}
+				open={open}
+				title={memoriesCopy.mergeTitle}
+				body={memoriesCopy.mergeBody(ids.length)}
+				confirmLabel={memoriesCopy.merge(ids.length)}
+				confirmDisabled={text.trim() === ""}
+				onCancel={closeDialog}
+				onConfirm={() => {
+					merge.mutate(
+						{ memories: ids, text },
+						{
+							onSuccess: (answer) => {
+								if (answer.memory !== null) {
+									onMerged(answer.memory.id);
+								}
+							},
+						},
+					);
+					closeDialog();
+				}}
+			>
+				<TextInput
+					aria-label={memoriesCopy.mergeText}
+					value={text}
+					onChange={(event) => setText(event.target.value)}
+				/>
+			</ConfirmDialog>
 		</>
 	);
 }
@@ -371,10 +481,16 @@ function Repos({
 	repos,
 	picked,
 	onPick,
+	selected,
+	onToggle,
+	onMerged,
 }: {
 	repos: MemoryRepo[];
 	picked: Picked | null;
 	onPick: (picked: Picked) => void;
+	selected: MemorySelection;
+	onToggle: (repo: string, id: string) => void;
+	onMerged: (repo: string, id: string) => void;
 }) {
 	if (repos.length === 0) {
 		return <p className={clsx(styles.empty)}>{memoriesCopy.noRepos}</p>;
@@ -387,22 +503,87 @@ function Repos({
 					title={repo.repo}
 					head={<Source>{memoriesCopy.sources.review}</Source>}
 				>
-					<RepoBody repo={repo} picked={picked} onPick={onPick} />
+					<RepoBody
+						repo={repo}
+						picked={picked}
+						onPick={onPick}
+						selected={selected.repo === repo.repo ? selected.ids : []}
+						onToggle={(id) => onToggle(repo.repo, id)}
+						onMerged={(id) => onMerged(repo.repo, id)}
+					/>
 				</Card>
 			))}
 		</div>
 	);
 }
 
+const corrections: readonly MemoryCorrection[] = [
+	"supersede",
+	"undo",
+	"suppress",
+	"restore",
+];
+
+/** The corrections that the daemon takes for the memory in its state. */
+function offeredCorrections(memory: MemoryRow): MemoryCorrection[] {
+	const inSearch =
+		memory.state !== "superseded" && memory.state !== "suppressed";
+	const offered: Record<MemoryCorrection, boolean> = {
+		supersede: inSearch,
+		undo: inSearch && memory.supersedes !== null,
+		suppress: inSearch,
+		restore: memory.state === "suppressed",
+	};
+	return corrections.filter((candidate) => offered[candidate]);
+}
+
 function MemoryHistoryCard({
 	repo,
 	memoryId,
+	onPick,
 }: {
 	repo: string;
 	memoryId: string;
+	onPick: (memoryId: string) => void;
 }) {
 	const query = useQuery(pageQuery.memory(repo, memoryId));
 	const vote = useMemoryVote(repo, memoryId);
+	const correction = useMemoryCorrection(repo, memoryId);
+	const [dialog, setDialog] = useState<MemoryCorrection | null>(null);
+	const [text, setText] = useState("");
+	const [evidence, setEvidence] = useState("");
+	const memory = query.data?.memory;
+	const dialogCopy = {
+		supersede: {
+			title: memoriesCopy.supersedeTitle,
+			body: memoriesCopy.supersedeBody,
+			confirm: memoriesCopy.supersede,
+		},
+		undo: {
+			title: memoriesCopy.undoTitle,
+			body: memoriesCopy.undoBody(memory?.supersedes ?? ""),
+			confirm: memoriesCopy.undo,
+		},
+		suppress: {
+			title: memoriesCopy.suppressTitle,
+			body: memoriesCopy.suppressBody,
+			confirm: memoriesCopy.suppress,
+		},
+		restore: {
+			title: memoriesCopy.restoreTitle,
+			body: memoriesCopy.restoreBody,
+			confirm: memoriesCopy.restore,
+		},
+	} satisfies Record<
+		MemoryCorrection,
+		{ title: string; body: string; confirm: string }
+	>;
+	const shown = dialog === null ? null : dialogCopy[dialog];
+	const closeDialog = () => {
+		setDialog(null);
+		setText("");
+		setEvidence("");
+	};
 	const answer = query.data;
 	if (answer === undefined) {
 		return null;
@@ -421,6 +602,21 @@ function MemoryHistoryCard({
 						<Pill>{answer.memory.state}</Pill>
 					</div>
 					<p className={clsx(styles.text)}>{answer.memory.text}</p>
+					{answer.memory.supersedes === null ? null : (
+						<span className={clsx(styles.votes)}>
+							{memoriesCopy.supersedes(answer.memory.supersedes)}
+						</span>
+					)}
+					{answer.memory.basis === null ? null : (
+						<span className={clsx(styles.votes)}>
+							{memoriesCopy.basis(answer.memory.basis)}
+						</span>
+					)}
+					{answer.memory.duplicates.length > 0 ? (
+						<span className={clsx(styles.votes)}>
+							{memoriesCopy.duplicates(answer.memory.duplicates)}
+						</span>
+					) : null}
 					<span className={clsx(styles.votes)}>
 						{memoriesCopy.votes(
 							answer.memory.votesFor,
@@ -444,9 +640,23 @@ function MemoryHistoryCard({
 						>
 							{memoriesCopy.voteAgainst}
 						</button>
+						{offeredCorrections(answer.memory).map((offered) => (
+							<button
+								key={offered}
+								type="button"
+								disabled={correction.isPending}
+								className={clsx(headerControlStyle.control, styles.voteButton)}
+								onClick={() => setDialog(offered)}
+							>
+								{dialogCopy[offered].confirm}
+							</button>
+						))}
 					</div>
 					{vote.isError ? (
 						<p className={clsx(styles.warn)}>{vote.error.message}</p>
+					) : null}
+					{correction.isError ? (
+						<p className={clsx(styles.warn)}>{correction.error.message}</p>
 					) : null}
 					<div className={clsx(styles.section)}>
 						<div className={clsx(styles.kicker, styles.sectionKicker)}>
@@ -499,6 +709,50 @@ function MemoryHistoryCard({
 							</ul>
 						)}
 					</div>
+					<ConfirmDialog
+						id="memory-correction-dialog"
+						open={dialog !== null}
+						title={shown?.title ?? ""}
+						body={shown?.body ?? ""}
+						confirmLabel={shown?.confirm ?? ""}
+						confirmDisabled={
+							dialog === "supersede" &&
+							(text.trim() === "" || evidence.trim() === "")
+						}
+						onCancel={closeDialog}
+						onConfirm={() => {
+							if (dialog === null) {
+								return;
+							}
+							const request: MemoryCorrectionRequest =
+								dialog === "supersede"
+									? { correction: "supersede", text, evidence }
+									: { correction: dialog };
+							correction.mutate(request, {
+								onSuccess: (result) => {
+									if (result.memory !== null && result.memory.id !== memoryId) {
+										onPick(result.memory.id);
+									}
+								},
+							});
+							closeDialog();
+						}}
+					>
+						{dialog === "supersede" ? (
+							<>
+								<TextInput
+									aria-label={memoriesCopy.newText}
+									value={text}
+									onChange={(event) => setText(event.target.value)}
+								/>
+								<TextInput
+									aria-label={memoriesCopy.evidenceField}
+									value={evidence}
+									onChange={(event) => setEvidence(event.target.value)}
+								/>
+							</>
+						) : null}
+					</ConfirmDialog>
 				</>
 			)}
 		</Card>
@@ -507,19 +761,50 @@ function MemoryHistoryCard({
 
 export function Page() {
 	const [picked, setPicked] = useState<Picked | null>(null);
+	const [selected, setSelected] = useState<MemorySelection>({
+		repo: "",
+		ids: [],
+	});
 	const query = useQuery(pageQuery.memories);
 	const page = query.data;
+	const toggle = (repo: string, id: string) => {
+		if (selected.repo !== repo) {
+			setSelected({ repo, ids: [id] });
+			return;
+		}
+		setSelected({
+			repo,
+			ids: selected.ids.includes(id)
+				? selected.ids.filter((known) => known !== id)
+				: [...selected.ids, id],
+		});
+	};
+	const merged = (repo: string, id: string) => {
+		setSelected({ repo: "", ids: [] });
+		setPicked({ repo, id });
+	};
 	return (
 		<PageFrame title={navLabel.memories} subtitle={memoriesCopy.subtitle}>
 			{page === undefined ? (
 				<PageLoading />
 			) : (
-				<Repos repos={page.repos} picked={picked} onPick={setPicked} />
+				<Repos
+					repos={page.repos}
+					picked={picked}
+					onPick={setPicked}
+					selected={selected}
+					onToggle={toggle}
+					onMerged={merged}
+				/>
 			)}
 			{picked === null ? (
 				<p className={clsx(styles.empty)}>{memoriesCopy.pick}</p>
 			) : (
-				<MemoryHistoryCard repo={picked.repo} memoryId={picked.id} />
+				<MemoryHistoryCard
+					repo={picked.repo}
+					memoryId={picked.id}
+					onPick={(id) => setPicked({ repo: picked.repo, id })}
+				/>
 			)}
 		</PageFrame>
 	);
