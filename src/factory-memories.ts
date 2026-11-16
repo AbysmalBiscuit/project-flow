@@ -72,14 +72,15 @@ export function factoryMemoryReader(deps: {
 				url,
 				deps.signal,
 			)(path, { json });
-			if (response.status === 404) {
-				return "not served";
-			}
-			if (response.status >= 400 && response.status < 500) {
-				return { refused: (await reasonOf(response)) ?? refusal };
-			}
 			if (!response.ok) {
-				return null;
+				const reason = await reasonOf(response);
+				if (reason !== undefined) {
+					return { refused: reason };
+				}
+				if (response.status === 404) {
+					return "not served";
+				}
+				return response.status < 500 ? { refused: refusal } : null;
 			}
 			const parsed = memoryHistory.safeParse(
 				await response.json().catch(() => null),

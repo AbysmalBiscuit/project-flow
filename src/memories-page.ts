@@ -93,7 +93,7 @@ export type MemoryCorrectionRequest =
 	| ({ correction: "supersede" } & SupersedeBody)
 	| { correction: Exclude<MemoryCorrection, "supersede"> };
 
-/** A vote or a correction: the history that the factory answers, "not served" on 404, the reason of a refusal, or null when the factory did not answer. */
+/** A vote or a correction: the history that the factory answers, the reason of a refusal, "not served" on a 404 that names no reason, or null when the factory did not answer. */
 export type MemoryWriteResult =
 	MemoryHistory | "not served" | { refused: string } | null;
 

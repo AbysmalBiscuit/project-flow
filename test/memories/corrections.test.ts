@@ -330,3 +330,47 @@ test("a correction that the daemon refuses gives the reason of the daemon", asyn
 		await app.stop();
 	}
 });
+
+test("a daemon 404 or 502 that names a reason gives the reason of the daemon", async () => {
+	const requests: FactoryRequest[] = [];
+	const app = await serveWith(
+		{
+			"/repos/acme/widget/memories/mem-unverified/restore": Response.json(
+				{ error: "acme/widget holds no suppressed memory mem-unverified" },
+				{ status: 404 },
+			),
+			"/repos/acme/widget/memories/mem-conflict/supersede": Response.json(
+				{ error: "the central store did not take memory mem-new" },
+				{ status: 502 },
+			),
+		},
+		requests,
+	);
+	try {
+		await pageWhere(app.base, (found) => found.repos.length > 0);
+		const restore = await post(
+			app.base,
+			"/api/memories/acme/widget/mem-unverified/restore",
+			{},
+		);
+		expect(restore.status).toBe(422);
+		expect(await restore.json()).toEqual({
+			error: "acme/widget holds no suppressed memory mem-unverified",
+		});
+
+		const supersede = await post(
+			app.base,
+			"/api/memories/acme/widget/mem-conflict/supersede",
+			{
+				text: "Only the JSON routes keep the /api prefix",
+				evidence: "src/app.ts",
+			},
+		);
+		expect(supersede.status).toBe(422);
+		expect(await supersede.json()).toEqual({
+			error: "the central store did not take memory mem-new",
+		});
+	} finally {
+		await app.stop();
+	}
+});
