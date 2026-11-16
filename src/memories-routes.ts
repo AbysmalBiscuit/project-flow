@@ -7,13 +7,16 @@ import {
 	type MemoryRepo,
 	type MemoryReview,
 	memoryRow,
-	memoryVote,
+	memoryStanceBody,
 } from "./memories-page.ts";
 import type { FactoryReader } from "./ports.ts";
 import { routeTable } from "./route-table.ts";
 
 export type MemoriesRouteOptions = {
-	factories: Pick<FactoryReader, "runs" | "memories" | "memory" | "vote">;
+	factories: Pick<
+		FactoryReader,
+		"runs" | "memoryFactory" | "memories" | "memory" | "vote"
+	>;
 };
 
 /** The routes of the Memories tab: the memories of each repo, and the history and votes of one memory. */
@@ -21,7 +24,10 @@ export function memoriesRoutes(options: MemoriesRouteOptions) {
 	return routeTable({
 		"/api/memories": {
 			GET: async () => {
-				const sources = repoSources(options.factories.runs());
+				const sources = repoSources(
+					options.factories.runs(),
+					options.factories.memoryFactory,
+				);
 				const repos = await Promise.all(
 					sources.map(async ({ repo, factory }) =>
 						memoryRepo(repo, factory, await options.factories.memories(repo)),
@@ -39,7 +45,7 @@ export function memoriesRoutes(options: MemoriesRouteOptions) {
 		},
 		"/api/memories/:owner/:name/:id/votes": {
 			POST: async (request) => {
-				const parsed = memoryVote.safeParse(
+				const parsed = memoryStanceBody.safeParse(
 					await request.json().catch(() => null),
 				);
 				if (!parsed.success) {
@@ -47,24 +53,39 @@ export function memoriesRoutes(options: MemoriesRouteOptions) {
 				}
 				const { owner, name, id } = request.params;
 				const repo = `${owner}/${name}`;
-				return historyResponse(
+				const result = await options.factories.vote(
 					repo,
-					await options.factories.vote(repo, id, parsed.data),
+					id,
+					parsed.data.stance,
 				);
+				if (
+					typeof result === "object" &&
+					result !== null &&
+					"refused" in result
+				) {
+					return Response.json({ error: result.refused }, { status: 422 });
+				}
+				return historyResponse(repo, result);
 			},
 		},
 	});
 }
 
-/** The distinct repos of the runs, each with the factory of its first run. */
-function repoSources(runs: FactoryRun[]): { repo: string; factory: string }[] {
-	const factoryOf = new Map<string, string>();
+/** The distinct repos of the runs, each with the factory its memory reads go to, or else the factory of its first run. */
+function repoSources(
+	runs: FactoryRun[],
+	memoryFactory: (repo: string) => string | null,
+): { repo: string; factory: string }[] {
+	const firstRunFactory = new Map<string, string>();
 	for (const run of runs) {
-		if (run.repo !== undefined && !factoryOf.has(run.repo)) {
-			factoryOf.set(run.repo, run.factory);
+		if (run.repo !== undefined && !firstRunFactory.has(run.repo)) {
+			firstRunFactory.set(run.repo, run.factory);
 		}
 	}
-	return [...factoryOf].map(([repo, factory]) => ({ repo, factory }));
+	return [...firstRunFactory].map(([repo, factory]) => ({
+		repo,
+		factory: memoryFactory(repo) ?? factory,
+	}));
 }
 
 function memoryRepo(

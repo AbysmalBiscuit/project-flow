@@ -235,7 +235,7 @@ test("a vote goes to the daemon and gives the history with the new evidence reco
 			{
 				method: "POST",
 				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ voter: "lev", stance: "for" }),
+				body: JSON.stringify({ stance: "for" }),
 			},
 		);
 		expect(response.status).toBe(200);
@@ -256,6 +256,47 @@ test("a vote goes to the daemon and gives the history with the new evidence reco
 		expect(JSON.parse(posts[0]?.body ?? "null")).toEqual({
 			voter: "lev",
 			stance: "for",
+		});
+	} finally {
+		await app.stop();
+	}
+});
+
+test("a vote that the factory refuses gives the reason of the factory", async () => {
+	const requests: FactoryRequest[] = [];
+	const answers: Answers = {
+		...hub,
+		"/repos/acme/widget/memories": review,
+		"/repos/acme/widget/memories/mem-unverified/votes": (
+			_url: URL,
+			method: string,
+		) =>
+			method === "POST"
+				? Response.json(
+						{ error: "the repo of acme/widget does not opt in to memory" },
+						{ status: 403 },
+					)
+				: null,
+	};
+	const app = await serve(
+		[],
+		{ factories: [{ name: "work hub", url: hubUrl }] },
+		factoryFetch({ [hubUrl]: answers }, requests),
+		{ env: { GITHUB_TOKEN: "recorded-token" } },
+	);
+	try {
+		await pageWhere(app.base, (found) => found.repos.length > 0);
+		const response = await fetch(
+			new URL("/api/memories/acme/widget/mem-unverified/votes", app.base),
+			{
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ stance: "against" }),
+			},
+		);
+		expect(response.status).toBe(422);
+		expect(await response.json()).toEqual({
+			error: "the repo of acme/widget does not opt in to memory",
 		});
 	} finally {
 		await app.stop();

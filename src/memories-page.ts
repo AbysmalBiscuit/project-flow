@@ -49,15 +49,16 @@ export const memoryHistory = z.object({
 	evidence: z.array(memoryEvidence),
 });
 
-/** The body of `POST /repos/{owner}/{name}/memories/{id}/votes`. */
-export const memoryVote = z.object({
-	voter: z.string().regex(/\S/),
-	stance: memoryStance,
-});
+/** The body of `POST /api/memories/:owner/:name/:id/votes`. */
+export const memoryStanceBody = z.object({ stance: memoryStance });
 
+export type MemoryStance = z.infer<typeof memoryStance>;
 export type MemoryReview = z.infer<typeof memoryReview>;
 export type MemoryHistory = z.infer<typeof memoryHistory>;
-export type MemoryVote = z.infer<typeof memoryVote>;
+
+/** A vote: the history that the factory answers, "not served" on 404, the reason of a refusal, or null when the factory did not answer. */
+export type MemoryVoteResult =
+	MemoryHistory | "not served" | { refused: string } | null;
 
 /** A memory as the Memories tab shows it. */
 export type MemoryRow = {

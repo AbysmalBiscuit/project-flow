@@ -313,6 +313,10 @@ _Avoid_: confirmed, approved
 A verified memory that a newer memory supersedes, while that newer memory is not yet verified. The Memories tab lists the conflicting memories of each repo first.
 _Avoid_: contested, disputed
 
+**Memories tab**:
+The page that shows the memories of each repo that a factory run names: its conflicting memories first, then its newest memories. A person picks a memory to see its history, and votes for or against it as Lev. A factory that does not serve memories shows as such, and the other repos keep working.
+_Avoid_: Memory page, review screen
+
 **Factories tab**:
 The page that shows what each factory does now: the summary tiles, one card for each factory with its slots, heartbeat age and host health, the live runs, the runs that need attention, and the hub queue. Each panel names its data source. A factory that does not answer shows as such, and the other panels keep working.
 _Avoid_: Fleet page, dashboard

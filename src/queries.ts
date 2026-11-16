@@ -46,7 +46,7 @@ import { liveRunStatusKinds } from "./kinds.ts";
 import type {
 	MemoriesPage,
 	MemoryHistoryAnswer,
-	MemoryVote,
+	MemoryStance,
 } from "./memories-page.ts";
 import { pullMergeCopy, requestChangesCopy } from "./pull-terms.ts";
 import type { RetrosPage, RunRetro } from "./retros-page.ts";
@@ -56,6 +56,7 @@ import type { SavedInsight, SavedInsights } from "./saved-insights.ts";
 import type { StateSource } from "./settings-write.ts";
 import { pendingStatus } from "./stale-reads.ts";
 import { storedObject } from "./stored-page.ts";
+import { memoriesCopy } from "./terms.ts";
 import type { RunVerification, VerificationPage } from "./verification-page.ts";
 import type { WorkflowDetail, WorkflowsPage } from "./workflows-page.ts";
 
@@ -741,17 +742,17 @@ export function useSaveSettings({
 export function useMemoryVote(repo: string, memoryId: string) {
 	const queries = useQueryClient();
 	return useMutation({
-		mutationFn: async (vote: MemoryVote): Promise<MemoryHistoryAnswer> => {
+		mutationFn: async (stance: MemoryStance): Promise<MemoryHistoryAnswer> => {
 			const response = await fetch(`${memoryPath(repo, memoryId)}/votes`, {
 				method: "POST",
 				headers: { "content-type": "application/json" },
-				body: JSON.stringify(vote),
+				body: JSON.stringify({ stance }),
 			});
 			if (!response.ok) {
 				const failed = (await response.json().catch(() => null)) as {
 					error?: string;
 				} | null;
-				throw new Error(failed?.error ?? "Vote failed");
+				throw new Error(failed?.error ?? memoriesCopy.voteFailed);
 			}
 			return (await response.json()) as MemoryHistoryAnswer;
 		},

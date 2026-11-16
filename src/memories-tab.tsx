@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { PageLoading } from "./loading.tsx";
 import type { MemoryRepo, MemoryRow } from "./memories-page.ts";
+import { runTime } from "./panel-sections.tsx";
 import { pageQuery, useMemoryVote } from "./queries.ts";
 import { PageFrame } from "./shell.tsx";
 import { memoriesCopy, navLabel } from "./terms.ts";
@@ -21,29 +22,7 @@ import {
 import { headerControlStyle } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
-const voterKey = "project-flow.memory-voter";
-
 const styles = stylex.create({
-	voter: {
-		display: "flex",
-		flexDirection: "column",
-		gap: space.xs,
-		marginBottom: space.lg,
-	},
-	voterInput: {
-		boxSizing: "border-box",
-		width: measure.field,
-		maxWidth: "100%",
-		padding: `${space.xs} ${space.sm}`,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.laneLine,
-		borderRadius: radius.sm,
-		backgroundColor: colours.surface,
-		color: colours.ink,
-		fontFamily: font.sans,
-		fontSize: type.menu,
-	},
 	repos: {
 		display: "grid",
 		gap: space.lg,
@@ -375,13 +354,15 @@ function RepoBody({
 					onPick={onPick}
 				/>
 			)}
-			<MemorySection
-				title={memoriesCopy.recent}
-				rows={repo.recent}
-				repo={repo.repo}
-				picked={picked}
-				onPick={onPick}
-			/>
+			{repo.recent.length === 0 ? null : (
+				<MemorySection
+					title={memoriesCopy.recent}
+					rows={repo.recent}
+					repo={repo.repo}
+					picked={picked}
+					onPick={onPick}
+				/>
+			)}
 		</>
 	);
 }
@@ -416,11 +397,9 @@ function Repos({
 function MemoryHistoryCard({
 	repo,
 	memoryId,
-	voter,
 }: {
 	repo: string;
 	memoryId: string;
-	voter: string;
 }) {
 	const query = useQuery(pageQuery.memory(repo, memoryId));
 	const vote = useMemoryVote(repo, memoryId);
@@ -428,14 +407,13 @@ function MemoryHistoryCard({
 	if (answer === undefined) {
 		return null;
 	}
-	const voteDisabled = voter.trim() === "" || vote.isPending;
 	return (
 		<Card
 			title={memoriesCopy.history}
 			head={<Source>{memoriesCopy.sources.history}</Source>}
 		>
 			{answer.notServed || answer.memory === null ? (
-				<p className={clsx(styles.empty)}>{memoriesCopy.historyNotServed}</p>
+				<p className={clsx(styles.empty)}>{memoriesCopy.noHistory}</p>
 			) : (
 				<>
 					<div className={clsx(styles.pills)}>
@@ -452,27 +430,23 @@ function MemoryHistoryCard({
 					<div className={clsx(styles.actions)}>
 						<button
 							type="button"
-							disabled={voteDisabled}
+							disabled={vote.isPending}
 							className={clsx(headerControlStyle.control, styles.voteButton)}
-							onClick={() =>
-								vote.mutate({ voter: voter.trim(), stance: "for" })
-							}
+							onClick={() => vote.mutate("for")}
 						>
 							{memoriesCopy.voteFor}
 						</button>
 						<button
 							type="button"
-							disabled={voteDisabled}
+							disabled={vote.isPending}
 							className={clsx(headerControlStyle.control, styles.voteButton)}
-							onClick={() =>
-								vote.mutate({ voter: voter.trim(), stance: "against" })
-							}
+							onClick={() => vote.mutate("against")}
 						>
 							{memoriesCopy.voteAgainst}
 						</button>
 					</div>
 					{vote.isError ? (
-						<p className={clsx(styles.warn)}>{memoriesCopy.voteFailed}</p>
+						<p className={clsx(styles.warn)}>{vote.error.message}</p>
 					) : null}
 					<div className={clsx(styles.section)}>
 						<div className={clsx(styles.kicker, styles.sectionKicker)}>
@@ -490,7 +464,9 @@ function MemoryHistoryCard({
 										<span className={clsx(styles.itemBody)}>
 											{`${change.previous} -> ${change.state}`}
 										</span>
-										<span className={clsx(styles.where)}>{change.at}</span>
+										<span className={clsx(styles.where)}>
+											{runTime(change.at)}
+										</span>
 									</li>
 								))}
 							</ul>
@@ -516,7 +492,7 @@ function MemoryHistoryCard({
 											{record.ticket === null
 												? null
 												: `${ticketLabel(record.ticket)} `}
-											{record.at}
+											{runTime(record.at)}
 										</span>
 									</li>
 								))}
@@ -530,28 +506,11 @@ function MemoryHistoryCard({
 }
 
 export function Page() {
-	const [voter, setVoter] = useState(
-		() => localStorage.getItem(voterKey) ?? "",
-	);
 	const [picked, setPicked] = useState<Picked | null>(null);
 	const query = useQuery(pageQuery.memories);
 	const page = query.data;
-	const changeVoter = (value: string) => {
-		setVoter(value);
-		localStorage.setItem(voterKey, value);
-	};
 	return (
 		<PageFrame title={navLabel.memories} subtitle={memoriesCopy.subtitle}>
-			<label className={clsx(styles.voter)}>
-				<span className={clsx(styles.kicker)}>{memoriesCopy.voter}</span>
-				<input
-					type="text"
-					className={clsx(styles.voterInput)}
-					value={voter}
-					placeholder={memoriesCopy.voterPlaceholder}
-					onChange={(event) => changeVoter(event.currentTarget.value)}
-				/>
-			</label>
 			{page === undefined ? (
 				<PageLoading />
 			) : (
@@ -560,11 +519,7 @@ export function Page() {
 			{picked === null ? (
 				<p className={clsx(styles.empty)}>{memoriesCopy.pick}</p>
 			) : (
-				<MemoryHistoryCard
-					repo={picked.repo}
-					memoryId={picked.id}
-					voter={voter}
-				/>
+				<MemoryHistoryCard repo={picked.repo} memoryId={picked.id} />
 			)}
 		</PageFrame>
 	);

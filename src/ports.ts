@@ -40,7 +40,8 @@ import type { TranscriptRead } from "./factory-run-transcript.ts";
 import type {
 	MemoryHistory,
 	MemoryReview,
-	MemoryVote,
+	MemoryStance,
+	MemoryVoteResult,
 } from "./memories-page.ts";
 import type { ProjectRef } from "./project-ref.ts";
 import type { RetroRecord } from "./retros-page.ts";
@@ -258,6 +259,8 @@ export type FactoryReader = {
 	verification: (runId: string) => Promise<HistoryAnswer<VerificationRecord>>;
 	/** `GET /runs/{id}/retro` of the factory whose row gives the run its status. */
 	retro: (runId: string) => Promise<HistoryAnswer<RetroRecord>>;
+	/** The name of the factory that the memory reads of the repo go to. Null when no run of the repo has a status row. */
+	memoryFactory: (repo: string) => string | null;
 	/** `GET /repos/{owner}/{name}/memories` of the factory whose row gives the newest run of the repo its status. */
 	memories: (repo: string) => Promise<HistoryAnswer<MemoryReview>>;
 	/** `GET /repos/{owner}/{name}/memories/{id}` of the factory whose row gives the newest run of the repo its status. */
@@ -269,8 +272,8 @@ export type FactoryReader = {
 	vote: (
 		repo: string,
 		memoryId: string,
-		vote: MemoryVote,
-	) => Promise<HistoryAnswer<MemoryHistory>>;
+		stance: MemoryStance,
+	) => Promise<MemoryVoteResult>;
 	/** The PR of the run from `GET /runs/{id}` of the factory whose row gives the run its status. */
 	pull: (runId: string) => Promise<HistoryAnswer<FactoryPull | "no pull">>;
 	/**
