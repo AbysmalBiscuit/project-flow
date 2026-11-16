@@ -517,6 +517,26 @@ function Repos({
 	);
 }
 
+const corrections: readonly MemoryCorrection[] = [
+	"supersede",
+	"undo",
+	"suppress",
+	"restore",
+];
+
+/** The corrections that the daemon takes for the memory in its state. */
+function offeredCorrections(memory: MemoryRow): MemoryCorrection[] {
+	const inSearch =
+		memory.state !== "superseded" && memory.state !== "suppressed";
+	const offered: Record<MemoryCorrection, boolean> = {
+		supersede: inSearch,
+		undo: inSearch && memory.supersedes !== null,
+		suppress: inSearch,
+		restore: memory.state === "suppressed",
+	};
+	return corrections.filter((candidate) => offered[candidate]);
+}
+
 function MemoryHistoryCard({
 	repo,
 	memoryId,
@@ -620,49 +640,17 @@ function MemoryHistoryCard({
 						>
 							{memoriesCopy.voteAgainst}
 						</button>
-						{answer.memory.state !== "superseded" &&
-						answer.memory.state !== "suppressed" ? (
+						{offeredCorrections(answer.memory).map((offered) => (
 							<button
+								key={offered}
 								type="button"
 								disabled={correction.isPending}
 								className={clsx(headerControlStyle.control, styles.voteButton)}
-								onClick={() => setDialog("supersede")}
+								onClick={() => setDialog(offered)}
 							>
-								{memoriesCopy.supersede}
+								{dialogCopy[offered].confirm}
 							</button>
-						) : null}
-						{answer.memory.supersedes !== null &&
-						answer.memory.state !== "suppressed" ? (
-							<button
-								type="button"
-								disabled={correction.isPending}
-								className={clsx(headerControlStyle.control, styles.voteButton)}
-								onClick={() => setDialog("undo")}
-							>
-								{memoriesCopy.undo}
-							</button>
-						) : null}
-						{answer.memory.state !== "superseded" &&
-						answer.memory.state !== "suppressed" ? (
-							<button
-								type="button"
-								disabled={correction.isPending}
-								className={clsx(headerControlStyle.control, styles.voteButton)}
-								onClick={() => setDialog("suppress")}
-							>
-								{memoriesCopy.suppress}
-							</button>
-						) : null}
-						{answer.memory.state === "suppressed" ? (
-							<button
-								type="button"
-								disabled={correction.isPending}
-								className={clsx(headerControlStyle.control, styles.voteButton)}
-								onClick={() => setDialog("restore")}
-							>
-								{memoriesCopy.restore}
-							</button>
-						) : null}
+						))}
 					</div>
 					{vote.isError ? (
 						<p className={clsx(styles.warn)}>{vote.error.message}</p>

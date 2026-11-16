@@ -1338,12 +1338,11 @@ export const retrosCopy = {
 } as const;
 
 export const memoriesCopy = {
-	subtitle: "What workcell remembers for each repo, and how people vote on it.",
+	subtitle:
+		"What workcell remembers for each repo, and how people vote on it and correct it.",
 	sources: {
 		review: "GET /repos/{owner}/{name}/memories",
 		history: "GET /repos/{owner}/{name}/memories/{id}",
-		correct: "POST /repos/{owner}/{name}/memories/{id}/{correction}",
-		merge: "POST /repos/{owner}/{name}/memories/merges",
 	},
 	conflicting: "Conflicting",
 	recent: "Newest",
