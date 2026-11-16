@@ -43,6 +43,11 @@ import type { RunSettingsRead } from "./factory-run-settings.ts";
 import type { SourceRead } from "./factory-run-source.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import { liveRunStatusKinds } from "./kinds.ts";
+import type {
+	MemoriesPage,
+	MemoryHistoryAnswer,
+	MemoryVote,
+} from "./memories-page.ts";
 import { pullMergeCopy, requestChangesCopy } from "./pull-terms.ts";
 import type { RetrosPage, RunRetro } from "./retros-page.ts";
 import type { InsightResult, InsightTables } from "./run-history.ts";
@@ -175,6 +180,16 @@ export const pageQuery = {
 			queryFn: () =>
 				fetchJson<RunRetro>(`/api/retros/runs/${encodeURIComponent(runId)}`),
 		}),
+	memories: queryOptions({
+		queryKey: ["memories"],
+		queryFn: () => fetchJson<MemoriesPage>("/api/memories"),
+		placeholderData: (previous: MemoriesPage | undefined) => previous,
+	}),
+	memory: (repo: string, memoryId: string) =>
+		queryOptions({
+			queryKey: ["memories", repo, memoryId],
+			queryFn: () => fetchJson<MemoryHistoryAnswer>(memoryPath(repo, memoryId)),
+		}),
 	savedInsights: queryOptions({
 		queryKey: ["saved-insights"],
 		queryFn: () => fetchJson<SavedInsights>("/api/insights/saved"),
@@ -290,6 +305,10 @@ async function fetchJson<T>(path: string): Promise<T> {
 		throw new Error(`${path} failed (HTTP ${response.status})`);
 	}
 	return (await response.json()) as T;
+}
+
+function memoryPath(repo: string, memoryId: string): string {
+	return `/api/memories/${repo.split("/").map(encodeURIComponent).join("/")}/${encodeURIComponent(memoryId)}`;
 }
 
 export function configurationOf(
@@ -719,6 +738,30 @@ export function useSaveSettings({
 	});
 }
 
+export function useMemoryVote(repo: string, memoryId: string) {
+	const queries = useQueryClient();
+	return useMutation({
+		mutationFn: async (vote: MemoryVote): Promise<MemoryHistoryAnswer> => {
+			const response = await fetch(`${memoryPath(repo, memoryId)}/votes`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify(vote),
+			});
+			if (!response.ok) {
+				const failed = (await response.json().catch(() => null)) as {
+					error?: string;
+				} | null;
+				throw new Error(failed?.error ?? "Vote failed");
+			}
+			return (await response.json()) as MemoryHistoryAnswer;
+		},
+		onSuccess: (answer) => {
+			queries.setQueryData(pageQuery.memory(repo, memoryId).queryKey, answer);
+			void queries.invalidateQueries({ queryKey: ["memories"] });
+		},
+	});
+}
+
 export function usePostReply(
 	tracker: string,
 	project: string,
@@ -980,6 +1023,7 @@ function applyOverviewEvent(body: Overview): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["workflow"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["verification"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["retros"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["memories"] });
 }
 
 function invalidatePageQueries(): void {
@@ -1005,6 +1049,7 @@ function invalidatePageQueries(): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["workflow"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["verification"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["retros"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["memories"] });
 }
 
 export function wirePageQueryEvents(): void {

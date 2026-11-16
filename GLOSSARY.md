@@ -297,6 +297,22 @@ _Avoid_: Incident, problem
 The level of a retro that a fixed rule of the factory sets: `smooth`, `bumpy`, `rough`, `stalled` or `failed`, from the best to the worst. The Retros tab filters the runs that went rough or worse.
 _Avoid_: Score, health (when a run is meant)
 
+**Memory**:
+The layer of workcell that keeps what the runs and the people of one repo learn, and one record of that layer. Each memory has a kind and a state. The Memories tab reads the memories of each repo through the daemon API of its factory, and a person votes for or against a memory there.
+_Avoid_: note, insight, observation
+
+**Unverified memory**:
+A memory that no evidence supports yet. Agents and distillation write unverified memories.
+_Avoid_: draft, candidate
+
+**Verified memory**:
+A memory that evidence supports. A vote for a memory is evidence. "Verified" is a state of a memory only, and a verification record is not a memory.
+_Avoid_: confirmed, approved
+
+**Conflicting memory**:
+A verified memory that a newer memory supersedes, while that newer memory is not yet verified. The Memories tab lists the conflicting memories of each repo first.
+_Avoid_: contested, disputed
+
 **Factories tab**:
 The page that shows what each factory does now: the summary tiles, one card for each factory with its slots, heartbeat age and host health, the live runs, the runs that need attention, and the hub queue. Each panel names its data source. A factory that does not answer shows as such, and the other panels keep working.
 _Avoid_: Fleet page, dashboard
