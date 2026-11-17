@@ -1,25 +1,21 @@
 import { useState } from "react";
 
 import { Button } from "./button.tsx";
-import { Chip } from "./chip.tsx";
 import { ColourPicker } from "./colour-picker.tsx";
 import type { Configuration, UserState } from "./configuration.ts";
 import { ConfirmDialog } from "./confirm-dialog.tsx";
-import { statusTypes } from "./kinds.ts";
+import { type StatusType, statusTypes } from "./kinds.ts";
 import { Select } from "./select.tsx";
-import { Row } from "./settings-parts.tsx";
+import { SettingsDialog } from "./settings-dialog.tsx";
+import { Switch } from "./settings-parts.tsx";
 import { settings as fields } from "./settings-styles.ts";
 import { settingsCopy, settingsSection } from "./settings-terms.ts";
-import type { StateSource } from "./settings-write.ts";
-import { tonedProps } from "./state-tone.ts";
 import { stateLabel } from "./terms.ts";
 import { TextInput } from "./text-input.tsx";
 import { stateValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 
 type StatesDraft = Pick<Configuration, "states" | "stateMappings">;
-
-const byCategory = "";
 
 function newStateId(states: readonly UserState[]): string {
 	const taken = new Set(states.map((state) => state.id));
@@ -92,11 +88,13 @@ function StateRow({
 	index,
 	draft,
 	onChange,
+	onEditCategories,
 }: {
 	state: UserState;
 	index: number;
 	draft: StatesDraft;
 	onChange: (next: Partial<StatesDraft>) => void;
+	onEditCategories: () => void;
 }) {
 	const [removing, setRemoving] = useState(false);
 	const others = draft.states.filter((item) => item.id !== state.id);
@@ -115,45 +113,43 @@ function StateRow({
 			),
 		});
 	return (
-		<div className={clsx(fields.row)} data-state-row={state.id}>
+		<div className={clsx(fields.stateRow)} data-state-row={state.id}>
 			<span className={clsx(fields.lane)}>
-				<span {...tonedProps(state.colour, undefined, fields.dot)} />
-				<TextInput
-					id={`state-label-${state.id}`}
-					width={fields.chipInput}
-					aria-label={settingsCopy.stateName}
-					value={state.label}
-					onChange={(event) => patch({ label: event.target.value })}
-				/>
 				<ColourPicker
 					id={`colour-${state.id}`}
 					label={state.label}
 					value={state.colour}
 					onChange={(colour) => patch({ colour })}
 				/>
+				<TextInput
+					id={`state-label-${state.id}`}
+					width={fields.stateName}
+					aria-label={settingsCopy.stateName}
+					value={state.label}
+					onChange={(event) => patch({ label: event.target.value })}
+				/>
+			</span>
+			<span>
+				<Button
+					id={`state-categories-${state.id}`}
+					icon="pencil"
+					iconSide="right"
+					label={
+						state.categories.length === 0
+							? settingsCopy.holdsNothing
+							: state.categories
+									.map((category) => stateLabel[category])
+									.join(", ")
+					}
+					name={settingsCopy.holdsOf(state.label)}
+					onClick={onEditCategories}
+				/>
 			</span>
 			<div className={clsx(fields.chips)}>
-				{statusTypes.map((category) => {
-					const on = state.categories.includes(category);
-					return (
-						<Button
-							key={category}
-							id={`state-${state.id}-${category}`}
-							label={stateLabel[category]}
-							pressed={on}
-							onClick={() =>
-								patch({
-									categories: statusTypes.filter((item) =>
-										item === category ? !on : state.categories.includes(item),
-									),
-								})
-							}
-						/>
-					);
-				})}
 				<Button
 					id={`state-up-${state.id}`}
-					label={settingsCopy.moveUp}
+					icon="arrow-up"
+					name={`${settingsCopy.moveUp} ${state.label}`}
 					disabled={index === 0}
 					onClick={() =>
 						onChange({ states: moved(draft.states, index, index - 1) })
@@ -161,7 +157,8 @@ function StateRow({
 				/>
 				<Button
 					id={`state-down-${state.id}`}
-					label={settingsCopy.moveDown}
+					icon="arrow-down"
+					name={`${settingsCopy.moveDown} ${state.label}`}
 					disabled={index === draft.states.length - 1}
 					onClick={() =>
 						onChange({ states: moved(draft.states, index, index + 1) })
@@ -194,7 +191,8 @@ function StateRow({
 				) : (
 					<Button
 						id={`state-remove-${state.id}`}
-						label={settingsCopy.remove}
+						icon="trash"
+						name={`${settingsCopy.remove} ${state.label}`}
 						disabled={others.length === 0}
 						onClick={() => setRemoving(true)}
 					/>
@@ -204,135 +202,18 @@ function StateRow({
 	);
 }
 
-function SourceMapping({
-	source,
-	draft,
-	onChange,
-}: {
-	source: StateSource;
-	draft: StatesDraft;
-	onChange: (next: Partial<StatesDraft>) => void;
-}) {
-	const [label, setLabel] = useState("");
-	const mapping = draft.stateMappings[source.key] ?? {};
-	const options = [
-		{ value: byCategory, label: settingsCopy.byCategory },
-		...draft.states.map((state) => ({ value: state.id, label: state.label })),
-	];
-	const setMapped = (name: string, id: string) => {
-		const next = { ...mapping };
-		const known = Object.keys(next).find(
-			(item) => item.toLowerCase() === name.toLowerCase(),
-		);
-		if (known !== undefined) {
-			delete next[known];
-		}
-		if (id !== byCategory) {
-			next[name] = id;
-		}
-		const stateMappings = { ...draft.stateMappings };
-		if (Object.keys(next).length === 0) {
-			delete stateMappings[source.key];
-		} else {
-			stateMappings[source.key] = next;
-		}
-		onChange({ stateMappings });
-	};
-	const mappedOf = (name: string) =>
-		Object.entries(mapping).find(
-			([item]) => item.toLowerCase() === name.toLowerCase(),
-		)?.[1] ?? byCategory;
-	const labels = Object.entries(mapping).filter(
-		([name]) =>
-			!source.statuses.some(
-				(status) => status.toLowerCase() === name.toLowerCase(),
-			),
-	);
-	const addLabel = () => {
-		const name = label.trim();
-		const first = draft.states[0];
-		if (name === "" || first === undefined) {
-			return;
-		}
-		setMapped(name, first.id);
-		setLabel("");
-	};
-	return (
-		<div data-state-source={source.key}>
-			<h3 className={clsx(fields.rowTitle)}>
-				{source.projects.includes(source.key)
-					? source.projects.join(", ")
-					: `${source.projects.join(", ")} (${source.key})`}
-			</h3>
-			{source.statuses.map((status) => (
-				<Row key={status} title={status}>
-					<Select
-						id={`state-map-${source.key}-${status}`}
-						aria-label={`${status} ${settingsCopy.mapsTo}`}
-						value={mappedOf(status)}
-						options={options}
-						onChange={(id) => setMapped(status, id)}
-					/>
-				</Row>
-			))}
-			{labels.map(([name, id]) => (
-				<Row key={name} title={`${settingsCopy.label} ${name}`}>
-					<div className={clsx(fields.chips)}>
-						<Select
-							id={`state-map-${source.key}-label-${name}`}
-							aria-label={`${name} ${settingsCopy.mapsTo}`}
-							value={id}
-							options={options}
-							onChange={(next) => setMapped(name, next)}
-						/>
-						<Chip
-							label={name}
-							removeLabel={`${settingsCopy.remove} ${name}`}
-							onRemove={() => setMapped(name, byCategory)}
-						/>
-					</div>
-				</Row>
-			))}
-			<Row title={settingsCopy.mapLabel}>
-				<div className={clsx(fields.chips)}>
-					<TextInput
-						id={`state-map-${source.key}-new-label`}
-						width={fields.chipInput}
-						aria-label={settingsCopy.label}
-						placeholder={settingsCopy.label}
-						value={label}
-						onKeyDown={(event) => {
-							if (event.key !== "Enter") {
-								return;
-							}
-							event.preventDefault();
-							addLabel();
-						}}
-						onChange={(event) => setLabel(event.target.value)}
-					/>
-					<Button
-						id={`state-map-${source.key}-add`}
-						label={settingsCopy.add}
-						onClick={addLabel}
-					/>
-				</div>
-			</Row>
-		</div>
-	);
-}
-
 export function StatesSection({
 	draft,
-	sources,
 	onChange,
 	onReset,
 }: {
 	draft: StatesDraft;
-	sources: readonly StateSource[];
 	onChange: (next: Partial<StatesDraft>) => void;
 	onReset: () => void;
 }) {
 	const [asking, setAsking] = useState(false);
+	const [editing, setEditing] = useState<string | null>(null);
+	const edited = draft.states.find((state) => state.id === editing);
 	return (
 		<section id="states" className={clsx(fields.card)}>
 			<div className={clsx(fields.cardHead)}>
@@ -344,6 +225,11 @@ export function StatesSection({
 				/>
 			</div>
 			<p className={clsx(fields.hint)}>{settingsCopy.statesLead}</p>
+			<div className={clsx(fields.stateRow, fields.stateHead)}>
+				<span>{settingsCopy.state}</span>
+				<span>{settingsCopy.holdsColumn}</span>
+				<span />
+			</div>
 			{draft.states.map((state, index) => (
 				<StateRow
 					key={state.id}
@@ -351,8 +237,23 @@ export function StatesSection({
 					index={index}
 					draft={draft}
 					onChange={onChange}
+					onEditCategories={() => setEditing(state.id)}
 				/>
 			))}
+			{edited === undefined ? null : (
+				<CategoriesDialog
+					state={edited}
+					states={draft.states}
+					onChange={(categories) =>
+						onChange({
+							states: draft.states.map((item) =>
+								item.id === edited.id ? { ...item, categories } : item,
+							),
+						})
+					}
+					onClose={() => setEditing(null)}
+				/>
+			)}
 			<Button
 				id="state-add"
 				label={settingsCopy.addState}
@@ -370,16 +271,6 @@ export function StatesSection({
 					})
 				}
 			/>
-			<h2 className={clsx(fields.cardTitle)}>{settingsCopy.stateMappings}</h2>
-			<p className={clsx(fields.hint)}>{settingsCopy.stateMappingsLead}</p>
-			{sources.map((source) => (
-				<SourceMapping
-					key={source.key}
-					source={source}
-					draft={draft}
-					onChange={onChange}
-				/>
-			))}
 			<ConfirmDialog
 				id="reset-states-dialog"
 				open={asking}
@@ -393,5 +284,65 @@ export function StatesSection({
 				}}
 			/>
 		</section>
+	);
+}
+
+/** Picks the categories whose tickets a state holds when no state mapping names their status. */
+function CategoriesDialog({
+	state,
+	states,
+	onChange,
+	onClose,
+}: {
+	state: UserState;
+	states: readonly UserState[];
+	onChange: (categories: StatusType[]) => void;
+	onClose: () => void;
+}) {
+	return (
+		<SettingsDialog
+			id="state-categories-dialog"
+			title={settingsCopy.holdsOf(state.label)}
+			lead={settingsCopy.holdsLead}
+			onClose={onClose}
+		>
+			{statusTypes.map((category) => {
+				const on = state.categories.includes(category);
+				const first = states.find((item) => item.categories.includes(category));
+				const taken =
+					on && first !== undefined && first.id !== state.id
+						? first
+						: undefined;
+				return (
+					<div key={category} className={clsx(fields.row)}>
+						<div className={clsx(fields.rowText)}>
+							<span className={clsx(fields.rowTitle)}>
+								{stateLabel[category]}
+							</span>
+							<span className={clsx(fields.hint)}>
+								{settingsCopy.categoryHint[category]}
+							</span>
+							{taken === undefined ? null : (
+								<span className={clsx(fields.warning)}>
+									{settingsCopy.heldAbove(taken.label)}
+								</span>
+							)}
+						</div>
+						<Switch
+							id={`state-category-${state.id}-${category}`}
+							checked={on}
+							label={`${stateLabel[category]} ${state.label}`}
+							onChange={(next) =>
+								onChange(
+									statusTypes.filter((item) =>
+										item === category ? next : state.categories.includes(item),
+									),
+								)
+							}
+						/>
+					</div>
+				);
+			})}
+		</SettingsDialog>
 	);
 }

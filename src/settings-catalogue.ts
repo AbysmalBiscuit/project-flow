@@ -1,4 +1,5 @@
 import type { Configuration, ProjectPin } from "./configuration.ts";
+import { stateSourceKey } from "./counts.ts";
 import type {
 	OverviewCard,
 	SettingsProject,
@@ -170,6 +171,9 @@ function catalogueRow(
 	ref: ProjectPin,
 ): SettingsProject {
 	const key = settingsKey(project.key, refHost(listedRef(project)));
+	const row = snapshots.find((item) =>
+		sameProject(listedRef(item), listedRef(project)),
+	);
 	const repos = reposFor(project, snapshots);
 	const bots = botsFor(
 		repos,
@@ -187,6 +191,9 @@ function catalogueRow(
 		repos,
 		expectedBots: bots.expectedBots,
 		repoBots: bots.repoBots,
+		...(row === undefined
+			? {}
+			: { stateSource: stateSourceKey(row.board, row.key, row.host) }),
 		ref,
 		savedPins: configuration.tracked.filter((item) =>
 			matchesRef(project, item),

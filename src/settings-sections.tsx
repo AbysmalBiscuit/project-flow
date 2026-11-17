@@ -16,6 +16,7 @@ import {
 	MappingEditor,
 	openViewLabel,
 	Row,
+	type SectionId,
 	sections,
 	Switch,
 } from "./settings-parts.tsx";
@@ -49,10 +50,12 @@ export function patchStar(
 
 export function ContentsNav({
 	current,
+	unsaved,
 	onSelect,
 }: {
-	current: string;
-	onSelect: (id: string) => void;
+	current: SectionId;
+	unsaved: ReadonlySet<SectionId>;
+	onSelect: (id: SectionId) => void;
 }) {
 	return (
 		<nav
@@ -64,17 +67,27 @@ export function ContentsNav({
 				<a
 					key={section.id}
 					id={`contents-${section.id}`}
-					href={`#${section.id}`}
+					href={`?section=${section.id}`}
 					className={clsx(
 						fields.contentsLink,
 						control.clear,
 						control.focus,
 						current === section.id && control.current,
 					)}
-					aria-current={current === section.id ? "true" : undefined}
-					onClick={() => onSelect(section.id)}
+					aria-current={current === section.id ? "page" : undefined}
+					onClick={(event) => {
+						event.preventDefault();
+						onSelect(section.id);
+					}}
 				>
 					{section.label}
+					{unsaved.has(section.id) ? (
+						<span
+							role="img"
+							aria-label={settingsCopy.unsavedMark}
+							className={clsx(fields.unsavedDot)}
+						/>
+					) : null}
 				</a>
 			))}
 		</nav>
@@ -148,12 +161,18 @@ function LaneAgeRow({
 	const on = shown.has(state.label);
 	const days = laneAgeCap(view.maxAgeDays, state.label, state.categories[0]);
 	return (
-		<div className={clsx(fields.row)}>
-			<span className={clsx(fields.lane)}>
+		<tr>
+			<td className={clsx(fields.cell)}>
+				<span className={clsx(fields.lane)}>
+					<span {...tonedProps(state.colour, undefined, fields.dot)} />
+					{state.label}
+				</span>
+			</td>
+			<td className={clsx(fields.switchCell)}>
 				<Switch
 					id={`lane-${state.id}`}
 					checked={on}
-					label={state.label}
+					label={`${settingsCopy.shownColumn} ${state.label}`}
 					onChange={(next) => {
 						const names = states.flatMap((item) =>
 							(item.id === state.id ? next : shown.has(item.label))
@@ -163,27 +182,28 @@ function LaneAgeRow({
 						onPatchView({ shownLanes: names });
 					}}
 				/>
-				<span {...tonedProps(state.colour, undefined, fields.dot)} />
-				{state.label}
-			</span>
-			<Select
-				id={`age-${state.id}`}
-				aria-label={`${state.label} age`}
-				value={days}
-				options={ageChoices.map((choice) => ({
-					value: choice,
-					label: ageLabel(choice),
-				}))}
-				onChange={(choice) =>
-					onPatchView({
-						maxAgeDays: {
-							...view.maxAgeDays,
-							[state.label]: choice,
-						},
-					})
-				}
-			/>
-		</div>
+			</td>
+			<td className={clsx(fields.cell, fields.endCell)}>
+				<Select
+					id={`age-${state.id}`}
+					aria-label={`${settingsCopy.ageColumn} ${state.label}`}
+					value={days}
+					disabled={!on}
+					options={ageChoices.map((choice) => ({
+						value: choice,
+						label: ageLabel(choice),
+					}))}
+					onChange={(choice) =>
+						onPatchView({
+							maxAgeDays: {
+								...view.maxAgeDays,
+								[state.label]: choice,
+							},
+						})
+					}
+				/>
+			</td>
+		</tr>
 	);
 }
 
@@ -201,7 +221,7 @@ export function ProjectViewsSection({
 	return (
 		<section id="project-views" className={clsx(fields.card)}>
 			<h2 className={clsx(fields.cardTitle)}>{settingsSection.views}</h2>
-			<p className={clsx(fields.hint)}>{settingsCopy.viewsLead}</p>
+			<h3 className={clsx(fields.subTitle)}>{settingsCopy.openingTitle}</h3>
 			<Row title={settingsCopy.openIn} hint={settingsCopy.openHint}>
 				<Dropdown
 					id="open-view"
@@ -230,19 +250,35 @@ export function ProjectViewsSection({
 					onChange={(graphDirection) => onPatchView({ graphDirection })}
 				/>
 			</Row>
-			<Row title={settingsCopy.ticketFilter} hint={settingsCopy.ticketHint}>
-				<span />
-			</Row>
-			{states.map((state) => (
-				<LaneAgeRow
-					key={state.id}
-					state={state}
-					states={states}
-					shown={shown}
-					view={view}
-					onPatchView={onPatchView}
-				/>
-			))}
+			<h3 className={clsx(fields.subTitle)}>
+				{settingsCopy.defaultFiltersTitle}
+			</h3>
+			<p className={clsx(fields.hint)}>{settingsCopy.defaultFiltersLead}</p>
+			<table className={clsx(fields.table)}>
+				<thead className={clsx(fields.head)}>
+					<tr>
+						<th className={clsx(fields.headCell)}>{settingsSection.states}</th>
+						<th className={clsx(fields.headSwitch)}>
+							{settingsCopy.shownColumn}
+						</th>
+						<th className={clsx(fields.headCell, fields.endCell)}>
+							{settingsCopy.ageColumn}
+						</th>
+					</tr>
+				</thead>
+				<tbody>
+					{states.map((state) => (
+						<LaneAgeRow
+							key={state.id}
+							state={state}
+							states={states}
+							shown={shown}
+							view={view}
+							onPatchView={onPatchView}
+						/>
+					))}
+				</tbody>
+			</table>
 			<Row
 				title={settingsCopy.needsYouOnly}
 				hint={settingsCopy.needsYouOnlyHint}
@@ -278,7 +314,7 @@ export function ReviewSection({
 	return (
 		<section id="review" className={clsx(fields.card)}>
 			<h2 className={clsx(fields.cardTitle)}>{settingsSection.review}</h2>
-			<Row title={settingsCopy.labels} hint={settingsCopy.labelsHint}>
+			<Row title={settingsCopy.labels} hint={settingsCopy.labelsHint} stacked>
 				<Chips
 					id="needs-you-labels"
 					values={draft.needsYouLabels}
@@ -286,7 +322,7 @@ export function ReviewSection({
 					onChange={(needsYouLabels) => onChange({ needsYouLabels })}
 				/>
 			</Row>
-			<Row title={settingsCopy.logins} hint={settingsCopy.loginsHint}>
+			<Row title={settingsCopy.logins} hint={settingsCopy.loginsHint} stacked>
 				<Chips
 					id="viewer-logins"
 					values={draft.viewerLogins}
@@ -294,13 +330,17 @@ export function ReviewSection({
 					onChange={(viewerLogins) => onChange({ viewerLogins })}
 				/>
 			</Row>
-			<Row title={settingsCopy.laneMappings} hint={laneHint}>
+			<Row title={settingsCopy.laneMappings} hint={laneHint} stacked>
 				<MappingEditor
 					mappings={draft.laneMappings}
 					onChange={(laneMappings) => onChange({ laneMappings })}
 				/>
 			</Row>
-			<Row title={settingsCopy.autoMerge} hint={settingsCopy.autoMergeHint}>
+			<Row
+				title={settingsCopy.autoMerge}
+				hint={settingsCopy.autoMergeHint}
+				stacked
+			>
 				<AutoMergeEditor
 					overrides={draft.autoMerge}
 					onChange={(autoMerge) => onChange({ autoMerge })}
@@ -423,29 +463,40 @@ export function TrackersSection({
 }
 
 export function SettingsBar({
-	dirty,
+	unsaved,
 	saving,
 	onDiscard,
 	onSave,
 }: {
-	dirty: boolean;
+	unsaved: readonly SectionId[];
 	saving: boolean;
 	onDiscard: () => void;
 	onSave: () => void;
 }) {
+	if (unsaved.length === 0 && !saving) {
+		return null;
+	}
+	const names = sections
+		.filter((section) => unsaved.includes(section.id))
+		.map((section) => section.label);
 	return (
-		<div className={clsx(fields.bar)}>
+		<div id="settings-bar" className={clsx(fields.bar)}>
+			<span className={clsx(fields.barText)}>
+				{saving
+					? settingsCopy.savingToast
+					: `${settingsCopy.unsaved} ${names.join(", ")}`}
+			</span>
 			<Button
 				id="discard-settings"
 				label={settingsCopy.discard}
-				disabled={!dirty || saving}
+				disabled={saving}
 				onClick={onDiscard}
 			/>
 			<Button
 				id="save-settings"
 				label={settingsCopy.save}
 				tone="primary"
-				disabled={!dirty || saving}
+				disabled={saving}
 				onClick={onSave}
 			/>
 		</div>

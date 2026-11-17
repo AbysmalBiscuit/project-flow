@@ -25,11 +25,25 @@ export const settings = stylex.create({
 		gap: space.twoXs,
 	},
 	contentsLink: {
+		display: "flex",
+		gap: space.sm,
+		alignItems: "center",
+		justifyContent: "space-between",
 		padding: `${space.xs} ${space.sm}`,
 		borderRadius: radius.sm,
 		color: colours.inkMuted,
 		fontSize: type.meta,
 		textDecoration: "none",
+	},
+	unsavedDot: {
+		flexShrink: 0,
+		width: measure.dot,
+		height: measure.dot,
+		borderRadius: radius.pill,
+		backgroundColor: colours.accent,
+	},
+	panel: {
+		minWidth: 0,
 	},
 	lead: {
 		margin: `0 0 ${space.lg}`,
@@ -51,6 +65,11 @@ export const settings = stylex.create({
 		alignItems: "flex-start",
 		justifyContent: "space-between",
 	},
+	subTitle: {
+		margin: `${space.lg} 0 ${space.xs}`,
+		fontSize: type.body,
+		fontWeight: type.weight,
+	},
 	cardTitle: {
 		margin: `0 0 ${space.md}`,
 		fontSize: type.heading,
@@ -65,6 +84,11 @@ export const settings = stylex.create({
 		borderTopWidth: measure.hairline,
 		borderTopStyle: "solid",
 		borderTopColor: colours.laneLine,
+	},
+	rowStacked: {
+		flexDirection: "column",
+		alignItems: "stretch",
+		gap: space.sm,
 	},
 	rowText: {
 		display: "flex",
@@ -136,7 +160,6 @@ export const settings = stylex.create({
 		flexWrap: "wrap",
 		gap: space.xs,
 		alignItems: "center",
-		justifyContent: "flex-end",
 	},
 	chipInput: {
 		width: measure.narrow,
@@ -152,17 +175,44 @@ export const settings = stylex.create({
 		color: colours.awaitingMerge,
 	},
 	bar: {
+		position: "sticky",
+		bottom: space.lg,
+		zIndex: 1,
 		display: "flex",
 		gap: space.sm,
 		alignItems: "center",
 		justifyContent: "flex-end",
 		marginTop: space.lg,
-		padding: space.md,
+		padding: `${space.sm} ${space.md}`,
+		boxShadow: `0 ${space.xs} ${space.md} ${colours.shadow}`,
 		borderWidth: measure.hairline,
 		borderStyle: "solid",
 		borderColor: colours.laneLine,
 		borderRadius: radius.md,
 		backgroundColor: colours.raised,
+	},
+	barText: {
+		marginRight: "auto",
+		color: colours.inkMuted,
+		fontSize: type.meta,
+	},
+	stateName: {
+		width: measure.picker,
+	},
+	stateHead: {
+		color: colours.inkSoft,
+		fontSize: type.meta,
+		fontWeight: type.weight,
+	},
+	stateRow: {
+		display: "grid",
+		gridTemplateColumns: `calc(${measure.control} + ${space.sm} + ${measure.picker}) minmax(0, 1fr) auto`,
+		gap: space.lg,
+		alignItems: "center",
+		padding: `${space.sm} 0`,
+		borderTopWidth: measure.hairline,
+		borderTopStyle: "solid",
+		borderTopColor: colours.laneLine,
 	},
 	projectsLead: {
 		margin: `0 0 ${space.md}`,
@@ -239,6 +289,18 @@ export const settings = stylex.create({
 		textAlign: "center",
 		verticalAlign: "middle",
 	},
+	/** A table column that hugs its content at the right edge, in line with the controls of the rows. */
+	endCell: {
+		width: "1%",
+		whiteSpace: "nowrap",
+		textAlign: "end",
+	},
+	mapCell: {
+		display: "inline-flex",
+		gap: space.sm,
+		alignItems: "center",
+		whiteSpace: "nowrap",
+	},
 	projectName: {
 		fontWeight: type.weight,
 	},
@@ -249,6 +311,15 @@ export const settings = stylex.create({
 });
 
 export const settingsBots = stylex.create({
+	repo: {
+		display: "flex",
+		flexDirection: "column",
+		gap: space.xs,
+		padding: `${space.sm} 0`,
+		borderTopWidth: measure.hairline,
+		borderTopStyle: "solid",
+		borderTopColor: colours.laneLine,
+	},
 	bots: {
 		display: "flex",
 		flexWrap: "wrap",
