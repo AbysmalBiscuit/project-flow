@@ -5,10 +5,10 @@ import { control, textControl } from "./control-styles.ts";
 import type { NeedsYouItem } from "./domain.ts";
 import { PullActions } from "./needs-pull-actions.tsx";
 import { needs } from "./needs-you-styles.ts";
+import { heldActionLabel } from "./run-terms.ts";
 import {
 	actionLabel,
 	answeredReason,
-	heldActionLabel,
 	openQuestionsLabel,
 	reasonLabel,
 } from "./terms.ts";

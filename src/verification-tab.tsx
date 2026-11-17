@@ -8,7 +8,7 @@ import type { RunResult } from "./kinds.ts";
 import { PageLoading } from "./loading.tsx";
 import { pageQuery } from "./queries.ts";
 import { PageFrame } from "./shell.tsx";
-import { navLabel, runResultLabel, verificationCopy } from "./terms.ts";
+import { navLabel, runResultLabel } from "./terms.ts";
 import { ticketLabel } from "./ticket-key.ts";
 import {
 	colours,
@@ -27,6 +27,7 @@ import type {
 	VerificationPage,
 	VerificationRound,
 } from "./verification-page.ts";
+import { verificationCopy } from "./workflows-terms.ts";
 
 const styles = stylex.create({
 	grid: {

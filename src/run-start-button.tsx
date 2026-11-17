@@ -10,8 +10,8 @@ import { panel } from "./panel-styles.ts";
 import { MergeButton } from "./pull-merge.tsx";
 import { pageQuery } from "./queries.ts";
 import { useStartRun } from "./run-mutations.ts";
+import { runStartCopy } from "./run-terms.ts";
 import { SplitButton, type SplitChoice } from "./split-button.tsx";
-import { runStartCopy } from "./terms.ts";
 import type { TicketRef } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 

@@ -10,13 +10,13 @@ import { hasTranscript } from "./run-agent-stage.ts";
 import { NotServed } from "./run-checkpoint.tsx";
 import { Transcript } from "./run-stage-view.tsx";
 import { RunSteer, useCurrentStage } from "./run-steer.tsx";
-import { stageQuery, stageVisit } from "./stage-queries.ts";
 import {
 	noRunDataLabel,
 	noTerminalStageLabel,
 	runTabData,
 	terminalStageLabel,
-} from "./terms.ts";
+} from "./run-terms.ts";
+import { stageQuery, stageVisit } from "./stage-queries.ts";
 import { clsx } from "./ui.ts";
 
 /**

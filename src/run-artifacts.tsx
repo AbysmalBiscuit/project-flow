@@ -20,7 +20,7 @@ import {
 	noRunDataLabel,
 	runArtifactsLabel,
 	runTabData,
-} from "./terms.ts";
+} from "./run-terms.ts";
 import {
 	colours,
 	font,

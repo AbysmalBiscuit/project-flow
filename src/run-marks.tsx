@@ -3,7 +3,8 @@ import { control } from "./control-styles.ts";
 import type { Queued, ShownFactoryRun } from "./domain.ts";
 import { openPage, runPagePath } from "./page-links.ts";
 import { spanLabel } from "./poll-age.ts";
-import { factoryRunTip, queuedLabel, queuedTip } from "./terms.ts";
+import { queuedLabel, queuedTip } from "./run-terms.ts";
+import { factoryRunTip } from "./terms.ts";
 import { clsx } from "./ui.ts";
 
 /** The circle that shows the factory feed covers a card's run, coloured by its status. */

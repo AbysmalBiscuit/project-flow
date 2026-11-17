@@ -8,8 +8,8 @@ import { panel } from "./panel-styles.ts";
 import { MergeButton } from "./pull-merge.tsx";
 import { pullMergeCopy } from "./pull-terms.ts";
 import { useCancelRun, useStartAgain } from "./run-mutations.ts";
+import { runCancelCopy, runResumeCopy } from "./run-terms.ts";
 import { SplitButton, type SplitChoice } from "./split-button.tsx";
-import { runCancelCopy, runResumeCopy } from "./terms.ts";
 import { actionToastHideMs, Toast } from "./toast.tsx";
 import { clsx } from "./ui.ts";
 

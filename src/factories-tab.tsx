@@ -17,6 +17,7 @@ import type {
 	StageDuration,
 } from "./factories-page.ts";
 import { factoryCheckMs } from "./factories-page.ts";
+import { factoriesCopy, roughSpanText, spanText } from "./factories-terms.ts";
 import {
 	type FactoriesView,
 	factoriesViewDefaults,
@@ -37,14 +38,9 @@ import {
 	useSaveSettings,
 } from "./queries.ts";
 import type { RunGraph, RunGraphNodeState } from "./run-domain.ts";
+import { costLabel } from "./run-terms.ts";
 import { PageFrame } from "./shell.tsx";
-import {
-	costLabel,
-	factoriesCopy,
-	navLabel,
-	roughSpanText,
-	spanText,
-} from "./terms.ts";
+import { navLabel } from "./terms.ts";
 import { ticketLabel } from "./ticket-key.ts";
 import {
 	colours,

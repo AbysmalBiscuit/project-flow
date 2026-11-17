@@ -57,14 +57,14 @@ import {
 import {
 	calledGraphLabel,
 	callsGraphLabel,
-	floatPanelLabel,
 	openSubgraphLabel,
 	runGraphHelp,
 	runGraphLabel,
 	runGraphLegendLabel,
 	runStageStateLabel,
 	stageKindLabel,
-} from "./terms.ts";
+} from "./run-terms.ts";
+import { floatPanelLabel } from "./terms.ts";
 import { colours, measure, radius, space, type } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import type { GraphDirection } from "./view-settings.ts";

@@ -3,12 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useMemo, useState } from "react";
 
 import { textControl } from "./control-styles.ts";
+import { spanText } from "./factories-terms.ts";
 import type { RunResult } from "./kinds.ts";
 import { runPagePath } from "./page-links.ts";
 import { pageQuery } from "./queries.ts";
 import { roleInkOf, WorkflowDiagram } from "./run-graph.tsx";
 import { PageFrame } from "./shell.tsx";
-import { navLabel, runResultLabel, spanText, workflowsCopy } from "./terms.ts";
+import { navLabel, runResultLabel } from "./terms.ts";
 import { ticketLabel } from "./ticket-key.ts";
 import {
 	colours,
@@ -30,6 +31,7 @@ import type {
 	WorkflowRun,
 	WorkflowStage,
 } from "./workflows-page.ts";
+import { workflowsCopy } from "./workflows-terms.ts";
 
 const styles = stylex.create({
 	cards: {

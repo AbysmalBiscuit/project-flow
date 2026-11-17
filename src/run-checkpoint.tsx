@@ -31,7 +31,7 @@ import {
 	toolCountsLabel,
 	usageFactLabel,
 	usagePartSeparator,
-} from "./terms.ts";
+} from "./run-terms.ts";
 import { clsx } from "./ui.ts";
 
 /** The id of a stage in the Stages tab, so a link can open the tab at that stage. */

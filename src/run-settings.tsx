@@ -17,7 +17,7 @@ import {
 	runSettingsLabel,
 	runTabData,
 	yesNoLabel,
-} from "./terms.ts";
+} from "./run-terms.ts";
 import { colours, font, type } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 

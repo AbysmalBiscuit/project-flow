@@ -18,7 +18,7 @@ import {
 	runTabData,
 	runTabLabel,
 	uncommittedChangesLabel,
-} from "./terms.ts";
+} from "./run-terms.ts";
 import { colours, font, radius, space, type } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 

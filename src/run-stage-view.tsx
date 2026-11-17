@@ -10,7 +10,6 @@ import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
 import { NotServed } from "./run-checkpoint.tsx";
 import { isRunAt, StageCard, type StageFacts } from "./run-stage.tsx";
-import { stageQuery, stageVisit } from "./stage-queries.ts";
 import {
 	noRunDataLabel,
 	noTranscriptLabel,
@@ -22,7 +21,8 @@ import {
 	steerEntryLabel,
 	terminalEndedLabel,
 	toolCallLabel,
-} from "./terms.ts";
+} from "./run-terms.ts";
+import { stageQuery, stageVisit } from "./stage-queries.ts";
 import {
 	colours,
 	font,

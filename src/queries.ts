@@ -50,6 +50,7 @@ import type {
 	MemoryStance,
 	MergeBody,
 } from "./memories-page.ts";
+import { memoriesCopy } from "./memories-terms.ts";
 import { pullMergeCopy, requestChangesCopy } from "./pull-terms.ts";
 import type { RetrosPage, RunRetro } from "./retros-page.ts";
 import type { InsightResult, InsightTables } from "./run-history.ts";
@@ -58,7 +59,6 @@ import type { SavedInsight, SavedInsights } from "./saved-insights.ts";
 import type { StateSource } from "./settings-write.ts";
 import { pendingStatus } from "./stale-reads.ts";
 import { storedObject } from "./stored-page.ts";
-import { memoriesCopy } from "./terms.ts";
 import type { RunVerification, VerificationPage } from "./verification-page.ts";
 import type { WorkflowDetail, WorkflowsPage } from "./workflows-page.ts";
 

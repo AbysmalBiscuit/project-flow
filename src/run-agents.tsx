@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ShownFactoryRun } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
-import { agentToolLabel, agentTurnLabel, runAgentsLabel } from "./terms.ts";
+import { agentToolLabel, agentTurnLabel, runAgentsLabel } from "./run-terms.ts";
 import { clsx } from "./ui.ts";
 
 /** What each agent of a live run does now: its stage, turn, current tool and last message. */

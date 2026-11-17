@@ -5,7 +5,8 @@ import type { ProjectViewSettings } from "./configuration.ts";
 import type { ProjectReport } from "./domain.ts";
 import { runResults, runStatusKinds } from "./kinds.ts";
 import { FilterMenu, type MenuProps } from "./project-filters.tsx";
-import { runResultLabel, runsListCopy, runStatusLabel } from "./terms.ts";
+import { runsListCopy } from "./run-terms.ts";
+import { runResultLabel, runStatusLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 
 export function runFilterCount(view: ProjectViewSettings): number {

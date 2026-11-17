@@ -3,12 +3,12 @@ import { panel } from "./panel-styles.ts";
 import { StageView, steerTarget } from "./run-stage-view.tsx";
 import type { StageFacts } from "./run-stage.tsx";
 import { RunSteer, useCurrentStage } from "./run-steer.tsx";
-import { SidePane } from "./side-pane.tsx";
 import {
 	closeStagePaneLabel,
 	openInStagesLabel,
 	stagePaneLabel,
-} from "./terms.ts";
+} from "./run-terms.ts";
+import { SidePane } from "./side-pane.tsx";
 import { clsx } from "./ui.ts";
 
 /**

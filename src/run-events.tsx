@@ -11,7 +11,7 @@ import {
 	runEventsEndLabel,
 	runEventsLabel,
 	runTabData,
-} from "./terms.ts";
+} from "./run-terms.ts";
 import {
 	colours,
 	font,

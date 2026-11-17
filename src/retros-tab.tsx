@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 
 import { textControl } from "./control-styles.ts";
+import { factoriesCopy, spanText } from "./factories-terms.ts";
 import { PageLoading } from "./loading.tsx";
 import { retroPagePath } from "./page-links.ts";
 import { pageQuery } from "./queries.ts";
@@ -16,15 +17,10 @@ import type {
 	RunRetro,
 	Smoothness,
 } from "./retros-page.ts";
+import { costLabel } from "./run-terms.ts";
 import { Segment } from "./segment.tsx";
 import { PageFrame } from "./shell.tsx";
-import {
-	costLabel,
-	factoriesCopy,
-	navLabel,
-	retrosCopy,
-	spanText,
-} from "./terms.ts";
+import { navLabel } from "./terms.ts";
 import { ticketLabel } from "./ticket-key.ts";
 import {
 	colours,
@@ -37,6 +33,7 @@ import {
 } from "./tokens.stylex.ts";
 import { headerControlStyle } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
+import { retrosCopy } from "./workflows-terms.ts";
 
 const styles = stylex.create({
 	grid: {

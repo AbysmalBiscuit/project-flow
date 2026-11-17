@@ -5,11 +5,12 @@ import { RunFact } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
 import type { RunGraph, RunGraphNode } from "./run-domain.ts";
 import { roleInkOf } from "./run-graph.tsx";
+import { openGraphLabel, stageKindLabel } from "./run-terms.ts";
 import { SidePane } from "./side-pane.tsx";
-import { openGraphLabel, stageKindLabel, workflowsCopy } from "./terms.ts";
 import { colours, font, radius, space, type } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import type { WorkflowRole, WorkflowStage } from "./workflows-page.ts";
+import { workflowsCopy } from "./workflows-terms.ts";
 
 const styles = stylex.create({
 	rolePill: {

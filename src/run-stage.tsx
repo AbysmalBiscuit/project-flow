@@ -17,7 +17,7 @@ import {
 	stageRetriesLabel,
 	stageVisitsLabel,
 	usagePartSeparator,
-} from "./terms.ts";
+} from "./run-terms.ts";
 import { colours, measure, radius, space, type } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 

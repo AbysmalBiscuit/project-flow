@@ -12,6 +12,7 @@ import type {
 	MemoryRepo,
 	MemoryRow,
 } from "./memories-page.ts";
+import { memoriesCopy } from "./memories-terms.ts";
 import { runTime } from "./panel-sections.tsx";
 import {
 	pageQuery,
@@ -20,7 +21,7 @@ import {
 	useMemoryVote,
 } from "./queries.ts";
 import { PageFrame } from "./shell.tsx";
-import { memoriesCopy, navLabel } from "./terms.ts";
+import { navLabel } from "./terms.ts";
 import { TextInput } from "./text-input.tsx";
 import { ticketLabel } from "./ticket-key.ts";
 import {
