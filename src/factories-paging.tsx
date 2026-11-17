@@ -10,7 +10,7 @@ const pageSizeChoices = pageSizes.map((rows) => ({
 	label: factoriesCopy.pageSize(rows),
 }));
 
-/** Picks the rows on one page of a Factories tab list. */
+/** Picks the rows on one page of a paged list. */
 export function PageSizePicker({
 	id,
 	title,

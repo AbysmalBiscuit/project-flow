@@ -54,7 +54,6 @@ export const lightValues = {
 	strong: "#18181b",
 	strongInk: "#ffffff",
 	strongLine: "#18181b",
-	strongPress: "#34343b",
 	segment: "#f3f3f1",
 	controlLine: "#e7e7e4",
 	controlInk: "#18181b",
@@ -113,7 +112,6 @@ export const darkValues = {
 	strong: "#18181b",
 	strongInk: "#ffffff",
 	strongLine: "#4d4d4d",
-	strongPress: "#26262b",
 	segment: "#1d1d22",
 	controlLine: "#26262c",
 	controlInk: "#ededef",
@@ -198,10 +196,6 @@ export const colours = stylex.defineVars({
 	strongLine: {
 		default: lightValues.strongLine,
 		[dark]: darkValues.strongLine,
-	},
-	strongPress: {
-		default: lightValues.strongPress,
-		[dark]: darkValues.strongPress,
 	},
 	segment: { default: lightValues.segment, [dark]: darkValues.segment },
 	controlLine: {
