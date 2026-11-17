@@ -163,6 +163,9 @@ export const styles = stylex.create({
 	lastRow: {
 		borderBottomWidth: 0,
 	},
+	fixedRow: {
+		height: measure.listRow,
+	},
 	number: {
 		textAlign: "right",
 	},

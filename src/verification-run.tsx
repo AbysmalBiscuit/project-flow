@@ -2,7 +2,6 @@ import type * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 
-import { textControl } from "./control-styles.ts";
 import type { RunResult } from "./kinds.ts";
 import { pageQuery } from "./queries-page.ts";
 import { runResultLabel } from "./terms.ts";
@@ -12,7 +11,6 @@ import { Card, Sources } from "./verification-card.tsx";
 import type {
 	ReviewLine,
 	RunVerification,
-	VerificationPage,
 	VerificationRound,
 } from "./verification-page.ts";
 import { styles } from "./verification-styles.ts";
@@ -117,7 +115,7 @@ function Round({ round }: { round: VerificationRound }) {
 	);
 }
 
-const resultTone: Record<RunResult, stylex.StyleXStyles | false> = {
+export const resultTone: Record<RunResult, stylex.StyleXStyles | false> = {
 	merged: styles.pillOk,
 	prOpen: false,
 	noPr: false,
@@ -125,15 +123,7 @@ const resultTone: Record<RunResult, stylex.StyleXStyles | false> = {
 	cancelled: false,
 };
 
-function RunRecord({
-	run,
-	runs,
-	pick,
-}: {
-	run: RunVerification;
-	runs: VerificationPage["runs"];
-	pick: (id: string) => void;
-}) {
+function RunRecord({ run }: { run: RunVerification }) {
 	const [chosen, setChosen] = useState<number | null>(null);
 	const last = run.rounds.length - 1;
 	const shown = run.rounds[chosen ?? last];
@@ -154,23 +144,6 @@ function RunRecord({
 							{runResultLabel[run.result]}
 						</span>
 					)}
-					{runs.length > 1 ? (
-						<select
-							className={clsx(styles.picker, ...textControl)}
-							aria-label={verificationCopy.pickRun}
-							value={run.id}
-							onChange={(event) => pick(event.target.value)}
-						>
-							{runs.map((item) => (
-								<option key={item.id} value={item.id}>
-									{ticketLabel(item.ticket)}
-									{item.result === null
-										? ""
-										: `, ${runResultLabel[item.result]}`}
-								</option>
-							))}
-						</select>
-					) : null}
 					<Sources route={verificationCopy.sources.route} />
 				</>
 			}
@@ -205,17 +178,9 @@ function RunRecord({
 	);
 }
 
-export function PickedRun({
-	runId,
-	runs,
-	pick,
-}: {
-	runId: string;
-	runs: VerificationPage["runs"];
-	pick: (id: string) => void;
-}) {
+export function PickedRun({ runId }: { runId: string }) {
 	const query = useQuery(pageQuery.verificationRun(runId));
 	return query.data === undefined ? null : (
-		<RunRecord key={runId} run={query.data} runs={runs} pick={pick} />
+		<RunRecord key={runId} run={query.data} />
 	);
 }
