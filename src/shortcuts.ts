@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { isTextBox } from "./focus.ts";
+import { isTextBox, menuOwnsEscape } from "./focus.ts";
 
 /** A key press: `code` is `KeyboardEvent.code`, so Shift does not change the key. `ctrl` also matches Cmd. */
 export type Combo = { code: string; ctrl?: true; shift?: true };
@@ -164,6 +164,7 @@ export function useShortcut(
 			if (!matchesShortcut(event, id)) return;
 			if (event.defaultPrevented) return;
 			if (!shortcut.inTextBox && isTextBox(event.target)) return;
+			if (event.code === "Escape" && menuOwnsEscape()) return;
 			event.preventDefault();
 			runRef.current();
 		};
