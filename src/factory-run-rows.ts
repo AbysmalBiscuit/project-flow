@@ -28,7 +28,12 @@ export const runRow = z.object({
 	submitted_at: z.string(),
 	started_at: z.string().nullish(),
 	ended_at: z.string().nullish(),
-	restarted_from: z.string().nullish(),
+	restarted_from: z
+		.union([
+			z.string(),
+			z.object({ run_id: z.string() }).transform((from) => from.run_id),
+		])
+		.nullish(),
 	archived_at: z.string().nullish(),
 	usage: z
 		.object({

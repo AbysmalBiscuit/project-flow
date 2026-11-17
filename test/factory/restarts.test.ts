@@ -160,6 +160,24 @@ describe("factory resumes and restarts", () => {
 		}
 	});
 
+	test("a restarted run that names its old run with a daemon id shows with the old run id", async () => {
+		const restartedOnDaemon = {
+			...restarted41,
+			restarted_from: { daemon_id: "4356a22cc8134aa9", run_id: failed41.id },
+		};
+		const app = await servedRun(
+			{ ...hub, "/runs": { runs: [restartedOnDaemon, failed41] } },
+			{ ...daemon, "/runs": { runs: [onBox(failed41, "failed")] } },
+		);
+		try {
+			const fresh = await detailOf(app.base, restarted41.id);
+			expect(fresh.statusKind).toBe("queued");
+			expect(fresh.restartedFrom).toBe(failed41.id);
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a restart of a run that only a standalone factory reports goes to that factory", async () => {
 		const oldOnBox = onBox(failed41, "failed");
 		const freshOnBox = onBox(restarted41, "submitted");
