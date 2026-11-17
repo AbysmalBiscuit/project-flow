@@ -292,7 +292,12 @@ function linearIssue(identifier: string): Record<string, unknown> {
 	};
 }
 
-function linearFetch(): Fetch {
+function linearFetch(
+	pr: { body: string; draft: boolean } = {
+		body: "No keyword here.",
+		draft: true,
+	},
+): Fetch {
 	return linearFake({
 		project: {
 			id: "project-1",
@@ -316,8 +321,8 @@ function linearFetch(): Fetch {
 				return new Response(
 					JSON.stringify(
 						pull(77, {
-							body: "No keyword here.",
-							draft: true,
+							body: pr.body,
+							draft: pr.draft,
 							html_url: "https://github.com/acme/widget/pull/77",
 						}),
 					),
@@ -843,6 +848,71 @@ describe("PR links", () => {
 								key: "WID-14",
 								title: "Linear ticket WID-14",
 								state: "inProgress",
+								blockers: [],
+							},
+						],
+						crossProjectBlockers: [],
+						needsYou: 0,
+						progress: 0,
+					},
+				],
+				error: null,
+			});
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a Linear PR attachment that only refs its ticket leaves the ticket state", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearProject }],
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				overviewWithTickets(base).then(resolve, reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: linearFetch({ body: "Refs WID-14", draft: false }),
+					readGhToken: async () => null,
+					databasePath,
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			expect(result.exitCode).toBe(0);
+			expect(await checks).toMatchObject({
+				projects: [
+					{
+						name: "Widget launch",
+						tracker: "linear",
+						done: 0,
+						dropped: 0,
+						blocked: 0,
+						backlog: 1,
+						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						tags: [],
+						unlinkedPrs: [],
+						tickets: [
+							{
+								key: "WID-14",
+								title: "Linear ticket WID-14",
+								state: "backlog",
 								blockers: [],
 							},
 						],

@@ -26,7 +26,7 @@ type Reads = {
 
 /** The Forgejo ticket keys that the body of a PR closes. A Forgejo ticket key carries its host. */
 function hostedClosingKeys(reads: Reads, repo: string, body: string): string[] {
-	return bodyClosingKeys(body, repo).flatMap((key) =>
+	return bodyClosingKeys(body, repo, "forgejo").flatMap((key) =>
 		keyRepo(key) === null ? [] : [`${reads.host}/${key}`],
 	);
 }

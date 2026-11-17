@@ -177,6 +177,30 @@ describe("a tracked GitLab repo in a subgroup", () => {
 			gitlabEnv,
 		);
 	});
+
+	test("a PR that implements a ticket links the ticket", async () => {
+		await withServer(
+			gitlabFake({
+				repo: nested,
+				open: {
+					1: {
+						description: `Implements ${nested}#6`,
+						source_branch: "linked-change",
+					},
+				},
+			}),
+			3600,
+			async (base) => {
+				const report = await reportOf(base, nested);
+				expect(viewOf(report, `${nested}#6`)).toMatchObject({
+					state: "awaitingMerge",
+					pullUrl: `https://gitlab.com/${nested}/-/merge_requests/1`,
+				});
+			},
+			[{ tracker: "gitlab", repo: nested }],
+			gitlabEnv,
+		);
+	});
 });
 
 describe("a GitLab ticket across trackers", () => {
