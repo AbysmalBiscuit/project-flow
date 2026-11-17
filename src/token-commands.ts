@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
+import type { DopplerSecret } from "./backend-registry.ts";
 import { command } from "./command.ts";
 import type { MintResult } from "./factory-tokens.ts";
 
@@ -13,6 +14,32 @@ export async function readGhAuthToken(
 	}
 	const token = await command([gh, "auth", "token"], env);
 	return token === "" ? null : token;
+}
+
+/** The value of one Doppler secret, or null when the CLI is missing or the read fails. */
+export async function readDopplerSecret(
+	{ project, config, secret }: DopplerSecret,
+	env: Record<string, string | undefined> = process.env,
+): Promise<string | null> {
+	const doppler = Bun.which("doppler", { PATH: env.PATH ?? "" });
+	if (doppler === null) {
+		return null;
+	}
+	const value = await command(
+		[
+			doppler,
+			"secrets",
+			"get",
+			secret,
+			"--plain",
+			"--project",
+			project,
+			"--config",
+			config,
+		],
+		env,
+	);
+	return value === "" ? null : value;
 }
 
 /**

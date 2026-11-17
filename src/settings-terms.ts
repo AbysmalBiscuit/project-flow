@@ -56,16 +56,17 @@ export const settingsCopy = {
 		"The overview lists the first tickets that wait for you above the projects.",
 	pollInterval: "Poll interval",
 	pollHint: "How often each tracker is read.",
-	viewsLead:
-		"The board, graph and table views save these to the configuration file when you change them there.",
+	openingTitle: "Opening a project",
+	defaultFiltersTitle: "Default filters",
+	defaultFiltersLead:
+		"A project page starts with these filters. When you change a filter on a project page, that project keeps its own filters from then on.",
+	shownColumn: "Show",
+	ageColumn: "Hide tickets older than",
 	openIn: "Open projects in",
 	openHint: "The view a project page opens in.",
 	graphDirection: "Graph direction",
 	graphHint: "Which way the dependency graph runs.",
-	ticketFilter: "Ticket filter",
-	ticketHint:
-		"The states the views show, and the oldest ticket each state keeps.",
-	anyAge: "Any age",
+	anyAge: "No limit",
 	needsYouOnly: "Needs you only",
 	needsYouOnlyHint: "Show only tickets that wait for you.",
 	blockedOnly: "Blocked only",
@@ -79,18 +80,39 @@ export const settingsCopy = {
 	logins: "Your logins",
 	loginsHint: "Comments from these accounts never notify you.",
 	add: "Add",
-	addLabel: "Add label, press Enter",
-	addLogin: "Add login, press Enter",
+	addLabel: "Add label",
+	addLogin: "Add login",
 	laneState: "Lane state",
 	browserPermission: "Browser permission",
 	browserHint: "The browser decides if Project Flow may show notifications.",
 	allowed: "Allowed",
 	blocked: "Blocked",
 	asking: "Not asked",
-	trackersLead: "Project Flow never stores a token.",
+	trackersLead:
+		"Project Flow never stores a token. It reads each token once at the start, from the environment or from Doppler.",
+	nextStart: "A change to where a token comes from applies at the next start.",
+	tokenFrom: { environment: "Environment", doppler: "Doppler" },
+	tokenFromOf: (tracker: string) => `Read the ${tracker} token from`,
+	fromDoppler: ({
+		project,
+		config,
+		secret,
+	}: {
+		project: string;
+		config: string;
+		secret: string;
+	}) =>
+		`Token from Doppler secret ${secret || "?"} in ${project || "?"}/${config || "?"}`,
+	dopplerField: {
+		project: "Doppler project",
+		config: "Config",
+		secret: "Secret name",
+	},
 	connected: "Connected",
 	missing: "Missing",
 	discard: "Discard",
+	unsaved: "Unsaved changes in",
+	unsavedMark: "unsaved changes",
 	save: "Save",
 	savingToast: "Saving settings...",
 	savedToast: "Settings saved",
@@ -115,20 +137,54 @@ export const settingsCopy = {
 	addBot: "Add bot",
 	botsUnavailable: "No repository known",
 	of: "of",
+	trackOnlyHint: "Track the project to set its bots.",
 	projects: "projects",
 	statesLead:
-		"The board shows one lane per state, in this order. Each state shows in its colour on the board, cards, graphs and side panel, in both themes. The categories set which tickets a state holds when no mapping names it.",
+		"The board shows one lane per state, in this order. Each state shows in its colour on the board, cards, graphs and side panel, in both themes. Each state can hold some kinds of work automatically, such as started or finished work.",
 	stateName: "State name",
 	newState: "New state",
 	addState: "Add state",
-	moveUp: "Up",
-	moveDown: "Down",
+	moveUp: "Move up",
+	moveDown: "Move down",
+	holdsColumn: "Holds automatically",
+	holdsNothing: "Nothing",
+	holdsOf: (state: string) => `What ${state} holds automatically`,
+	holdsLead:
+		"A ticket whose status has no state mapping goes to the first state, from the top, that holds the kind of work its status means.",
+	heldAbove: (state: string) =>
+		`${state} is higher in the list and also holds these tickets, so they go there.`,
+	categoryHint: {
+		backlog: "Planned work that nobody has started.",
+		inProgress: "Work that someone has started.",
+		inReview: "A PR that waits for review.",
+		awaitingMerge: "A reviewed PR that waits to merge.",
+		done: "Finished work.",
+		dropped: "Work closed without finishing it.",
+	},
 	remove: "Remove",
 	moveTicketsTo: "Move tickets to",
 	stateMappings: "State mapping",
+	mappedCount: (mapped: number) => `${mapped} mapped`,
+	mapStates: "Map states",
+	noBots: "None",
+	reviewBotsOf: (project: string) => `Review bots of ${project}`,
+	reviewBotsLead:
+		"A PR counts as reviewed after each bot of its repo reviews it. Each repo where this project's PRs land keeps its own list. Every project with PRs in that repo shares the list.",
+	mapStatesOf: (project: string) => `Map states of ${project}`,
+	sharedBoard: (projects: readonly string[]) =>
+		`The mapping also applies to ${projects.join(", ")}, which share this board.`,
+	trackerStatus: "Tracker status",
+	noStatuses:
+		"This board has no tracker statuses. Map a label to place its tickets in a state.",
+	done: "Done",
+	notPolled: "Not read yet",
+	tokenFallbacks: (owners: number) =>
+		owners === 1
+			? "1 owner reads with your token"
+			: `${owners} owners read with your token`,
 	stateMappingsLead:
-		"Map each tracker status or label of a board to a state. A status with no mapping goes to the first state of its category.",
-	byCategory: "By category",
+		"Map each tracker status or label of a board to a state. A status with no mapping goes to the first state that holds its kind of work automatically.",
+	automatic: (state: string | undefined) => `Automatic: ${state ?? "no state"}`,
 	mapsTo: "maps to",
 	label: "Label",
 	mapLabel: "Map a label",

@@ -164,6 +164,24 @@ GitLab has no repo auto-merge setting that the app reads. The auto-merge of a Gi
 
 The app reads `LINEAR_API_KEY` from the environment. A blank value does not count. With the key set, the app finds Linear projects. With no key, each Linear project shows an error that names `LINEAR_API_KEY`. The projects of the other tracker poll. A rejected token or key exits and names that credential.
 
+### Tokens from Doppler
+
+The `dopplerTokens` key names a Doppler secret for a tracker. Settings > Trackers sets it.
+
+```json
+{
+	"dopplerTokens": {
+		"linear": {
+			"project": "infra",
+			"config": "prd",
+			"secret": "LINEAR_API_KEY"
+		}
+	}
+}
+```
+
+At the start, the app runs `doppler secrets get <secret> --plain --project <project> --config <config>` for each entry. A tracker with an entry reads only Doppler. It does not read its env var or `gh auth token`. When the read fails, the token is missing, and stderr names the secret. The app reads each token once, so a change applies at the next start.
+
 ### Declared hosts
 
 The `hosts` list declares each self-hosted host with its forge kind and the env var of its token. A GitHub repo pin names its host with `host`:

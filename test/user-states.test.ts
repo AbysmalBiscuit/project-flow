@@ -24,7 +24,12 @@ type Report = {
 };
 
 type Settings = Configuration & {
-	stateSources: { key: string; projects: string[]; statuses: string[] }[];
+	projects: { name: string; stateSource?: string }[];
+	stateSources: {
+		key: string;
+		projects: string[];
+		statuses: { name: string; category: string }[];
+	}[];
 };
 
 function linearIssue(
@@ -191,12 +196,35 @@ describe("user states", () => {
 			const source = (await settingsOf(base)).stateSources.find(
 				(item) => item.key === "WID",
 			);
-			expect(source?.statuses).toEqual(
+			expect(source?.statuses.map((status) => status.name)).toEqual(
 				teamStates.data.team.states.nodes
 					.toSorted((left, right) => left.position - right.position)
 					.map((state) => state.name),
 			);
 			expect(source?.projects).toEqual(["Widget launch"]);
+		});
+	});
+
+	test("settings name the state source of each polled project", async () => {
+		await withConfig({}, async (base) => {
+			const project = (await settingsOf(base)).projects.find(
+				(item) => item.name === "Widget launch",
+			);
+			expect(project?.stateSource).toBe("WID");
+		});
+	});
+
+	test("settings name the category of each status to map", async () => {
+		await withConfig({}, async (base) => {
+			const source = (await settingsOf(base)).stateSources.find(
+				(item) => item.key === "WID",
+			);
+			const categoryOf = (name: string) =>
+				source?.statuses.find((status) => status.name === name)?.category;
+			expect(categoryOf("Backlog")).toBe("backlog");
+			expect(categoryOf("In Progress")).toBe("inProgress");
+			expect(categoryOf("Done")).toBe("done");
+			expect(categoryOf("Canceled")).toBe("dropped");
 		});
 	});
 

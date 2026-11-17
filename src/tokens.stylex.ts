@@ -419,6 +419,7 @@ export const measure = stylex.defineVars({
 	pickerThumb: "0.875rem",
 	swatchButton: "1.5rem",
 	dialog: "26rem",
+	mappingDialog: "38rem",
 	// The tallest stage transcript before it scrolls.
 	transcript: "28rem",
 	stagePane: "26rem",

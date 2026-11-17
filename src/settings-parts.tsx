@@ -17,13 +17,37 @@ import type { openViews } from "./view-settings.ts";
 export const sections = [
 	{ id: "general", label: settingsSection.general },
 	{ id: "project-views", label: settingsSection.views },
-	{ id: "states", label: settingsSection.states },
 	{ id: "projects", label: settingsSection.projects },
+	{ id: "states", label: settingsSection.states },
 	{ id: "review", label: settingsSection.review },
 	{ id: "notifications", label: settingsSection.notifications },
 	{ id: "trackers", label: settingsSection.trackers },
 	{ id: "factories", label: settingsSection.factories },
-] as const;
+] as const satisfies readonly { id: string; label: string }[];
+
+export type SectionId = (typeof sections)[number]["id"];
+
+/** The section that edits each configuration key. General takes every other key. */
+const sectionOfKey: Partial<Record<keyof Configuration, SectionId>> = {
+	projectViews: "project-views",
+	tracked: "projects",
+	pinnedProjects: "projects",
+	pmBot: "projects",
+	expectedBots: "projects",
+	states: "states",
+	dopplerTokens: "trackers",
+	stateMappings: "projects",
+	needsYouLabels: "review",
+	viewerLogins: "review",
+	laneMappings: "review",
+	autoMerge: "review",
+	notificationTriggers: "notifications",
+	factories: "factories",
+};
+
+export function sectionOf(key: keyof Configuration): SectionId {
+	return sectionOfKey[key] ?? "general";
+}
 
 export const stateFilters = ["all", "tracked"] as const;
 
@@ -78,17 +102,20 @@ export function Switch({
 	);
 }
 
+/** A setting with its title and hint. A `stacked` row puts a list editor below the text. */
 export function Row({
 	title,
 	hint,
+	stacked = false,
 	children,
 }: {
 	title: string;
 	hint?: string;
+	stacked?: boolean;
 	children: ReactNode;
 }) {
 	return (
-		<div className={clsx(fields.row)}>
+		<div className={clsx(fields.row, stacked && fields.rowStacked)}>
 			<div className={clsx(fields.rowText)}>
 				<span className={clsx(fields.rowTitle)}>{title}</span>
 				{hint === undefined ? null : (

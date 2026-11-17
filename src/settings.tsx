@@ -1,25 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
-import { useTrackerLabel } from "./backend-labels.ts";
 import { useHoldReload } from "./boot-reload.tsx";
-import { Button } from "./button.tsx";
-import { Chip } from "./chip.tsx";
-import type { Configuration, ProjectPin } from "./configuration.ts";
-import type { BackendViews, SettingsProject, TrackerKind } from "./domain.ts";
+import type { Configuration } from "./configuration.ts";
+import type { BackendViews, SettingsProject } from "./domain.ts";
 import type { FactoryEntry } from "./factories.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
-import type { KnownBot } from "./known-bots.ts";
-import { knownBots } from "./known-bots.ts";
 import { PageLoading } from "./loading.tsx";
-import { withoutPins, withPin } from "./project-pins.ts";
-import { samePin } from "./project-ref.ts";
 import { pageQuery } from "./queries-page.ts";
 import { useSaveSettings } from "./queries-settings.ts";
-import { repoKey } from "./repo-key.ts";
-import { Select } from "./select.tsx";
 import { FactoriesSection } from "./settings-factories.tsx";
-import { sections, type stateFilters, Switch } from "./settings-parts.tsx";
+import { type SectionId, sectionOf, sections } from "./settings-parts.tsx";
+import { ProjectsTable } from "./settings-projects.tsx";
 import {
 	ContentsNav,
 	GeneralSection,
@@ -28,19 +20,19 @@ import {
 	ProjectViewsSection,
 	ReviewSection,
 	SettingsBar,
-	TrackersSection,
 } from "./settings-sections.tsx";
 import { StatesSection } from "./settings-states.tsx";
-import { settings as fields, settingsBots } from "./settings-styles.ts";
-import { settingsCopy, settingsSection } from "./settings-terms.ts";
+import { settings as fields } from "./settings-styles.ts";
+import { settingsCopy } from "./settings-terms.ts";
+import { TrackersSection } from "./settings-trackers.tsx";
 import type { StateSource } from "./settings-write.ts";
 import { PageFrame, PollStatus } from "./shell.tsx";
 import { shippedStates } from "./state-colours.ts";
 import { navLabel } from "./terms.ts";
-import { TextInput } from "./text-input.tsx";
 import { pageTheme, watchPageTheme } from "./theme.ts";
 import { Toast } from "./toast.tsx";
 import { clsx } from "./ui.ts";
+import { useUrlParam } from "./url-param.ts";
 import { viewDefaults } from "./view-settings.ts";
 
 const toastHideMs = 4_000;
@@ -55,8 +47,19 @@ function draftOf(settings: Configuration): Configuration {
 	};
 }
 
-function same(left: Configuration, right: Configuration): boolean {
-	return JSON.stringify(left) === JSON.stringify(right);
+function unsavedSections(
+	draft: Configuration,
+	saved: Configuration,
+): SectionId[] {
+	const keys = Object.keys({ ...saved, ...draft }) as (keyof Configuration)[];
+	const changed = new Set(
+		keys.flatMap((key) =>
+			sameValue(draft[key], saved[key]) ? [] : [sectionOf(key)],
+		),
+	);
+	return sections.flatMap((section) =>
+		changed.has(section.id) ? [section.id] : [],
+	);
 }
 
 function mergeLoaded(
@@ -128,13 +131,17 @@ function Menu({
 	const [saved, setSaved] = useState(draftOf(loaded));
 	const [draft, setDraft] = useState(draftOf(loaded));
 	const baseline = useRef(saved);
-	const [current, setCurrent] = useState<string>(sections[0].id);
+	const [sectionParam, setSection] = useUrlParam("section");
+	const current =
+		sections.find((section) => section.id === sectionParam)?.id ??
+		sections[0].id;
 	const [message, setMessage] = useState<string | null>(null);
 	const [failed, setFailed] = useState(false);
 	const [toast, setToast] = useState(0);
 	const [saving, setSaving] = useState(false);
 	const [permission, setPermission] = useState("default");
-	const dirty = !same(draft, saved);
+	const unsaved = unsavedSections(draft, saved);
+	const dirty = unsaved.length > 0;
 	useHoldReload(dirty);
 	const view = draft.projectViews["*"] ?? viewDefaults();
 	const [theme, setTheme] = useState(pageTheme);
@@ -195,57 +202,73 @@ function Menu({
 				{settingsCopy.savedTo}
 			</p>
 			<div className={clsx(fields.layout)}>
-				<ContentsNav current={current} onSelect={setCurrent} />
-				<div>
-					<GeneralSection
-						theme={theme}
-						draft={draft}
-						factoryTokenReports={factoryTokenReports}
-						switches={backends.switches}
-						onChange={patch}
-					/>
-					<ProjectViewsSection
-						view={view}
-						states={draft.states}
-						shown={shown}
-						onPatchView={(next) => patchStar(draft, view, patch, next)}
-					/>
-					<StatesSection
-						draft={draft}
-						sources={stateSources}
-						onChange={patch}
-						onReset={() => {
-							void onResetClick();
-						}}
-					/>
-					<ProjectsTable
-						projects={projects}
-						trackers={backends.trackers}
-						draft={draft}
-						onChange={patch}
-					/>
-					<ReviewSection
-						draft={draft}
-						laneHint={backends.hints.laneMappings}
-						onChange={patch}
-					/>
-					<NotificationsSection
-						draft={draft}
-						permission={permission}
-						onChange={patch}
-					/>
-					<TrackersSection
-						backends={backends}
-						discoveryErrors={discoveryErrors}
-					/>
-					<FactoriesSection
-						draft={draft}
-						entries={factoryEntries}
-						runStartHint={backends.hints.runStart}
-						onChange={patch}
-					/>
+				<ContentsNav
+					current={current}
+					unsaved={new Set(unsaved)}
+					onSelect={setSection}
+				/>
+				<div className={clsx(fields.panel)}>
+					{current === "general" ? (
+						<GeneralSection
+							theme={theme}
+							draft={draft}
+							factoryTokenReports={factoryTokenReports}
+							switches={backends.switches}
+							onChange={patch}
+						/>
+					) : current === "project-views" ? (
+						<ProjectViewsSection
+							view={view}
+							states={draft.states}
+							shown={shown}
+							onPatchView={(next) => patchStar(draft, view, patch, next)}
+						/>
+					) : current === "projects" ? (
+						<ProjectsTable
+							projects={projects}
+							trackers={backends.trackers}
+							sources={stateSources}
+							draft={draft}
+							onChange={patch}
+						/>
+					) : current === "states" ? (
+						<StatesSection
+							draft={draft}
+							onChange={patch}
+							onReset={() => {
+								void onResetClick();
+							}}
+						/>
+					) : current === "review" ? (
+						<ReviewSection
+							draft={draft}
+							laneHint={backends.hints.laneMappings}
+							onChange={patch}
+						/>
+					) : current === "notifications" ? (
+						<NotificationsSection
+							draft={draft}
+							permission={permission}
+							onChange={patch}
+						/>
+					) : current === "trackers" ? (
+						<TrackersSection
+							backends={backends}
+							discoveryErrors={discoveryErrors}
+							draft={draft.dopplerTokens}
+							saved={saved.dopplerTokens}
+							onChange={patch}
+						/>
+					) : (
+						<FactoriesSection
+							draft={draft}
+							entries={factoryEntries}
+							runStartHint={backends.hints.runStart}
+							onChange={patch}
+						/>
+					)}
 					<SettingsBar
-						dirty={dirty}
+						unsaved={unsaved}
 						saving={saving}
 						onDiscard={() => {
 							setDraft(saved);
@@ -304,355 +327,6 @@ function Menu({
 			setSaved(draft);
 		}
 	}
-}
-
-function isTracked(pins: ProjectPin[], project: SettingsProject): boolean {
-	const named = [project.ref, ...project.savedPins];
-	return pins.some((pin) => named.some((item) => samePin(item, pin)));
-}
-
-/** The pin of a tracked project in the form that the overview reads, so a pin matches its tracked entry. */
-function pinOf(draft: Configuration, project: SettingsProject): ProjectPin {
-	const named = [project.ref, ...project.savedPins];
-	return (
-		draft.tracked.find((pin) => named.some((item) => samePin(item, pin))) ??
-		project.ref
-	);
-}
-
-function botsOf(
-	draft: Configuration,
-	project: SettingsProject,
-	repo: string,
-): KnownBot[] {
-	const saved = repoKey(draft.expectedBots ?? {}, repo);
-	if (saved !== undefined) {
-		return draft.expectedBots?.[saved] ?? [];
-	}
-	return project.repoBots[repo] ?? [];
-}
-
-function setBots(
-	draft: Configuration,
-	project: SettingsProject,
-	repo: string,
-	bots: KnownBot[],
-): Configuration["expectedBots"] {
-	const saved = draft.expectedBots ?? {};
-	const savedKey = repoKey(saved, repo);
-	const seeded =
-		savedKey === undefined
-			? Object.fromEntries(
-					project.repos
-						.filter((name) => repoKey(saved, name) === undefined)
-						.map((name) => [name, project.repoBots[name] ?? []]),
-				)
-			: {};
-	return { ...saved, ...seeded, [savedKey ?? repo]: bots };
-}
-
-function pmBotOf(draft: Configuration, project: SettingsProject): boolean {
-	const saved = repoKey(draft.pmBot, project.key);
-	return saved === undefined
-		? project.pmBotDefault
-		: (draft.pmBot[saved] ?? project.pmBotDefault);
-}
-
-function setPmBot(
-	draft: Configuration,
-	project: SettingsProject,
-	on: boolean,
-): Configuration["pmBot"] {
-	const next = { ...draft.pmBot };
-	const saved = repoKey(next, project.key);
-	if (saved !== undefined) {
-		delete next[saved];
-	}
-	if (on !== project.pmBotDefault) {
-		next[project.key] = on;
-	}
-	return next;
-}
-
-type TrackerFilter = "all" | TrackerKind;
-
-function projectMatches(
-	project: SettingsProject,
-	query: string,
-	tracker: TrackerFilter,
-	state: (typeof stateFilters)[number],
-	draft: Configuration,
-): boolean {
-	if (tracker !== "all" && project.tracker !== tracker) {
-		return false;
-	}
-	if (state === "tracked" && !isTracked(draft.tracked, project)) {
-		return false;
-	}
-	const needle = query.trim().toLowerCase();
-	if (needle === "") {
-		return true;
-	}
-	return (
-		project.name.toLowerCase().includes(needle) ||
-		project.key.toLowerCase().includes(needle)
-	);
-}
-
-function ProjectsTable({
-	projects,
-	trackers,
-	draft,
-	onChange,
-}: {
-	projects: SettingsProject[];
-	trackers: BackendViews["trackers"];
-	draft: Configuration;
-	onChange: (next: Partial<Configuration>) => void;
-}) {
-	const filters: { kind: TrackerFilter; label: string }[] = [
-		{ kind: "all", label: settingsCopy.all },
-		...trackers,
-	];
-	const [query, setQuery] = useState("");
-	const [tracker, setTracker] = useState<TrackerFilter>("all");
-	const [state, setState] = useState<(typeof stateFilters)[number]>("all");
-	const [filtersOpen, setFiltersOpen] = useState(false);
-	useEffect(() => {
-		if (!filtersOpen) {
-			return;
-		}
-		const onKey = (event: KeyboardEvent) => {
-			if (event.key !== "Escape" || event.defaultPrevented) {
-				return;
-			}
-			event.preventDefault();
-			setFiltersOpen(false);
-			document.getElementById("project-filter")?.focus();
-		};
-		document.addEventListener("keydown", onKey);
-		return () => document.removeEventListener("keydown", onKey);
-	}, [filtersOpen]);
-
-	const shown = projects.filter((project) =>
-		projectMatches(project, query, tracker, state, draft),
-	);
-
-	return (
-		<section id="projects" className={clsx(fields.card)}>
-			<h2 className={clsx(fields.cardTitle)}>{settingsSection.projects}</h2>
-			<p className={clsx(fields.projectsLead)}>{settingsCopy.projectsLead}</p>
-			<div className={clsx(fields.toolbar)}>
-				<TextInput
-					id="project-search"
-					type="search"
-					icon="search"
-					width={fields.projectSearch}
-					aria-label={settingsCopy.searchProjects}
-					placeholder={settingsCopy.searchProjects}
-					value={query}
-					onChange={(event) => setQuery(event.target.value)}
-				/>
-				<Button
-					id="project-filter"
-					icon="filter"
-					label={settingsCopy.filter}
-					aria-expanded={filtersOpen}
-					aria-controls="project-filters"
-					onClick={() => setFiltersOpen((open) => !open)}
-				/>
-				<span id="project-count" className={clsx(fields.count)}>
-					{shown.length} {settingsCopy.of} {projects.length}{" "}
-					{settingsCopy.projects}
-				</span>
-			</div>
-			{filtersOpen ? (
-				<div id="project-filters" className={clsx(fields.filterPanel)}>
-					<div id="tracker-filter" className={clsx(fields.filterLabel)}>
-						<span>{settingsCopy.tracker}</span>
-						{filters.map(({ kind, label }) => (
-							<Button
-								key={kind}
-								id={`tracker-${kind}`}
-								label={label}
-								pressed={tracker === kind}
-								onClick={() => setTracker(kind)}
-							/>
-						))}
-					</div>
-					<div id="state-filter" className={clsx(fields.filterLabel)}>
-						<span>{settingsCopy.state}</span>
-						{(
-							[
-								["all", settingsCopy.all],
-								["tracked", settingsCopy.tracked],
-							] as const
-						).map(([value, label]) => (
-							<Button
-								key={value}
-								id={`state-${value}`}
-								label={label}
-								pressed={state === value}
-								onClick={() => setState(value)}
-							/>
-						))}
-					</div>
-				</div>
-			) : null}
-			<table className={clsx(fields.table)}>
-				<thead className={clsx(fields.head)}>
-					<tr>
-						<th className={clsx(fields.headCell)}>{settingsCopy.project}</th>
-						<th className={clsx(fields.headSwitch)}>{settingsCopy.tracked}</th>
-						<th className={clsx(fields.headSwitch)}>{settingsCopy.pinned}</th>
-						<th className={clsx(fields.headSwitch)}>{settingsCopy.pmBot}</th>
-						<th className={clsx(fields.headCell)}>
-							{settingsCopy.expectedBots}
-						</th>
-					</tr>
-				</thead>
-				<tbody>
-					{shown.map((project) => (
-						<ProjectRow
-							key={`${project.tracker}:${project.key}`}
-							project={project}
-							draft={draft}
-							onChange={onChange}
-						/>
-					))}
-				</tbody>
-			</table>
-		</section>
-	);
-}
-
-function ProjectRow({
-	project,
-	draft,
-	onChange,
-}: {
-	project: SettingsProject;
-	draft: Configuration;
-	onChange: (next: Partial<Configuration>) => void;
-}) {
-	const id = `${project.tracker}-${project.key.replace(/[^A-Za-z0-9]+/g, "-")}`;
-	const trackerLabel = useTrackerLabel();
-	const repos = project.repos;
-	const pmBot = pmBotOf(draft, project);
-	const tracked = isTracked(draft.tracked, project);
-	const pinned = tracked && isTracked(draft.pinnedProjects, project);
-	const names = [project.ref, ...project.savedPins];
-	return (
-		<tr id={`project-row-${id}`}>
-			<td className={clsx(fields.cell)}>
-				<div className={clsx(fields.projectName)}>{project.name}</div>
-				<div className={clsx(fields.projectMeta)}>
-					{trackerLabel(project.tracker)}
-					{", "}
-					{project.key}
-				</div>
-			</td>
-			<td className={clsx(fields.switchCell)}>
-				<Switch
-					id={`track-${id}`}
-					checked={tracked}
-					label={`${settingsCopy.tracked} ${project.name}`}
-					onChange={(next) =>
-						onChange(
-							next
-								? { tracked: [...draft.tracked, project.ref] }
-								: {
-										tracked: withoutPins(draft.tracked, names),
-										pinnedProjects: withoutPins(draft.pinnedProjects, names),
-									},
-						)
-					}
-				/>
-			</td>
-			<td className={clsx(fields.switchCell)}>
-				{tracked ? (
-					<Switch
-						id={`pin-${id}`}
-						checked={pinned}
-						label={`${settingsCopy.pinned} ${project.name}`}
-						onChange={(next) =>
-							onChange({
-								pinnedProjects: withPin(draft.pinnedProjects, {
-									names,
-									pin: pinOf(draft, project),
-									on: next,
-								}),
-							})
-						}
-					/>
-				) : null}
-			</td>
-			<td className={clsx(fields.switchCell)}>
-				<Switch
-					id={`pm-bot-${id}`}
-					checked={pmBot}
-					label={`${settingsCopy.pmBot} ${project.name}`}
-					onChange={(next) =>
-						onChange({
-							pmBot: setPmBot(draft, project, next),
-						})
-					}
-				/>
-			</td>
-			<td className={clsx(fields.cell)}>
-				{repos.length === 0 ? (
-					<span id={`bots-unavailable-${id}`}>
-						{settingsCopy.botsUnavailable}
-					</span>
-				) : (
-					repos.map((repo) => {
-						const bots = botsOf(draft, project, repo);
-						const missing = knownBots.filter((bot) => !bots.includes(bot));
-						const repoId = repo.replace(/[^A-Za-z0-9]+/g, "-");
-						return (
-							<div key={repo} className={clsx(settingsBots.bots)}>
-								<span className={clsx(fields.projectMeta)}>{repo}</span>
-								{bots.map((bot) => (
-									<Chip
-										key={bot}
-										label={bot}
-										removeLabel={`Remove ${bot} ${repo}`}
-										onRemove={() =>
-											onChange({
-												expectedBots: setBots(
-													draft,
-													project,
-													repo,
-													bots.filter((item) => item !== bot),
-												),
-											})
-										}
-									/>
-								))}
-								{missing.length === 0 ? null : (
-									<Select
-										id={`add-bot-${id}-${repoId}`}
-										aria-label={`${settingsCopy.addBot} ${repo}`}
-										value={undefined}
-										placeholder={settingsCopy.addBot}
-										options={missing.map((bot) => ({ value: bot, label: bot }))}
-										onChange={(bot) =>
-											onChange({
-												expectedBots: setBots(draft, project, repo, [
-													...bots,
-													bot,
-												]),
-											})
-										}
-									/>
-								)}
-							</div>
-						);
-					})
-				)}
-			</td>
-		</tr>
-	);
 }
 
 export function Page() {

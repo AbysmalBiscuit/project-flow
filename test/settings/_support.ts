@@ -685,6 +685,7 @@ export function listedBackends(credential: "present" | "missing") {
 		label: "GitHub",
 		hint: "Token from gh auth token",
 		credential,
+		tokenEnv: "GITHUB_TOKEN",
 	};
 	// The settings tests set no GITLAB_TOKEN.
 	const gitlab = {
@@ -692,6 +693,7 @@ export function listedBackends(credential: "present" | "missing") {
 		label: "GitLab",
 		hint: "GITLAB_TOKEN found in the environment",
 		credential: "missing",
+		tokenEnv: "GITLAB_TOKEN",
 	};
 	return {
 		trackers: [
@@ -701,6 +703,7 @@ export function listedBackends(credential: "present" | "missing") {
 				label: "Linear",
 				hint: "LINEAR_API_KEY found in the environment",
 				credential,
+				tokenEnv: "LINEAR_API_KEY",
 				claimsRuns: false,
 			},
 			{ ...gitlab, claimsRuns: false },

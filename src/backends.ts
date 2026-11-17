@@ -6,6 +6,7 @@ import {
 	backendRegistry,
 	byKind,
 	type Credentials,
+	type DopplerSecret,
 	type Env,
 	type RepoFetch,
 	type RepoFetchContext,
@@ -36,22 +37,49 @@ export type {
 	TokenIo,
 } from "./backend-registry.ts";
 
-/** Reads the token of each backend kind from its env var, or else from its fallback. A backend without a home has none. */
-export async function readCredentials(io: TokenIo): Promise<Credentials> {
+/**
+ * Reads the token of each backend kind. A kind with a Doppler secret in the
+ * configuration reads only that secret. Any other kind reads its env var, or
+ * else its fallback. A backend without a home has none.
+ */
+export async function readCredentials(
+	io: TokenIo,
+	configuration: Configuration,
+	warn: (message: string) => void,
+): Promise<Credentials> {
 	const registry = backendRegistry();
+	const doppler: Partial<Record<BackendKind, DopplerSecret>> =
+		configuration.dopplerTokens;
 	const tokens = new Map(
 		await Promise.all(
 			backendKinds.map(async (kind) => {
 				const rule = registry[kind].home?.credential;
-				const token =
-					rule === undefined
-						? null
-						: (usable(io.env[rule.env]) ?? usable(await rule.fallback?.(io)));
-				return [kind, token] as const;
+				const secret = doppler[kind];
+				if (rule === undefined) {
+					return [kind, null] as const;
+				}
+				if (secret !== undefined) {
+					const token = usable(await io.readDopplerSecret(secret));
+					if (token === null) {
+						warn(dopplerReadFailed(registry[kind].label, secret));
+					}
+					return [kind, token] as const;
+				}
+				return [
+					kind,
+					usable(io.env[rule.env]) ?? usable(await rule.fallback?.(io)),
+				] as const;
 			}),
 		),
 	);
 	return byKind(backendKinds, (kind) => tokens.get(kind) ?? null);
+}
+
+function dopplerReadFailed(
+	label: string,
+	{ project, config, secret }: DopplerSecret,
+): string {
+	return `${label} token: Doppler did not answer secret ${secret} in ${project}/${config}. Run doppler login, or check the project, config and secret name in Settings.`;
 }
 
 type TokenTest = {
@@ -207,11 +235,13 @@ export function buildBackends(options: {
 		const present =
 			(credentials[kind] ?? null) !== null ||
 			declared.some((entry) => usable(env[entry.tokenEnv]) !== null);
+		const tokenEnv = registry[kind].home?.credential.env;
 		return {
 			kind,
 			label: registry[kind].label,
 			hint: registry[kind].hint,
 			credential: present ? "present" : "missing",
+			...(tokenEnv === undefined ? {} : { tokenEnv }),
 		};
 	};
 	const listsBackend = (kind: BackendKind, hosts: Hosts): boolean =>

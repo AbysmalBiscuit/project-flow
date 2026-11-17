@@ -41,6 +41,8 @@ export type BackendView<Kind extends TrackerKind | ForgeKind> = {
 	/** Where the token comes from. */
 	hint: string;
 	credential: "present" | "missing";
+	/** The env var of the home token, absent for a backend without a home. */
+	tokenEnv?: string;
 };
 
 /** A setting of one backend, which Settings shows as a switch. */
@@ -640,6 +642,8 @@ export type SettingsProject = {
 	repos: string[];
 	expectedBots: KnownBot[];
 	repoBots: Record<string, KnownBot[]>;
+	/** The key of the board whose state mapping places this project's tickets. Absent until a poll reads the project. */
+	stateSource?: string;
 	ref: ProjectPin;
 	/** Each pin of the configuration that names this project, whatever its case. */
 	savedPins: ProjectPin[];

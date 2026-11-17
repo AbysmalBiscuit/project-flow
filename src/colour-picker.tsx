@@ -13,7 +13,6 @@ import { settingsCopy } from "./settings-terms.ts";
 import { TextInput } from "./text-input.tsx";
 import {
 	colours,
-	font,
 	measure,
 	picker,
 	radius,
@@ -30,10 +29,10 @@ const styles = stylex.create({
 	},
 	swatchButton: {
 		display: "inline-flex",
-		gap: space.sm,
 		alignItems: "center",
-		paddingLeft: space.xs,
-		fontFamily: font.mono,
+		justifyContent: "center",
+		width: measure.control,
+		padding: 0,
 	},
 	swatch: {
 		width: measure.swatchButton,
@@ -258,7 +257,6 @@ export function ColourPicker({
 					{...stylex.props(styles.swatch, dynamic.fill(value))}
 					aria-hidden="true"
 				/>
-				{value}
 			</button>
 			{open ? (
 				<div

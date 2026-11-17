@@ -13,6 +13,7 @@ import type {
 } from "./domain.ts";
 import type { FactoryEntry } from "./factories.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
+import type { StatusType } from "./kinds.ts";
 import type { FoundProject } from "./ports.ts";
 import { samePin } from "./project-ref.ts";
 import { knownRepos, settingsProjects } from "./settings-catalogue.ts";
@@ -53,7 +54,8 @@ export function settingsResponse(
 export type StateSource = {
 	key: string;
 	projects: string[];
-	statuses: string[];
+	/** Each tracker status, with the category that places it when no mapping names it. */
+	statuses: { name: string; category: StatusType }[];
 };
 
 function stateSources(snapshots: readonly SettingsSnapshot[]): StateSource[] {
@@ -63,8 +65,11 @@ function stateSources(snapshots: readonly SettingsSnapshot[]): StateSource[] {
 		const source = sources.get(key) ?? { key, projects: [], statuses: [] };
 		source.projects.push(row.name);
 		for (const status of row.board?.statuses ?? []) {
-			if (!source.statuses.includes(status.name)) {
-				source.statuses.push(status.name);
+			if (!source.statuses.some((known) => known.name === status.name)) {
+				source.statuses.push({
+					name: status.name,
+					category: status.statusType,
+				});
 			}
 		}
 		sources.set(key, source);

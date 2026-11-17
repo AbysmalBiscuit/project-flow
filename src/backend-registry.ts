@@ -60,9 +60,13 @@ export type Env = Record<string, string | undefined>;
 /** The token of each backend kind with a home, or null when none is set. */
 export type Credentials = Partial<Record<BackendKind, string | null>>;
 
+/** A secret that the Doppler CLI reads from one project and config. */
+export type DopplerSecret = { project: string; config: string; secret: string };
+
 export type TokenIo = {
 	env: Env;
 	readGhToken: (env?: Env) => Promise<string | null>;
+	readDopplerSecret: (read: DopplerSecret) => Promise<string | null>;
 };
 
 export type TokenCheck = "accepted" | "rejected" | { warning: string };

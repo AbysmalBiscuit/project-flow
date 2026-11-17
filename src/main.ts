@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 
 import { version } from "../package.json";
 import { start } from "./app.ts";
+import type { DopplerSecret } from "./backend-registry.ts";
 import { readCredentials, rejectedCredential } from "./backends.ts";
 import { configArgsForCheckout, parseFlags, usage } from "./cli-flags.ts";
 import { loadConfiguration } from "./configuration.ts";
@@ -14,7 +15,11 @@ import type { FactoryTokenMint } from "./factory-tokens.ts";
 import type { Fetch } from "./fetch.ts";
 import { openBrowser } from "./open-browser.ts";
 import type { CheckoutSource, TodoSource } from "./ports.ts";
-import { readGhAuthToken, runFactoryMint } from "./token-commands.ts";
+import {
+	readDopplerSecret,
+	readGhAuthToken,
+	runFactoryMint,
+} from "./token-commands.ts";
 
 export type RunIo = {
 	env: Record<string, string | undefined>;
@@ -22,6 +27,7 @@ export type RunIo = {
 	readGhToken: (
 		env?: Record<string, string | undefined>,
 	) => Promise<string | null>;
+	readDopplerSecret?: (read: DopplerSecret) => Promise<string | null>;
 	stdout?: (line: string) => void;
 	stderr?: (line: string) => void;
 	databasePath?: string;
@@ -113,7 +119,16 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			writeErr(`created configuration file: ${configPath}`);
 		}
 		const configuration = await loadConfiguration(configPath);
-		const credentials = await readCredentials(io);
+		const credentials = await readCredentials(
+			{
+				env: io.env,
+				readGhToken: io.readGhToken,
+				readDopplerSecret:
+					io.readDopplerSecret ?? ((read) => readDopplerSecret(read, io.env)),
+			},
+			configuration,
+			writeErr,
+		);
 		const databasePath = io.databasePath ?? defaultStorePath(io.env);
 		await openStore(databasePath);
 		const running = await start({

@@ -1,4 +1,5 @@
 import type { Configuration } from "./configuration.ts";
+import { textControl } from "./control-styles.ts";
 import type { BackendSwitch } from "./domain.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import { Select } from "./select.tsx";
@@ -34,17 +35,28 @@ export function BackendSwitchRow({
 			<div className={clsx(fields.rowText)}>
 				<span className={clsx(fields.rowTitle)}>{row.label}</span>
 				<span className={clsx(fields.hint)}>{row.hint}</span>
-				{reports.map((report) => (
-					<span
-						key={report.cause === "mint failed" ? report.cause : report.owner}
+				{reports.length === 0 ? null : (
+					<details
 						className={clsx(fields.warning)}
-						data-factory-token-report={
-							report.cause === "mint failed" ? "mint" : report.owner
-						}
+						open={reports.some((report) => report.cause === "mint failed")}
 					>
-						{factoryTokenFallbackLabel(report)}
-					</span>
-				))}
+						<summary className={clsx(...textControl)}>
+							{settingsCopy.tokenFallbacks(reports.length)}
+						</summary>
+						{reports.map((report) => (
+							<div
+								key={
+									report.cause === "mint failed" ? report.cause : report.owner
+								}
+								data-factory-token-report={
+									report.cause === "mint failed" ? "mint" : report.owner
+								}
+							>
+								{factoryTokenFallbackLabel(report)}
+							</div>
+						))}
+					</details>
+				)}
 			</div>
 			<Switch
 				id={row.setting}
