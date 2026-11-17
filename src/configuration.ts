@@ -39,6 +39,7 @@ import { runResults, runStatusKinds, statusTypes } from "./kinds.ts";
 import { knownBots } from "./known-bots.ts";
 import { defaultStates } from "./lanes.ts";
 import { linearPin } from "./linear-pin.ts";
+import { memoriesViewDefaults, memoryTabs } from "./memories-view.ts";
 import {
 	overviewDirections,
 	overviewFilters,
@@ -124,6 +125,11 @@ const factoriesView = z.strictObject({
 	pageSize: z
 		.strictObject({ running: pageSize, attention: pageSize, queue: pageSize })
 		.default(factoriesViewDefaults.pageSize),
+});
+
+/** The Memories tab that the page opens on: the tab the reader picked last. */
+const memoriesView = z.strictObject({
+	tab: z.literal(memoryTabs).default(memoriesViewDefaults.tab),
 });
 
 const projectViewSettings = z.strictObject({
@@ -232,6 +238,7 @@ const configurationSchema = z
 			showNeedsYou: true,
 		}),
 		factoriesView: factoriesView.default(factoriesViewDefaults),
+		memoriesView: memoriesView.default(memoriesViewDefaults),
 		hosts: z.array(declaredHost).default([]),
 		tracked: z.array(projectRef).optional(),
 		pinned: z.array(projectRef).optional(),
