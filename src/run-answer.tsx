@@ -1,6 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { useState } from "react";
 
+import { useHoldReload } from "./boot-reload.tsx";
 import { useAnswerQuestion } from "./run-mutations.ts";
 import { SendButton, SendText } from "./send-box.tsx";
 import { answerFailed } from "./terms.ts";
@@ -29,6 +30,7 @@ export function RunAnswer({
 	askId: string;
 }) {
 	const [draft, setDraft] = useState("");
+	useHoldReload(draft.trim() !== "");
 	const answer = useAnswerQuestion(run, question);
 	return (
 		<form
