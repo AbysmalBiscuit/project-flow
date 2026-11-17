@@ -272,7 +272,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 					<a
 						id="factory-unreachable"
 						className={clsx(frame.factoryMarker, ...textControl)}
-						href="/settings#factories"
+						href="/settings?section=factories"
 					>
 						{factoryCopy.headerMarker}
 					</a>
