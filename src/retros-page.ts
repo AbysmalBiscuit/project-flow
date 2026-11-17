@@ -69,7 +69,13 @@ export type RetroRow = Omit<RetroRun, "retro"> & {
 };
 
 /** The friction points of one kind and cause, and the count of runs that hit them. */
-export type FrictionGroup = { kind: string; cause: string; runs: number };
+export type FrictionGroup = {
+	kind: string;
+	cause: string;
+	runs: number;
+	/** The runs that hit the cause, newest first. */
+	runIds: string[];
+};
 
 export type RetrosPage = {
 	/** The runs with a retro, newest first. */
@@ -184,6 +190,7 @@ export function retrosPage(
 				kind: group.kind,
 				cause: group.cause,
 				runs: group.runs.size,
+				runIds: [...group.runs].reverse(),
 			})),
 		notServed,
 	};
