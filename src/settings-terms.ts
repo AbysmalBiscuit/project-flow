@@ -183,7 +183,7 @@ export const settingsCopy = {
 			? "1 owner reads with your token"
 			: `${owners} owners read with your token`,
 	stateMappingsLead:
-		"Map each tracker status or label of a board to a state. A status with no mapping goes to the first state of its category.",
+		"Map each tracker status or label of a board to a state. A status with no mapping goes to the first state that holds its kind of work automatically.",
 	automatic: (state: string | undefined) => `Automatic: ${state ?? "no state"}`,
 	mapsTo: "maps to",
 	label: "Label",
