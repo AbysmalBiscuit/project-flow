@@ -7,7 +7,7 @@ import type {
 	ForgeKind,
 	TrackerKind,
 } from "./domain.ts";
-import { pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries-page.ts";
 
 /** One row per backend kind: each tracker, then each forge that no tracker row shows. */
 export function backendRows({

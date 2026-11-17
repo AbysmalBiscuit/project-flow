@@ -5,18 +5,18 @@ import { liveRunStatusKinds } from "./kinds.ts";
 import { Loading } from "./loading.tsx";
 import { RunFact } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
-import { pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries-page.ts";
 import { hasTranscript } from "./run-agent-stage.ts";
 import { NotServed } from "./run-checkpoint.tsx";
 import { Transcript } from "./run-stage-view.tsx";
 import { RunSteer, useCurrentStage } from "./run-steer.tsx";
-import { stageQuery, stageVisit } from "./stage-queries.ts";
 import {
 	noRunDataLabel,
 	noTerminalStageLabel,
 	runTabData,
 	terminalStageLabel,
-} from "./terms.ts";
+} from "./run-terms.ts";
+import { stageQuery, stageVisit } from "./stage-queries.ts";
 import { clsx } from "./ui.ts";
 
 /**

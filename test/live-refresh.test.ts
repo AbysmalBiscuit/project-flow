@@ -95,6 +95,7 @@ test("a refresh during a poll longer than 10 seconds answers before that poll en
 		expect(running.polling).toBe(true);
 		expect(running.fetchedAt).toBe(before.fetchedAt);
 		const events = stream.events[Symbol.asyncIterator]();
+		expect((await events.next()).value?.event).toBe("boot");
 		const runningEvent = await events.next();
 		expect(runningEvent.done).toBe(false);
 		if (!runningEvent.done && runningEvent.value !== undefined) {
@@ -195,6 +196,7 @@ test("a reply during a held refresh keeps the running poll", async () => {
 			await Bun.sleep(20);
 		}
 		const events = stream.events[Symbol.asyncIterator]();
+		expect((await events.next()).value?.event).toBe("boot");
 		const started = await events.next();
 		expect(started.done).toBe(false);
 		if (!started.done && started.value !== undefined) {

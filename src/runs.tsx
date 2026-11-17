@@ -8,17 +8,12 @@ import { Dropdown, MultiDropdown } from "./dropdown.tsx";
 import { runResults, runStatusKinds } from "./kinds.ts";
 import { PageLoading } from "./loading.tsx";
 import { needs } from "./needs-you-styles.ts";
-import { pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries-page.ts";
 import type { RunListRow } from "./run-list.ts";
 import { RunRow } from "./run-row.tsx";
+import { runsColumnLabel, runsListCopy } from "./run-terms.ts";
 import { PageFrame } from "./shell.tsx";
-import {
-	navLabel,
-	runResultLabel,
-	runsColumnLabel,
-	runsListCopy,
-	runStatusLabel,
-} from "./terms.ts";
+import { navLabel, runResultLabel, runStatusLabel } from "./terms.ts";
 import { TextInput } from "./text-input.tsx";
 import { measure } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";

@@ -7,7 +7,7 @@ import type { FactoryRun } from "./domain.ts";
 import { endedRunStatusKinds } from "./kinds.ts";
 import { panel } from "./panel-styles.ts";
 import { useRemoveRun } from "./run-mutations.ts";
-import { runRemoveCopy } from "./terms.ts";
+import { runRemoveCopy } from "./run-terms.ts";
 import { space } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 

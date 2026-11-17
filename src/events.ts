@@ -1,4 +1,4 @@
-type AppEvent = "overview" | "views" | "notification" | "progress";
+type AppEvent = "overview" | "views" | "notification" | "progress" | "boot";
 type StreamEvent = "open" | AppEvent;
 
 type Listener = (event: MessageEvent) => void;
@@ -7,7 +7,13 @@ type Listener = (event: MessageEvent) => void;
 type Wire =
 	{ kind: "event"; name: StreamEvent; data: string } | { kind: "hello" };
 
-const appEvents: AppEvent[] = ["overview", "views", "notification", "progress"];
+const appEvents: AppEvent[] = [
+	"overview",
+	"views",
+	"notification",
+	"progress",
+	"boot",
+];
 const sharedName = "project-flow-events";
 
 const listeners = new Map<StreamEvent, Set<Listener>>();

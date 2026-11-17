@@ -25,7 +25,7 @@ import {
 	GraphView,
 	type LinkProps,
 } from "./graph-view.tsx";
-import { pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries-page.ts";
 import { tonedProps } from "./state-tone.ts";
 import { projectGraphLabel } from "./terms.ts";
 import { parentChip } from "./ticket-groups.ts";

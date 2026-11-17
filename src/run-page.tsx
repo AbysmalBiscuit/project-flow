@@ -14,7 +14,7 @@ import {
 } from "./page-links.ts";
 import { commentTime, elapsed, RunFact, runTime } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
-import { pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries-page.ts";
 import { RunAction } from "./run-action.tsx";
 import { RunArtifacts } from "./run-artifacts.tsx";
 import { NotServed, RunStages, RunUsage } from "./run-checkpoint.tsx";
@@ -27,21 +27,20 @@ import { RunSandbox } from "./run-sandbox.tsx";
 import { RunSettings } from "./run-settings.tsx";
 import { RunSource } from "./run-source.tsx";
 import { RunTerminal } from "./run-terminal.tsx";
-import { RunThread } from "./run-thread.tsx";
-import { Segment } from "./segment.tsx";
-import { PageFrame } from "./shell.tsx";
 import {
-	copyTextCopy,
 	hubQueueLabel,
 	runFactLabel,
 	runMissingLabel,
 	runPageLabel,
 	runReadFailedLabel,
-	runStatusLabel,
 	type RunTab,
 	runTabData,
 	runTabLabel,
-} from "./terms.ts";
+} from "./run-terms.ts";
+import { RunThread } from "./run-thread.tsx";
+import { Segment } from "./segment.tsx";
+import { PageFrame } from "./shell.tsx";
+import { copyTextCopy, runStatusLabel } from "./terms.ts";
 import { colours, measure, radius, space } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 

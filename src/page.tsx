@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
 
+import { watchServerBoot } from "./boot-reload.tsx";
 import { mountJumpBox } from "./jump.tsx";
 import { watchNotifications } from "./notify.tsx";
 import { mountPage } from "./page-cache.ts";
 import { installPageLinks } from "./page-links.ts";
 import { PageQueryRoot } from "./page-query.tsx";
-import { seedPageQueries, wirePageQueryEvents } from "./queries.ts";
+import { wirePageQueryEvents } from "./queries-events.ts";
+import { seedPageQueries } from "./queries-seed.ts";
 import { mountShortcutsDialog } from "./shortcuts-dialog.tsx";
 import { watchStateColours } from "./state-colours.ts";
 import { readStoredPage, readStoredPolling } from "./stored-page.ts";
@@ -13,6 +15,7 @@ import { applyPageTheme, pageTheme } from "./theme.ts";
 import "./global.css";
 
 watchNotifications();
+watchServerBoot();
 mountJumpBox();
 mountShortcutsDialog();
 installPageLinks();

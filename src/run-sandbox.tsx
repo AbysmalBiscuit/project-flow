@@ -5,7 +5,7 @@ import type { RunDetail } from "./domain.ts";
 import { Loading } from "./loading.tsx";
 import { RunFact } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
-import { pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries-page.ts";
 import { NotServed } from "./run-checkpoint.tsx";
 import {
 	aheadLabel,
@@ -16,7 +16,7 @@ import {
 	runTabData,
 	sandboxFactLabel,
 	sandboxStateLabel,
-} from "./terms.ts";
+} from "./run-terms.ts";
 import { colours, font, radius, space, type } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 

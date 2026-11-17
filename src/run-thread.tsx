@@ -7,7 +7,7 @@ import { commentTime } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
 import { RunAnswer } from "./run-answer.tsx";
 import { RunSteer } from "./run-steer.tsx";
-import { runMessageLabel, runThreadLabel } from "./terms.ts";
+import { runMessageLabel, runThreadLabel } from "./run-terms.ts";
 import { clsx } from "./ui.ts";
 
 function ThreadMessage({

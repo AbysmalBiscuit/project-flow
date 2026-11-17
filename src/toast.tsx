@@ -55,8 +55,8 @@ const styles = stylex.create({
 });
 
 /**
- * A message over the page that moves no other control. It stays until Lev
- * closes it, or until `hideMs` ends when given.
+ * A message over the page that moves no other control. An `action` replaces
+ * the close button. `hideMs` hides the message after that many milliseconds.
  */
 export function Toast({
 	id,
@@ -64,20 +64,23 @@ export function Toast({
 	tone,
 	hideMs,
 	onClose,
+	action,
 }: {
 	id?: string;
 	message: string;
 	tone: "saved" | "error";
 	hideMs?: number | undefined;
-	onClose: () => void;
-}) {
+} & (
+	| { onClose: () => void; action?: never }
+	| { action: { label: string; onClick: () => void }; onClose?: never }
+)) {
 	const onCloseRef = useRef(onClose);
 	onCloseRef.current = onClose;
 	useEffect(() => {
 		if (hideMs === undefined) {
 			return;
 		}
-		const hide = window.setTimeout(() => onCloseRef.current(), hideMs);
+		const hide = window.setTimeout(() => onCloseRef.current?.(), hideMs);
 		return () => {
 			window.clearTimeout(hide);
 		};
@@ -96,7 +99,16 @@ export function Toast({
 			>
 				{message}
 			</p>
-			<Button icon="x" name={toastCloseLabel} onClick={onClose} tone="quiet" />
+			{action ? (
+				<Button label={action.label} onClick={action.onClick} />
+			) : (
+				<Button
+					icon="x"
+					name={toastCloseLabel}
+					onClick={onClose}
+					tone="quiet"
+				/>
+			)}
 		</div>,
 		document.body,
 	);

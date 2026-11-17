@@ -4,7 +4,7 @@ import { Button } from "./button.tsx";
 import type { AwaitingPull, NeedsYouItem } from "./domain.ts";
 import { type PullChoice, usePullMerge } from "./pull-merge.tsx";
 import { mergeGateReason, pullMergeCopy } from "./pull-terms.ts";
-import { heldActionLabel } from "./terms.ts";
+import { heldActionLabel } from "./run-terms.ts";
 
 /** A link to a PR of a Decide row, where Lev answers its Important Questions. */
 function PullLink({ pull }: { pull: AwaitingPull }) {

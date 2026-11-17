@@ -5,7 +5,7 @@ import type { ParameterValue, RunSettings as Settings } from "./domain.ts";
 import { Loading } from "./loading.tsx";
 import { RunFact } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
-import { pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries-page.ts";
 import { NotServed } from "./run-checkpoint.tsx";
 import {
 	choiceModeLabel,
@@ -17,7 +17,7 @@ import {
 	runSettingsLabel,
 	runTabData,
 	yesNoLabel,
-} from "./terms.ts";
+} from "./run-terms.ts";
 import { colours, font, type } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 

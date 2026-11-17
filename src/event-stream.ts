@@ -32,12 +32,14 @@ function encodeChange(
 export function eventStream(
 	notifier: Notifier,
 	current: () => Change | null,
+	boot: string,
 ): Response {
 	let unsubscribe = () => {};
 	const body = new ReadableStream<Uint8Array>({
 		start(controller) {
 			const encoder = new TextEncoder();
 			controller.enqueue(encoder.encode(": open\n\n"));
+			controller.enqueue(encoder.encode(`event: boot\ndata: ${boot}\n\n`));
 			const open = current();
 			if (open !== null) {
 				for (const frame of encodeChange(encoder, open, false)) {

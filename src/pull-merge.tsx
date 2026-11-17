@@ -5,7 +5,7 @@ import { ConfirmDialog } from "./confirm-dialog.tsx";
 import type { AwaitingPull } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
 import { pullMergeCopy, requestChangesCopy } from "./pull-terms.ts";
-import { useMergePull, useRequestChanges } from "./queries.ts";
+import { useMergePull, useRequestChanges } from "./queries-actions.ts";
 import { SendText } from "./send-box.tsx";
 import { SplitButton, type SplitChoice } from "./split-button.tsx";
 import { actionToastHideMs, Toast } from "./toast.tsx";

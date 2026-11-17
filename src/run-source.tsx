@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ShownFactoryRun } from "./domain.ts";
 import { Loading } from "./loading.tsx";
 import { panel } from "./panel-styles.ts";
-import { pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries-page.ts";
 import { NotServed } from "./run-checkpoint.tsx";
 import {
 	calledGraphFileLabel,
@@ -12,7 +12,7 @@ import {
 	noRunDataLabel,
 	runSourceLabel,
 	runTabData,
-} from "./terms.ts";
+} from "./run-terms.ts";
 import { colours, font, radius, space, type } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 

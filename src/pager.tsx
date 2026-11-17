@@ -2,7 +2,7 @@ import * as stylex from "@stylexjs/stylex";
 import { useState } from "react";
 
 import { Button } from "./button.tsx";
-import { factoriesCopy } from "./terms.ts";
+import { factoriesCopy } from "./factories-terms.ts";
 import { TextInput } from "./text-input.tsx";
 import { colours, measure, space, type } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";

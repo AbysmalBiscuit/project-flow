@@ -9,7 +9,7 @@ import { NeedsItem } from "./needs-item.tsx";
 import { needs } from "./needs-you-styles.ts";
 import { TicketPanel } from "./panel.tsx";
 import { postRefresh, RefreshButton } from "./poll-freshness.tsx";
-import { pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries-page.ts";
 import { Segment } from "./segment.tsx";
 import {
 	closeTicket,

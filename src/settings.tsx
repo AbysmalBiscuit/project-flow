@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import { useTrackerLabel } from "./backend-labels.ts";
+import { useHoldReload } from "./boot-reload.tsx";
 import { Button } from "./button.tsx";
 import { Chip } from "./chip.tsx";
 import type { Configuration, ProjectPin } from "./configuration.ts";
@@ -13,7 +14,8 @@ import { knownBots } from "./known-bots.ts";
 import { PageLoading } from "./loading.tsx";
 import { withoutPins, withPin } from "./project-pins.ts";
 import { samePin } from "./project-ref.ts";
-import { pageQuery, useSaveSettings } from "./queries.ts";
+import { pageQuery } from "./queries-page.ts";
+import { useSaveSettings } from "./queries-settings.ts";
 import { repoKey } from "./repo-key.ts";
 import { Select } from "./select.tsx";
 import { FactoriesSection } from "./settings-factories.tsx";
@@ -133,6 +135,7 @@ function Menu({
 	const [saving, setSaving] = useState(false);
 	const [permission, setPermission] = useState("default");
 	const dirty = !same(draft, saved);
+	useHoldReload(dirty);
 	const view = draft.projectViews["*"] ?? viewDefaults();
 	const [theme, setTheme] = useState(pageTheme);
 	useEffect(() => {

@@ -19,15 +19,17 @@ import { RunAgents } from "./run-agents.tsx";
 import { RunCurrentStage } from "./run-checkpoint.tsx";
 import { RunDot } from "./run-marks.tsx";
 import {
-	earlierRunsLabel,
 	hubQueueLabel,
 	mergeFactLabel,
 	noStartLabel,
-	openOnLabel,
-	openPrLabel,
 	openRunLabel,
 	pullStatusLabel,
 	runFactLabel,
+} from "./run-terms.ts";
+import {
+	earlierRunsLabel,
+	openOnLabel,
+	openPrLabel,
 	runNotLiveLabel,
 	runSectionLabel,
 	runStatusLabel,

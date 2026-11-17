@@ -3,9 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { board } from "./board-styles.ts";
+import { useHoldReload } from "./boot-reload.tsx";
 import type { ShownFactoryRun } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
-import { pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries-page.ts";
 import { useSteerRun } from "./run-mutations.ts";
 import { blurOnEscape, SendButton, SendText } from "./send-box.tsx";
 import { steerFailed, steerLabel } from "./terms.ts";
@@ -55,6 +56,7 @@ export function RunSteer({
 	const currentStage = useCurrentStage(run);
 	const [stageDraft, setStageDraft] = useState<string | null>(null);
 	const [text, setText] = useState("");
+	useHoldReload(text.trim() !== "");
 	const [interrupt, setInterrupt] = useState(false);
 	const steer = useSteerRun(run.id);
 	const pickedStage = stage ?? stageDraft ?? currentStage ?? "";

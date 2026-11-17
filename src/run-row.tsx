@@ -8,13 +8,8 @@ import { panel } from "./panel-styles.ts";
 import type { RunListRow } from "./run-list.ts";
 import { RunDot } from "./run-marks.tsx";
 import { RunRemove } from "./run-remove.tsx";
-import {
-	costLabel,
-	hubQueueLabel,
-	runRemoveCopy,
-	runResultLabel,
-	runStatusLabel,
-} from "./terms.ts";
+import { costLabel, hubQueueLabel, runRemoveCopy } from "./run-terms.ts";
+import { runResultLabel, runStatusLabel } from "./terms.ts";
 import { shortKey } from "./ticket-key.ts";
 import { colours, space } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
