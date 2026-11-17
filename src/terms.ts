@@ -231,6 +231,9 @@ export const steerLabel = "Steer the run";
 export const steerFailed = "Steer failed";
 
 export const toastCloseLabel = "Close message";
+export const reloadLabel = "Reload";
+export const restartedMessage =
+	"Project Flow restarted. Reload to get the new version.";
 
 export const copyTextCopy = {
 	action: (text: string, name?: string) =>

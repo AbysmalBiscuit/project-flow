@@ -140,6 +140,7 @@ function invalidConfiguration(error: unknown): Response {
 export async function start(options: StartOptions): Promise<Running> {
 	const opened = sqliteStore(options.databasePath);
 	const notifier = memoryNotifier();
+	const boot = crypto.randomUUID();
 	const clock = { now: options.now ?? (() => new Date()) };
 	const configurationPort = {
 		read: () => loadConfiguration(options.configPath),
@@ -648,14 +649,17 @@ export async function start(options: StartOptions): Promise<Running> {
 				"/api/events": {
 					GET: (request: Request) => {
 						server.timeout(request, 0);
-						return eventStream(notifier, () =>
-							pollOptions.progress === null
-								? null
-								: {
-										overview: runningOverview(pollOptions, configuration),
-										notifications: [],
-										progress: pollOptions.progress,
-									},
+						return eventStream(
+							notifier,
+							() =>
+								pollOptions.progress === null
+									? null
+									: {
+											overview: runningOverview(pollOptions, configuration),
+											notifications: [],
+											progress: pollOptions.progress,
+										},
+							boot,
 						);
 					},
 				},

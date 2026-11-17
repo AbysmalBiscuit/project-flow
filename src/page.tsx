@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { watchServerBoot } from "./boot-reload.tsx";
 import { mountJumpBox } from "./jump.tsx";
 import { watchNotifications } from "./notify.tsx";
 import { mountPage } from "./page-cache.ts";
@@ -13,6 +14,7 @@ import { applyPageTheme, pageTheme } from "./theme.ts";
 import "./global.css";
 
 watchNotifications();
+watchServerBoot();
 mountJumpBox();
 mountShortcutsDialog();
 installPageLinks();
