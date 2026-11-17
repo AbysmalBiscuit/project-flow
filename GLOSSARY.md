@@ -30,8 +30,15 @@ _Avoid_: Issue, task, item
 A request on a forge to merge one branch into another. Project Flow uses this term for a GitHub pull request, a GitLab merge request and a Forgejo pull request.
 _Avoid_: Merge request, MR
 
+**Link word**:
+A word in a PR body that links the PR to a ticket, such as `Closes` or `Refs`. The tracker of the ticket decides what the word does. A closing word, such as `Closes`, `Fixes` or `Completes`, makes the PR close the ticket. A reference word, such as Linear's `Refs` or `Part of`, only references the ticket.
+_Avoid_: Magic word, keyword
+
+**Closing PR**:
+A PR that closes a ticket, through a closing word, a tracker attachment, or its branch name. Only a closing PR sets the state of its ticket. A reference word for the ticket in the PR body overrides the attachment and the branch name.
+
 **Unlinked PR**:
-An open PR that links to no ticket, through a closing reference, a tracker attachment, or its branch name. The board, the graph and the table show each unlinked PR as a card in the "Unlinked PRs" group. The card shows the PR number, the title and the link. The review cycle sets its state: In progress for a draft, In review, or Awaiting merge. The card sits in the lane of that state, and the Ticket filter applies to it as to a ticket.
+An open PR that links to no ticket through a link word, a tracker attachment, or its branch name. The board, the graph and the table show each unlinked PR as a card in the "Unlinked PRs" group. The card shows the PR number, the title and the link. The review cycle sets its state: In progress for a draft, In review, or Awaiting merge. The card sits in the lane of that state, and the Ticket filter applies to it as to a ticket.
 _Avoid_: Orphan PR, loose PR
 
 **Tracker**:

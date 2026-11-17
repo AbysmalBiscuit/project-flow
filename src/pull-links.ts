@@ -1,55 +1,53 @@
 import type { PullRequest, Ticket, TrackerKind } from "./domain.ts";
+import { bodyLinks, type LinkRelation } from "./link-words.ts";
 import type { Forge, PullLink, PullRef, PullTarget } from "./ports.ts";
-import {
-	foldKey,
-	keyNumber,
-	keyRepo,
-	numberedKey,
-	repoPathPattern,
-	sameTicketKey,
-	teamKey,
-} from "./ticket-key.ts";
+import { foldKey, keyNumber, keyRepo, sameTicketKey } from "./ticket-key.ts";
 
-const closing = new RegExp(
-	String.raw`\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s*(?:(${repoPathPattern})#(\d+)|#(\d+)|([A-Za-z][A-Za-z0-9]*)-(\d+))\b`,
-	"gi",
-);
-
-/** The keys that the closing references of a PR body name. A bare `#number` takes `repo`. */
-export function closingKeys(body: string, repo: string): string[] {
-	const keys: string[] = [];
-	for (const match of body.matchAll(closing)) {
-		const namedRepo = match[1];
-		const namedNumber = match[2];
-		const bareNumber = match[3];
-		const team = match[4];
-		const linearNumber = match[5];
-		const key =
-			namedRepo !== undefined && namedNumber !== undefined
-				? numberedKey(namedRepo, namedNumber)
-				: bareNumber !== undefined
-					? numberedKey(repo, bareNumber)
-					: team !== undefined && linearNumber !== undefined
-						? teamKey(team, linearNumber)
-						: null;
-		if (key !== null && !keys.includes(key)) {
-			keys.push(key);
-		}
-	}
-	return keys;
+/**
+ * The folded keys that a PR body closes under the words of `tracker`, in body
+ * order. A bare `#number` takes `repo`.
+ */
+export function closingKeys(
+	body: string,
+	repo: string,
+	tracker: TrackerKind,
+): string[] {
+	return closedIn(bodyLinks(body, repo, tracker));
 }
 
-const bodyClosingKeys = new WeakMap<PullRequest, string[]>();
+function closedIn(links: Map<string, Set<LinkRelation>>): string[] {
+	return [...links]
+		.filter(([, relations]) => relations.has("closes"))
+		.map(([key]) => key);
+}
 
-/** The keys that the body of a pull closes, parsed once for each pull. */
-function closedByBody(pull: PullRequest): string[] {
-	const stored = bodyClosingKeys.get(pull);
+const bodyLinkTable = new WeakMap<
+	PullRequest,
+	Map<TrackerKind, Map<string, Set<LinkRelation>>>
+>();
+
+/** The links of a pull body under the link words of `tracker`, parsed once per pull and tracker. */
+function linksOf(
+	pull: PullRequest,
+	tracker: TrackerKind,
+): Map<string, Set<LinkRelation>> {
+	let byTracker = bodyLinkTable.get(pull);
+	if (byTracker === undefined) {
+		byTracker = new Map();
+		bodyLinkTable.set(pull, byTracker);
+	}
+	const stored = byTracker.get(tracker);
 	if (stored !== undefined) {
 		return stored;
 	}
-	const keys = closingKeys(pull.body, pull.repo);
-	bodyClosingKeys.set(pull, keys);
-	return keys;
+	const links = bodyLinks(pull.body, pull.repo, tracker);
+	byTracker.set(tracker, links);
+	return links;
+}
+
+/** The folded keys that the body of a pull closes under the words of `tracker`. */
+function closedByBody(pull: PullRequest, tracker: TrackerKind): string[] {
+	return closedIn(linksOf(pull, tracker));
 }
 
 const leadingNumber = /^(?:[^/]+\/)?(\d+)-/;
@@ -67,17 +65,33 @@ export function branchLinksTicket(
 	return tracker === "github" && foldKey(branch).includes(foldKey(key));
 }
 
-/** Finds the pulls that close a ticket key or name it in their branch, in pull order. */
+type PullsOfKey = { closes: PullRequest[]; refs: PullRequest[] };
+
+/**
+ * Finds the pulls of one tracker's ticket key: the pulls that close the key or
+ * name it in their branch, and the pulls that only reference it, each in pull
+ * order. A pull whose body references a key without closing it never closes
+ * that key, whatever else names the key.
+ */
 function pullFinder(
 	pulls: PullRequest[],
-): (key: string, tracker: TrackerKind) => PullRequest[] {
+	tracker: TrackerKind,
+): (key: string) => PullsOfKey {
 	const byKey = new Map<string, number[]>();
+	const byReference = new Map<string, number[]>();
 	const byBranchNumber = new Map<string, number[]>();
 	const unnumbered: number[] = [];
 	pulls.forEach((pull, position) => {
-		const keys = new Set(
-			[...pull.closingKeys, ...closedByBody(pull)].map((key) => foldKey(key)),
-		);
+		const links = linksOf(pull, tracker);
+		for (const [key, relations] of links) {
+			if (!relations.has("closes")) {
+				byReference.set(key, [...(byReference.get(key) ?? []), position]);
+			}
+		}
+		const keys = new Set([
+			...pull.closingKeys.map((key) => foldKey(key)),
+			...closedByBody(pull, tracker),
+		]);
 		for (const key of keys) {
 			byKey.set(key, [...(byKey.get(key) ?? []), position]);
 		}
@@ -91,33 +105,65 @@ function pullFinder(
 			]);
 		}
 	});
-	return (key, tracker) => {
+	return (key) => {
 		const number = keyNumber(key);
-		const positions = new Set([
-			...(byKey.get(foldKey(key)) ?? []),
-			...(number === null ? [] : (byBranchNumber.get(number) ?? [])),
-			...unnumbered.filter((position) =>
-				branchLinksTicket(pulls[position]?.branch ?? "", key, tracker),
-			),
-		]);
-		return [...positions]
-			.sort((left, right) => left - right)
-			.flatMap((position) => pulls[position] ?? []);
+		const referencing = new Set(byReference.get(foldKey(key)) ?? []);
+		const closing = new Set(
+			[
+				...(byKey.get(foldKey(key)) ?? []),
+				...(number === null ? [] : (byBranchNumber.get(number) ?? [])),
+				...unnumbered.filter((position) =>
+					branchLinksTicket(pulls[position]?.branch ?? "", key, tracker),
+				),
+			].filter((position) => !referencing.has(position)),
+		);
+		const inPullOrder = (positions: Set<number>) =>
+			[...positions]
+				.sort((left, right) => left - right)
+				.flatMap((position) => pulls[position] ?? []);
+		return {
+			closes: inPullOrder(closing),
+			refs: inPullOrder(referencing),
+		};
 	};
 }
 
-const pullFinders = new WeakMap<PullRequest[], ReturnType<typeof pullFinder>>();
+const pullFinders = new WeakMap<
+	PullRequest[],
+	Map<TrackerKind, ReturnType<typeof pullFinder>>
+>();
 
-export function linked(ticket: Ticket, pulls: PullRequest[]): PullRequest[] {
+function findPulls(ticket: Ticket, pulls: PullRequest[]): PullsOfKey {
 	if (ticket.key === null) {
-		return [];
+		return { closes: [], refs: [] };
 	}
-	let find = pullFinders.get(pulls);
+	let finders = pullFinders.get(pulls);
+	if (finders === undefined) {
+		finders = new Map();
+		pullFinders.set(pulls, finders);
+	}
+	let find = finders.get(ticket.tracker);
 	if (find === undefined) {
-		find = pullFinder(pulls);
-		pullFinders.set(pulls, find);
+		find = pullFinder(pulls, ticket.tracker);
+		finders.set(ticket.tracker, find);
 	}
-	return find(ticket.key, ticket.tracker);
+	return find(ticket.key);
+}
+
+/** The pulls that close the ticket, in pull order. */
+export function linked(ticket: Ticket, pulls: PullRequest[]): PullRequest[] {
+	return findPulls(ticket, pulls).closes;
+}
+
+/**
+ * The pulls that name the ticket without closing it, in pull order. Such a pull
+ * is linked to the ticket but does not set its state.
+ */
+export function referencing(
+	ticket: Ticket,
+	pulls: PullRequest[],
+): PullRequest[] {
+	return findPulls(ticket, pulls).refs;
 }
 
 /**
@@ -159,7 +205,7 @@ export function closesTicket(pull: PullRequest, ticket: Ticket): boolean {
 		return false;
 	}
 	const hosted = ticket.tracker === "forgejo" ? pull.host : undefined;
-	return closedByBody(pull).some((item) =>
+	return closedByBody(pull, ticket.tracker).some((item) =>
 		sameTicketKey(
 			hosted === undefined || keyRepo(item) === null
 				? item

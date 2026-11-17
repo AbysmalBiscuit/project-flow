@@ -20,7 +20,7 @@ import {
 } from "./lanes.ts";
 import { ticketRelations } from "./links.ts";
 import { awaitingPull, type PullActionsOf } from "./merge-gate.ts";
-import { linked } from "./pull-links.ts";
+import { linked, referencing } from "./pull-links.ts";
 import {
 	type AutoMergeSources,
 	mergesOnItsOwn,
@@ -94,8 +94,10 @@ export function walkTickets(walk: TicketWalk) {
 	for (const ticket of tickets) {
 		const blockers = openBlockers(ticket, graph);
 		const links = linked(ticket, pulls);
-		for (const pull of links) {
+		for (const pull of [...links, ...referencing(ticket, pulls)]) {
 			linkedIds.add(pullId(pull));
+		}
+		for (const pull of links) {
 			if (progressNamesPull(ticket.comments ?? [], pull)) {
 				workcellPulls.add(pullId(pull));
 			}
