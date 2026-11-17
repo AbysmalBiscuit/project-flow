@@ -29,7 +29,9 @@ import {
 import { panel } from "./panel-styles.ts";
 import { pathProject, projectPath } from "./paths.ts";
 import { MergeButton, usePullMerge } from "./pull-merge.tsx";
-import { pageQuery, pageQueryClient, usePostReply } from "./queries.ts";
+import { usePostReply } from "./queries-actions.ts";
+import { pageQueryClient } from "./queries-client.ts";
+import { pageQuery } from "./queries-page.ts";
 import { RunAction } from "./run-action.tsx";
 import { QueuedChip } from "./run-marks.tsx";
 import { RunStartButton } from "./run-start-button.tsx";

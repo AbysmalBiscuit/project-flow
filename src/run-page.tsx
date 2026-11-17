@@ -14,7 +14,7 @@ import {
 } from "./page-links.ts";
 import { commentTime, elapsed, RunFact, runTime } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
-import { pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries-page.ts";
 import { RunAction } from "./run-action.tsx";
 import { RunArtifacts } from "./run-artifacts.tsx";
 import { NotServed, RunStages, RunUsage } from "./run-checkpoint.tsx";

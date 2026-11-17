@@ -5,7 +5,7 @@ import { useState } from "react";
 import { board } from "./board-styles.ts";
 import type { ShownFactoryRun } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
-import { pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries-page.ts";
 import { useSteerRun } from "./run-mutations.ts";
 import { blurOnEscape, SendButton, SendText } from "./send-box.tsx";
 import { steerFailed, steerLabel } from "./terms.ts";

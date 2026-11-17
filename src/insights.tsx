@@ -6,11 +6,8 @@ import { Button } from "./button.tsx";
 import { ConfirmDialog } from "./confirm-dialog.tsx";
 import { control } from "./control-styles.ts";
 import { PageLoading } from "./loading.tsx";
-import {
-	pageQuery,
-	useInsightQuery,
-	useSavedInsightChange,
-} from "./queries.ts";
+import { useInsightQuery, useSavedInsightChange } from "./queries-insights.ts";
+import { pageQuery } from "./queries-page.ts";
 import type { InsightAnswer, InsightValue } from "./run-history.ts";
 import type { SavedInsight } from "./saved-insights.ts";
 import { PageFrame } from "./shell.tsx";

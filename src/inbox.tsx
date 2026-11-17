@@ -12,7 +12,7 @@ import {
 	notificationPermission,
 } from "./notify.tsx";
 import { TicketPanel } from "./panel.tsx";
-import { pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries-page.ts";
 import { Segment } from "./segment.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { PageFrame, PollStatus } from "./shell.tsx";

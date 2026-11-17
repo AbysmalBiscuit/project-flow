@@ -54,13 +54,10 @@ import {
 } from "./poll-freshness.tsx";
 import { SegmentedBar, ticketTotal } from "./progress-bar.tsx";
 import { cardPinWrite, markPinned } from "./project-pins.ts";
-import {
-	configurationOf,
-	pageQuery,
-	pageQueryClient,
-	type SettingsPatch,
-	useSaveSettings,
-} from "./queries.ts";
+import { pageQueryClient } from "./queries-client.ts";
+import { pageQuery } from "./queries-page.ts";
+import { type SettingsPatch, useSaveSettings } from "./queries-settings.ts";
+import { configurationOf } from "./queries-shapes.ts";
 import { PageFrame, type PageView } from "./shell.tsx";
 import { stateTones } from "./state-tone.ts";
 import { storeHoldsRead } from "./stored-page.ts";

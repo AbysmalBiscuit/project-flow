@@ -4,7 +4,7 @@ import { control } from "./control-styles.ts";
 import type { PollProgress } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
 import { usePollAge } from "./poll-age.ts";
-import { pageQueryClient } from "./queries.ts";
+import { pageQueryClient } from "./queries-client.ts";
 import { RefreshGlyph } from "./shell.tsx";
 import { overviewControlLabel } from "./terms.ts";
 import { headerControlStyle } from "./ui-styles.ts";

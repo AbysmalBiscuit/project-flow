@@ -8,7 +8,7 @@ import type { FactoryEntry } from "./factories.ts";
 import { takesClaim } from "./factory-claim.ts";
 import { panel } from "./panel-styles.ts";
 import { MergeButton } from "./pull-merge.tsx";
-import { pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries-page.ts";
 import { useStartRun } from "./run-mutations.ts";
 import { runStartCopy } from "./run-terms.ts";
 import { SplitButton, type SplitChoice } from "./split-button.tsx";

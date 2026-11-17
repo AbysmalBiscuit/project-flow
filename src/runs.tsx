@@ -8,7 +8,7 @@ import { Dropdown, MultiDropdown } from "./dropdown.tsx";
 import { runResults, runStatusKinds } from "./kinds.ts";
 import { PageLoading } from "./loading.tsx";
 import { needs } from "./needs-you-styles.ts";
-import { pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries-page.ts";
 import type { RunListRow } from "./run-list.ts";
 import { RunRow } from "./run-row.tsx";
 import { runsColumnLabel, runsListCopy } from "./run-terms.ts";

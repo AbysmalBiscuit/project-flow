@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 
 import type { StatusColours } from "./domain.ts";
 import { categoryColours, defaultStates } from "./lane-views.ts";
-import { pageQuery, pageQueryClient } from "./queries.ts";
+import { pageQueryClient } from "./queries-client.ts";
+import { pageQuery } from "./queries-page.ts";
 import { readStoredStateColours, storedObject } from "./stored-page.ts";
 import { stateColours, stateValues } from "./tokens.stylex.ts";
 

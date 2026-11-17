@@ -2,7 +2,8 @@ import { queryOptions } from "@tanstack/react-query";
 
 import type { StageTranscript } from "./domain.ts";
 import type { TranscriptRead } from "./factory-run-transcript.ts";
-import { agentReadMs, pageQueryClient } from "./queries.ts";
+import { pageQueryClient } from "./queries-client.ts";
+import { agentReadMs } from "./queries-page.ts";
 
 /** The page queries of the stage view. */
 export const stageQuery = {

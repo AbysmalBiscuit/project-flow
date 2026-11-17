@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import type { RemoveAction, Steer } from "./factory-run-actions.ts";
 import { openPage, runPagePath, runsPath } from "./page-links.ts";
-import { pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries-page.ts";
 
 /**
  * Add the ready label of a factory to a ticket, so the hub starts a run of it.

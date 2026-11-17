@@ -10,7 +10,7 @@ import type {
 } from "./domain.ts";
 import { Loading } from "./loading.tsx";
 import { panel } from "./panel-styles.ts";
-import { pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries-page.ts";
 import { StageDetail } from "./run-stage-view.tsx";
 import {
 	liveStage,

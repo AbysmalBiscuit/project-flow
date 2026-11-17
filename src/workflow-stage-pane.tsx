@@ -4,7 +4,7 @@ import { edgeText } from "./graph-workflow.ts";
 import { RunFact } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
 import type { RunGraph, RunGraphNode } from "./run-domain.ts";
-import { roleInkOf } from "./run-graph.tsx";
+import { roleInkOf } from "./run-graph-outline.tsx";
 import { openGraphLabel, stageKindLabel } from "./run-terms.ts";
 import { SidePane } from "./side-pane.tsx";
 import { colours, font, radius, space, type } from "./tokens.stylex.ts";
