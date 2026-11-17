@@ -1,10 +1,14 @@
 import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
+import { Fragment, useState } from "react";
 
+import { Button } from "./button.tsx";
+import { listDetail } from "./list-detail-styles.ts";
 import { pageQuery } from "./queries-page.ts";
 import type {
 	FrictionGroup,
 	RetroDetail,
+	RetroRow,
 	RetroStage,
 	RunRetro,
 } from "./retros-page.ts";
@@ -34,22 +38,119 @@ function NoteSection({ title }: { title: string }) {
 	);
 }
 
-export function FrictionGroups({ groups }: { groups: FrictionGroup[] }) {
+export function FrictionGroups({
+	groups,
+	blank,
+	runs,
+	picked,
+	onPick,
+	onFilter,
+}: {
+	groups: FrictionGroup[];
+	blank: number;
+	runs: RetroRow[];
+	picked: string | null;
+	onPick: (id: string) => void;
+	onFilter: (cause: string) => void;
+}) {
+	const [openCause, setOpenCause] = useState<string | null>(null);
 	if (groups.length === 0) {
 		return <p className={clsx(styles.empty)}>{retrosCopy.noFriction}</p>;
 	}
+	const { columns } = retrosCopy;
+	const rowById = new Map(runs.map((row) => [row.id, row]));
 	return (
-		<ul className={clsx(styles.list)}>
-			{groups.map((group) => (
-				<li key={`${group.kind} ${group.cause}`} className={clsx(styles.item)}>
-					<span className={clsx(styles.pill)}>{group.kind}</span>
-					<span className={clsx(styles.itemBody)}>{group.cause}</span>
-					<span className={clsx(styles.where)}>
-						{retrosCopy.runCount(group.runs)}
-					</span>
-				</li>
-			))}
-		</ul>
+		<div className={clsx(styles.scroll)}>
+			<table className={clsx(styles.table)}>
+				<thead>
+					<tr>
+						<th className={clsx(styles.th)}>{columns.kind}</th>
+						<th className={clsx(styles.th)}>{columns.cause}</th>
+						<th className={clsx(styles.th, styles.number)}>{columns.runs}</th>
+					</tr>
+				</thead>
+				<tbody>
+					{groups.map((group) => {
+						const key = `${group.kind} ${group.cause}`;
+						const open = openCause === key;
+						return (
+							<Fragment key={key}>
+								<tr
+									className={clsx(styles.row)}
+									onClick={() => setOpenCause(open ? null : key)}
+								>
+									<td className={clsx(styles.td)}>
+										<button
+											type="button"
+											aria-expanded={open}
+											className={clsx(styles.link)}
+										>
+											{open ? "▾" : "▸"}
+										</button>{" "}
+										<span className={clsx(styles.pill)}>{group.kind}</span>
+									</td>
+									<td className={clsx(styles.td)}>{group.cause}</td>
+									<td className={clsx(styles.td, styles.number)}>
+										{group.runs}
+									</td>
+								</tr>
+								{open ? (
+									<tr>
+										<td colSpan={3} className={clsx(styles.expand)}>
+											<div className={clsx(styles.kicker)}>
+												{retrosCopy.hitRuns(group.runIds.length)}
+											</div>
+											<div className={clsx(styles.hits)}>
+												{group.runIds.map((id) => {
+													const row = rowById.get(id);
+													return (
+														<button
+															key={id}
+															type="button"
+															className={clsx(
+																styles.hit,
+																id === picked && listDetail.rowPicked,
+															)}
+															onClick={() => onPick(id)}
+														>
+															<span>
+																{row === undefined || row.ticket === null
+																	? id
+																	: ticketLabel(row.ticket)}
+															</span>
+															{row === undefined ? null : (
+																<SmoothnessPill level={row.smoothness} />
+															)}
+														</button>
+													);
+												})}
+											</div>
+											<div className={clsx(styles.section)}>
+												<Button
+													label={retrosCopy.filterRuns(group.runIds.length)}
+													onClick={() => onFilter(group.cause)}
+												/>
+											</div>
+										</td>
+									</tr>
+								) : null}
+							</Fragment>
+						);
+					})}
+					{Array.from({ length: blank }, (_, index) => (
+						<tr
+							// biome-ignore lint/suspicious/noArrayIndexKey: blank rows have no identity
+							key={index}
+							className={clsx(styles.fixedRow)}
+						>
+							<td className={clsx(styles.td)} />
+							<td className={clsx(styles.td)} />
+							<td className={clsx(styles.td)} />
+						</tr>
+					))}
+				</tbody>
+			</table>
+		</div>
 	);
 }
 
@@ -141,7 +242,13 @@ function FrictionPoints({ retro }: { retro: RetroDetail }) {
 	);
 }
 
-export function RunRetroCard({ runId }: { runId: string }) {
+export function RunRetroCard({
+	runId,
+	outside,
+}: {
+	runId: string;
+	outside: boolean;
+}) {
 	const query = useQuery(pageQuery.retrosRun(runId));
 	const run: RunRetro | undefined = query.data;
 	if (run === undefined) {
@@ -159,6 +266,11 @@ export function RunRetroCard({ runId }: { runId: string }) {
 			}
 			head={
 				<>
+					{outside ? (
+						<span className={clsx(styles.pill)}>
+							{retrosCopy.outsideFilter}
+						</span>
+					) : null}
 					<Source>{retrosCopy.sources.route}</Source>
 					<Source need next>
 						{retrosCopy.notesSource}

@@ -250,4 +250,30 @@ export const styles = stylex.create({
 		color: colours.inkSoft,
 		fontSize: type.small,
 	},
+	fixedRow: {
+		height: measure.listRow,
+	},
+	expand: {
+		padding: space.sm,
+		backgroundColor: colours.page,
+	},
+	hits: {
+		display: "flex",
+		flexWrap: "wrap",
+		gap: space.sm,
+	},
+	hit: {
+		display: "inline-flex",
+		alignItems: "center",
+		gap: space.xs,
+		padding: `${space.xs} ${space.sm}`,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.laneLine,
+		borderRadius: radius.sm,
+		backgroundColor: colours.raised,
+		color: colours.ink,
+		fontSize: type.menu,
+		cursor: "pointer",
+	},
 });
