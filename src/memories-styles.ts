@@ -3,12 +3,12 @@ import * as stylex from "@stylexjs/stylex";
 import { colours, font, measure, media, space, type } from "./tokens.stylex.ts";
 
 export const styles = stylex.create({
-	repos: {
+	panes: {
 		display: "grid",
 		gap: space.lg,
-		marginBottom: space.lg,
+		alignItems: "start",
 		gridTemplateColumns: {
-			default: "minmax(0, 1fr) minmax(0, 1fr)",
+			default: `${measure.memoryRepos} minmax(0, 1.2fr) minmax(0, 1fr)`,
 			[media.phone]: "minmax(0, 1fr)",
 		},
 	},

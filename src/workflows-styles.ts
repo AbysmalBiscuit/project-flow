@@ -10,13 +10,6 @@ import {
 } from "./tokens.stylex.ts";
 
 export const styles = stylex.create({
-	cards: {
-		display: "grid",
-		// At most three cards per row, and fewer when a card would get narrower than its minimum.
-		gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, max(${measure.workflowCardMin}, calc((100% - 2 * ${space.lg}) / 3))), 1fr))`,
-		gap: space.lg,
-		marginBottom: space.lg,
-	},
 	card: {
 		boxSizing: "border-box",
 		minWidth: 0,
@@ -26,6 +19,9 @@ export const styles = stylex.create({
 		borderColor: colours.laneLine,
 		borderRadius: radius.md,
 		backgroundColor: colours.raised,
+	},
+	flash: {
+		outline: `${measure.focus} solid ${colours.accent}`,
 	},
 	head: {
 		display: "flex",

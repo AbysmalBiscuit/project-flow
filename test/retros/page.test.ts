@@ -210,14 +210,29 @@ test("the recorded retros give the run list, and the filter keeps only rough or 
 	}
 });
 
-test("the friction points across runs group by kind and cause, with the count of runs", async () => {
+test("the friction points across runs group by kind and cause, with the runs that hit them", async () => {
 	const app = await serveAt(recorded);
 	try {
 		const page = await pageWhere(app.base, (found) => found.runs.length === 3);
 		expect(page.friction).toEqual([
-			{ kind: "retry", cause: "tests failed", runs: 2 },
-			{ kind: "question", cause: "post_pr/rebase_held", runs: 1 },
-			{ kind: "failure", cause: "stage review failed", runs: 1 },
+			{
+				kind: "retry",
+				cause: "tests failed",
+				runs: 2,
+				runIds: ["20261025-120000-a7b8", "20261025-110000-b9c0"],
+			},
+			{
+				kind: "question",
+				cause: "post_pr/rebase_held",
+				runs: 1,
+				runIds: ["20261025-130511-c3d4"],
+			},
+			{
+				kind: "failure",
+				cause: "stage review failed",
+				runs: 1,
+				runIds: ["20261025-120000-a7b8"],
+			},
 		]);
 	} finally {
 		await app.stop();

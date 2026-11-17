@@ -1,6 +1,7 @@
 import type * as stylex from "@stylexjs/stylex";
 
 import { textControl } from "./control-styles.ts";
+import { listDetail } from "./list-detail-styles.ts";
 import { retroPagePath } from "./page-links.ts";
 import type { RetroRow } from "./retros-page.ts";
 import { lost, SmoothnessPill, span } from "./retros-parts.tsx";
@@ -15,21 +16,19 @@ export const pickedRun = (): string | null =>
 
 export function RunsTable({
 	runs,
+	blank,
 	picked,
 	onPick,
-	roughOrWorse,
+	empty,
 }: {
 	runs: RetroRow[];
+	blank: number;
 	picked: string | null;
 	onPick: (id: string) => void;
-	roughOrWorse: boolean;
+	empty: string;
 }) {
 	if (runs.length === 0) {
-		return (
-			<p className={clsx(styles.empty)}>
-				{roughOrWorse ? retrosCopy.noRough : retrosCopy.noRuns}
-			</p>
-		);
+		return <p className={clsx(styles.empty)}>{empty}</p>;
 	}
 	const { columns } = retrosCopy;
 	return (
@@ -52,22 +51,24 @@ export function RunsTable({
 				</thead>
 				<tbody>
 					{runs.map((run, index) => {
-						const last = index === runs.length - 1;
+						const last = index === runs.length - 1 && blank === 0;
 						const cell = (...more: (stylex.StyleXStyles | false)[]) =>
 							clsx(styles.td, last && styles.lastRow, ...more);
 						return (
 							<tr
 								key={run.id}
-								className={clsx(styles.row, run.id === picked && styles.rowOn)}
+								className={clsx(
+									styles.row,
+									run.id === picked && listDetail.rowPicked,
+								)}
+								onClick={() => onPick(run.id)}
+								aria-selected={run.id === picked}
 							>
 								<td className={cell(styles.nowrap)}>
 									<a
 										href={retroPagePath(run.id)}
 										className={clsx(styles.link, ...textControl)}
-										onClick={(event) => {
-											event.preventDefault();
-											onPick(run.id);
-										}}
+										onClick={(event) => event.preventDefault()}
 									>
 										{ticketLabel(run.ticket)}
 									</a>
@@ -89,6 +90,13 @@ export function RunsTable({
 							</tr>
 						);
 					})}
+					{Array.from({ length: blank }, (_, index) => (
+						<tr
+							// biome-ignore lint/suspicious/noArrayIndexKey: blank rows have no identity
+							key={index}
+							className={clsx(styles.fixedRow)}
+						/>
+					))}
 				</tbody>
 			</table>
 		</div>

@@ -573,6 +573,58 @@ describe("settings", () => {
 		});
 	});
 
+	test("the Memories tab saves its last state tab without a tracker poll and survives a restart", async () => {
+		const memoriesView = { tab: "conflicting" } as const;
+		await withApp(
+			JSON.stringify({ pinned: [] }),
+			async (base, path, requests) => {
+				const before = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(before.memoriesView).toEqual({ tab: "all" });
+				const seen = requests.length;
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ ...before, memoriesView }),
+				});
+				expect(saved.status).toBe(200);
+				expect(((await saved.json()) as Configuration).memoriesView).toEqual(
+					memoriesView,
+				);
+				expect(requests.length).toBe(seen);
+				await withAppFile(path, async (restarted) => {
+					const again = (await (
+						await fetch(new URL("/api/settings", restarted))
+					).json()) as Configuration;
+					expect(again.memoriesView).toEqual(memoriesView);
+				});
+			},
+		);
+	});
+
+	test("a Memories tab the page does not offer names the field and leaves the file", async () => {
+		await withApp(JSON.stringify({ pinned: [] }), async (base) => {
+			const before = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			const refused = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					...before,
+					memoriesView: { tab: "archived" },
+				}),
+			});
+			expect(refused.status).toBe(400);
+			expect(await refused.text()).toContain("memoriesView");
+			const after = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			expect(after.memoriesView).toEqual({ tab: "all" });
+		});
+	});
+
 	test("the board open view round-trips", async () => {
 		await withApp(JSON.stringify({ pinned: [] }), async (base) => {
 			const before = (await (

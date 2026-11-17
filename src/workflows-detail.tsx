@@ -2,6 +2,7 @@ import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { Button } from "./button.tsx";
 import { pageQuery } from "./queries-page.ts";
 import { colours, measure, space, type } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
@@ -47,7 +48,13 @@ const detailStyles = stylex.create({
 	},
 });
 
-export function Detail({ card }: { card: WorkflowCard }) {
+export function Detail({
+	card,
+	onClose,
+}: {
+	card: WorkflowCard;
+	onClose: () => void;
+}) {
 	const [picked, setTab] = useState<Tab>("diagram");
 	const detail = useQuery(pageQuery.workflow(card.package, card.sha)).data;
 	const roles = detail?.roles ?? null;
@@ -56,6 +63,7 @@ export function Detail({ card }: { card: WorkflowCard }) {
 	return (
 		<section className={clsx(styles.card)} aria-label={card.package}>
 			<div className={clsx(styles.head)}>
+				<Button label={workflowsCopy.backToTable} onClick={onClose} />
 				<h2 className={clsx(styles.heading)}>{card.package}</h2>
 				<Sha sha={card.sha} prefix />
 				<Since card={card} />

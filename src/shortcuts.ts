@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { isTextBox } from "./focus.ts";
+import { isTextBox, menuOwnsEscape } from "./focus.ts";
 
 /** A key press: `code` is `KeyboardEvent.code`, so Shift does not change the key. `ctrl` also matches Cmd. */
 export type Combo = { code: string; ctrl?: true; shift?: true };
@@ -74,6 +74,36 @@ export const shortcuts = {
 		label: "Copy PR URL",
 		combo: { code: "Comma", ctrl: true, shift: true },
 	},
+	pickPrevious: {
+		group: "Lists",
+		label: "Pick the previous row",
+		combo: { code: "ArrowUp" },
+	},
+	pickNext: {
+		group: "Lists",
+		label: "Pick the next row",
+		combo: { code: "ArrowDown" },
+	},
+	closeDetail: {
+		group: "Lists",
+		label: "Close the detail",
+		combo: { code: "Escape" },
+	},
+	selectMemory: {
+		group: "Memories",
+		label: "Add or remove a memory from the selection",
+		keys: ["Ctrl", "Click"],
+	},
+	selectMemoryRange: {
+		group: "Memories",
+		label: "Select the memories between the last pick and this one",
+		keys: ["Shift", "Click"],
+	},
+	clearMemorySelection: {
+		group: "Memories",
+		label: "Clear the memory selection",
+		combo: { code: "Escape" },
+	},
 } as const satisfies Record<string, Shortcut>;
 
 export type ShortcutId = keyof typeof shortcuts;
@@ -83,6 +113,8 @@ const codeLabel: Record<string, string> = {
 	Period: ".",
 	Comma: ",",
 	Escape: "Esc",
+	ArrowUp: "Up",
+	ArrowDown: "Down",
 };
 
 function keyLabel(code: string): string {
@@ -132,6 +164,7 @@ export function useShortcut(
 			if (!matchesShortcut(event, id)) return;
 			if (event.defaultPrevented) return;
 			if (!shortcut.inTextBox && isTextBox(event.target)) return;
+			if (event.code === "Escape" && menuOwnsEscape()) return;
 			event.preventDefault();
 			runRef.current();
 		};

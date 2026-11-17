@@ -1,16 +1,17 @@
 import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "./button.tsx";
 import { ConfirmDialog } from "./confirm-dialog.tsx";
 import { control } from "./control-styles.ts";
+import { Results, type ResultView } from "./insights-results.tsx";
 import { PageLoading } from "./loading.tsx";
 import { useInsightQuery, useSavedInsightChange } from "./queries-insights.ts";
 import { pageQuery } from "./queries-page.ts";
-import type { InsightAnswer, InsightValue } from "./run-history.ts";
 import type { SavedInsight } from "./saved-insights.ts";
 import { PageFrame } from "./shell.tsx";
+import { SqlEditor } from "./sql-editor.tsx";
 import { insightsCopy, navLabel } from "./terms.ts";
 import { TextInput } from "./text-input.tsx";
 import {
@@ -35,6 +36,11 @@ const styles = stylex.create({
 		alignItems: "start",
 		marginTop: space.sm,
 	},
+	stack: {
+		display: "flex",
+		flexDirection: "column",
+		gap: space.lg,
+	},
 	card: {
 		boxSizing: "border-box",
 		minWidth: 0,
@@ -53,8 +59,10 @@ const styles = stylex.create({
 		letterSpacing: type.kickerTrack,
 		textTransform: "uppercase",
 	},
-	mono: {
-		fontFamily: font.mono,
+	newQuery: {
+		display: "flex",
+		flexDirection: "column",
+		marginBottom: space.md,
 	},
 	tables: {
 		margin: 0,
@@ -135,17 +143,38 @@ const styles = stylex.create({
 	},
 	head: {
 		display: "flex",
-		flexWrap: "wrap",
+		flexWrap: "nowrap",
 		minHeight: measure.control,
 		gap: space.sm,
 		alignItems: "center",
 		marginBottom: space.md,
 	},
-	heading: {
+	name: {
+		boxSizing: "border-box",
+		width: "100%",
+		minWidth: 0,
 		margin: 0,
+		padding: space.twoXs,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: {
+			default: "transparent",
+			":hover": colours.laneLine,
+		},
+		borderRadius: radius.menu,
+		backgroundColor: "transparent",
 		color: colours.ink,
+		fontFamily: font.sans,
 		fontSize: type.heading,
 		fontWeight: type.weight,
+		"::placeholder": {
+			color: colours.inkSoft,
+		},
+	},
+	dirty: {
+		color: colours.inkSoft,
+		fontSize: type.meta,
+		whiteSpace: "nowrap",
 	},
 	source: {
 		marginLeft: "auto",
@@ -157,24 +186,6 @@ const styles = stylex.create({
 		fontSize: type.tag,
 		whiteSpace: "nowrap",
 	},
-	editor: {
-		display: "block",
-		boxSizing: "border-box",
-		width: "100%",
-		minHeight: measure.insightEditor,
-		margin: 0,
-		padding: space.md,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.laneLine,
-		borderRadius: radius.menu,
-		backgroundColor: colours.surface,
-		color: colours.ink,
-		fontFamily: font.mono,
-		fontSize: type.small,
-		lineHeight: type.line,
-		resize: "vertical",
-	},
 	toolbar: {
 		display: "flex",
 		flexWrap: "wrap",
@@ -182,39 +193,12 @@ const styles = stylex.create({
 		alignItems: "center",
 		margin: `${space.md} 0`,
 	},
-	views: {
-		display: "inline-flex",
-		gap: space.twoXs,
-	},
-	view: {
-		padding: `${space.sm} ${space.md}`,
-		borderWidth: 0,
-		borderBottomWidth: measure.focus,
-		borderBottomStyle: "solid",
-		borderBottomColor: "transparent",
-		borderRadius: 0,
-		backgroundColor: "transparent",
-		color: colours.inkMuted,
-		fontFamily: font.sans,
-		fontSize: type.menu,
-		cursor: {
-			default: "pointer",
-			":disabled": "not-allowed",
-		},
-		opacity: {
-			default: null,
-			":disabled": 0.5,
-		},
-	},
-	viewOn: {
-		borderBottomColor: colours.ink,
-		color: colours.ink,
-		fontWeight: type.weight,
-	},
-	meta: {
+	actions: {
+		display: "flex",
+		flexWrap: "wrap",
+		gap: space.sm,
+		alignItems: "center",
 		marginLeft: "auto",
-		color: colours.inkSoft,
-		fontSize: type.meta,
 	},
 	note: {
 		margin: `0 0 ${space.sm}`,
@@ -228,208 +212,9 @@ const styles = stylex.create({
 		fontSize: type.small,
 		whiteSpace: "pre-wrap",
 	},
-	chart: {
-		display: "flex",
-		gap: space.lg,
-		height: measure.insightChart,
-		overflowX: "auto",
-		paddingInline: space.sm,
-	},
-	column: {
-		display: "grid",
-		gridTemplateRows: "minmax(0, 1fr) auto",
-		flex: "1 1 0",
-		minWidth: space.xl,
-		gap: space.twoXs,
-	},
-	plot: {
-		display: "flex",
-		flexDirection: "column",
-		justifyContent: "flex-end",
-		alignItems: "stretch",
-		minHeight: 0,
-		gap: space.twoXs,
-	},
-	value: {
-		color: colours.inkMuted,
-		fontSize: type.meta,
-		textAlign: "center",
-		fontVariantNumeric: "tabular-nums",
-	},
-	bar: (height: string) => ({
-		height,
-		borderRadius: `${radius.sm} ${radius.sm} 0 0`,
-		backgroundColor: colours.accent,
-	}),
-	label: {
-		overflow: "hidden",
-		color: colours.inkSoft,
-		fontSize: type.lane,
-		textAlign: "center",
-		textOverflow: "ellipsis",
-		whiteSpace: "nowrap",
-	},
-	scroll: {
-		overflowX: "auto",
-	},
-	table: {
-		width: "100%",
-		borderCollapse: "collapse",
-		fontVariantNumeric: "tabular-nums",
-	},
-	th: {
-		padding: `${space.sm} ${space.sm}`,
-		borderBottomWidth: measure.hairline,
-		borderBottomStyle: "solid",
-		borderBottomColor: colours.laneLine,
-		color: colours.inkSoft,
-		fontSize: type.lane,
-		fontWeight: type.weight,
-		letterSpacing: type.headTrack,
-		textAlign: "left",
-		textTransform: "uppercase",
-		whiteSpace: "nowrap",
-	},
-	td: {
-		padding: space.sm,
-		borderBottomWidth: measure.hairline,
-		borderBottomStyle: "solid",
-		borderBottomColor: colours.line,
-		color: colours.ink,
-		fontSize: type.menu,
-		verticalAlign: "middle",
-		whiteSpace: "nowrap",
-	},
-	number: {
-		textAlign: "right",
-	},
-	empty: {
-		color: colours.inkSoft,
-	},
 });
 
-type View = "chart" | "table";
-
-/** A bar chart fits a result of two columns whose second column holds only numbers. */
-function chartable(answer: InsightAnswer): boolean {
-	return (
-		answer.columns.length === 2 &&
-		answer.rows.length > 0 &&
-		answer.rows.every((row) => typeof row[1] === "number")
-	);
-}
-
-function shown(value: InsightValue): string {
-	return value === null ? "null" : String(value);
-}
-
-const decimals = new Intl.NumberFormat("en", {
-	maximumFractionDigits: 4,
-	useGrouping: false,
-});
-
-const smallDecimals = new Intl.NumberFormat("en", {
-	maximumSignificantDigits: 4,
-	useGrouping: false,
-});
-
-/** A table cell: a non-integer keeps at most 4 decimals, and a value under 1 keeps 4 significant digits. */
-function cell(value: InsightValue): string {
-	if (typeof value !== "number" || Number.isInteger(value)) {
-		return shown(value);
-	}
-	return (Math.abs(value) < 1 ? smallDecimals : decimals).format(value);
-}
-
-function BarChart({ rows }: { rows: InsightValue[][] }) {
-	const top = Math.max(...rows.map((row) => Math.abs(Number(row[1]))), 0);
-	return (
-		<div className={clsx(styles.chart)} role="img" aria-label="Bar chart">
-			{rows.map((row, index) => {
-				const value = Number(row[1]);
-				const share = top === 0 ? 0 : (Math.abs(value) / top) * 85;
-				return (
-					<div
-						// biome-ignore lint/suspicious/noArrayIndexKey: result rows have no identity
-						key={index}
-						className={clsx(styles.column)}
-						title={`${shown(row[0] ?? null)}: ${shown(row[1] ?? null)}`}
-					>
-						<div className={clsx(styles.plot)}>
-							<span className={clsx(styles.value)}>
-								{shown(row[1] ?? null)}
-							</span>
-							<div {...stylex.props(styles.bar(`${share}%`))} />
-						</div>
-						<span className={clsx(styles.label)}>{shown(row[0] ?? null)}</span>
-					</div>
-				);
-			})}
-		</div>
-	);
-}
-
-function ResultTable({ answer }: { answer: InsightAnswer }) {
-	return (
-		<div className={clsx(styles.scroll)}>
-			<table className={clsx(styles.table)}>
-				<thead>
-					<tr>
-						{answer.columns.map((column, index) => (
-							<th
-								// biome-ignore lint/suspicious/noArrayIndexKey: column names may repeat
-								key={index}
-								className={clsx(styles.th)}
-							>
-								{column}
-							</th>
-						))}
-					</tr>
-				</thead>
-				<tbody>
-					{answer.rows.map((row, rowIndex) => (
-						// biome-ignore lint/suspicious/noArrayIndexKey: result rows have no identity
-						<tr key={rowIndex}>
-							{row.map((value, index) => (
-								<td
-									// biome-ignore lint/suspicious/noArrayIndexKey: cells have no identity
-									key={index}
-									className={clsx(
-										styles.td,
-										typeof value === "number" && styles.number,
-										value === null && styles.empty,
-									)}
-								>
-									{cell(value)}
-								</td>
-							))}
-						</tr>
-					))}
-				</tbody>
-			</table>
-		</div>
-	);
-}
-
-function Result({ answer, view }: { answer: InsightAnswer; view: View }) {
-	if (answer.rows.length === 0) {
-		return <p className={clsx(styles.note)}>{insightsCopy.noRows}</p>;
-	}
-	return (
-		<>
-			{answer.truncated ? (
-				<p className={clsx(styles.note)}>{insightsCopy.cut(answer.rowCount)}</p>
-			) : null}
-			{view === "chart" && chartable(answer) ? (
-				<BarChart rows={answer.rows} />
-			) : (
-				<ResultTable answer={answer} />
-			)}
-		</>
-	);
-}
-
-type Dialog = "save" | "rename" | "delete" | null;
+type Dialog = "save" | "delete" | null;
 
 export function Page() {
 	const tables = useQuery(pageQuery.insightTables);
@@ -437,11 +222,16 @@ export function Page() {
 	const query = useInsightQuery();
 	const change = useSavedInsightChange();
 	const [sql, setSql] = useState("");
-	const [view, setView] = useState<View>("chart");
+	const [view, setView] = useState<ResultView | null>(null);
 	const [openId, setOpenId] = useState<number | null>(null);
 	const [openTable, setOpenTable] = useState<string | null>(null);
 	const [dialog, setDialog] = useState<Dialog>(null);
 	const [name, setName] = useState("");
+	const [draft, setDraft] = useState("");
+	const tableNames = useMemo(
+		() => new Set((tables.data?.tables ?? []).map((table) => table.name)),
+		[tables.data],
+	);
 	const queries = saved.data?.queries ?? [];
 	const open = queries.find((item) => item.id === openId) ?? null;
 	const runSql = (text: string) => {
@@ -453,7 +243,8 @@ export function Page() {
 		setOpenId(item.id);
 		setOpenTable(null);
 		setSql(item.sql);
-		setView("chart");
+		setDraft(item.name);
+		setView(null);
 		runSql(item.sql);
 	};
 	const previewTable = (table: string) => {
@@ -461,8 +252,23 @@ export function Page() {
 		setOpenId(null);
 		setOpenTable(table);
 		setSql(preview);
-		setView("table");
+		setDraft("");
+		setView(null);
 		runSql(preview);
+	};
+	const newQuery = () => {
+		setOpenId(null);
+		setOpenTable(null);
+		setSql("");
+		setDraft("");
+		setView(null);
+		query.reset();
+	};
+	const commitName = () => {
+		const next = draft.trim();
+		if (open !== null && next !== "" && next !== open.name) {
+			change.mutate({ kind: "change", id: open.id, name: next });
+		}
 	};
 	// The page opens on the first saved query, with its result.
 	const first = queries[0];
@@ -479,7 +285,6 @@ export function Page() {
 	};
 	const result = query.data;
 	const answer = result !== undefined && "rows" in result ? result : null;
-	const canChart = answer !== null && chartable(answer);
 	if (saved.isPending || tables.isPending) {
 		return (
 			<PageFrame title={navLabel.insights} subtitle={insightsCopy.subtitle}>
@@ -491,6 +296,13 @@ export function Page() {
 		<PageFrame title={navLabel.insights} subtitle={insightsCopy.subtitle}>
 			<div className={clsx(styles.grid)}>
 				<div className={clsx(styles.card)}>
+					<div className={clsx(styles.newQuery)}>
+						<Button
+							tone="strong"
+							label={insightsCopy.newQuery}
+							onClick={newQuery}
+						/>
+					</div>
 					<section aria-label={insightsCopy.savedQueries}>
 						<h2 className={clsx(styles.kicker)}>{insightsCopy.savedQueries}</h2>
 						{saved.isSuccess && queries.length === 0 ? (
@@ -551,154 +363,111 @@ export function Page() {
 						</ul>
 					</section>
 				</div>
-				<section
-					className={clsx(styles.card)}
-					aria-label={open?.name ?? insightsCopy.query}
-				>
-					<div className={clsx(styles.head)}>
-						<h2 className={clsx(styles.heading)}>
-							{open?.name ?? insightsCopy.query}
-						</h2>
-						{open === null ? null : (
-							<>
+				<div className={clsx(styles.stack)}>
+					<section
+						className={clsx(styles.card)}
+						aria-label={open?.name ?? insightsCopy.query}
+					>
+						<div className={clsx(styles.head)}>
+							<input
+								className={clsx(styles.name, control.focus)}
+								aria-label={insightsCopy.nameField}
+								placeholder={insightsCopy.untitled}
+								spellCheck={false}
+								value={draft}
+								onChange={(event) => setDraft(event.target.value)}
+								onBlur={commitName}
+								onKeyDown={(event) => {
+									if (event.key === "Enter") {
+										event.currentTarget.blur();
+									}
+								}}
+							/>
+							{open !== null && sql !== open.sql ? (
+								<span className={clsx(styles.dirty)}>
+									{insightsCopy.unsaved}
+								</span>
+							) : null}
+							<span className={clsx(styles.source)}>{insightsCopy.source}</span>
+						</div>
+						<SqlEditor
+							value={sql}
+							onChange={setSql}
+							onRun={() => runSql(sql)}
+							tables={tableNames}
+							label={insightsCopy.editor}
+						/>
+						<div className={clsx(styles.toolbar)}>
+							<Button
+								tone="strong"
+								label={insightsCopy.run}
+								onClick={() => runSql(sql)}
+								disabled={query.isPending}
+							/>
+							<div className={clsx(styles.actions)}>
+								{open !== null && sql !== open.sql ? (
+									<Button
+										label={insightsCopy.save}
+										disabled={sql.trim() === "" || change.isPending}
+										onClick={() =>
+											change.mutate({ kind: "change", id: open.id, sql })
+										}
+									/>
+								) : null}
 								<Button
-									icon="pencil"
-									name={insightsCopy.rename}
+									label={insightsCopy.saveAs}
+									disabled={sql.trim() === "" || change.isPending}
 									onClick={() => {
-										setName(open.name);
-										setDialog("rename");
+										setName(draft);
+										setDialog("save");
 									}}
 								/>
-								<Button
-									icon="trash"
-									name={insightsCopy.delete}
-									onClick={() => setDialog("delete")}
-								/>
-							</>
-						)}
-						<span className={clsx(styles.source)}>{insightsCopy.source}</span>
-					</div>
-					{/* The global stylesheet gives a textarea the font of its parent. */}
-					<div className={clsx(styles.mono)}>
-						<textarea
-							className={clsx(styles.editor, control.focus)}
-							aria-label={insightsCopy.editor}
-							spellCheck={false}
-							value={sql}
-							onChange={(event) => setSql(event.target.value)}
-							onKeyDown={(event) => {
-								if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-									event.preventDefault();
-									runSql(sql);
-								}
-							}}
-						/>
-					</div>
-					<div className={clsx(styles.toolbar)}>
-						<Button
-							label={insightsCopy.run}
-							onClick={() => runSql(sql)}
-							disabled={query.isPending}
-						/>
-						<div
-							className={clsx(styles.views)}
-							role="tablist"
-							aria-label={insightsCopy.views}
-						>
-							{(["chart", "table"] as const).map((item) => {
-								const on =
-									item === "table"
-										? !canChart || view === "table"
-										: canChart && view === "chart";
-								return (
-									<button
-										key={item}
-										type="button"
-										role="tab"
-										aria-selected={on}
-										disabled={item === "chart" && answer !== null && !canChart}
-										title={
-											item === "chart" && answer !== null && !canChart
-												? insightsCopy.noChart
-												: undefined
-										}
-										className={clsx(
-											styles.view,
-											control.focus,
-											on && styles.viewOn,
-										)}
-										onClick={() => setView(item)}
-									>
-										{insightsCopy[item]}
-									</button>
-								);
-							})}
+								{open !== null ? (
+									<Button
+										tone="danger"
+										label={insightsCopy.deleteQuery}
+										onClick={() => setDialog("delete")}
+									/>
+								) : null}
+							</div>
 						</div>
-						{answer === null ? null : (
-							<span className={clsx(styles.meta)}>
-								{insightsCopy.meta(answer.rowCount, answer.ms)}
-							</span>
-						)}
-						{open !== null && sql !== open.sql ? (
-							<Button
-								label={insightsCopy.save}
-								disabled={sql.trim() === "" || change.isPending}
-								onClick={() =>
-									change.mutate({ kind: "change", id: open.id, sql })
-								}
-							/>
+						{result !== undefined && "error" in result ? (
+							<p className={clsx(styles.error)} role="alert">
+								{result.error}
+							</p>
 						) : null}
-						<Button
-							label={insightsCopy.saveAs}
-							disabled={sql.trim() === "" || change.isPending}
-							onClick={() => setDialog("save")}
-						/>
-					</div>
-					{result !== undefined && "error" in result ? (
-						<p className={clsx(styles.error)} role="alert">
-							{result.error}
-						</p>
-					) : null}
-					{change.error === null ? null : (
-						<p className={clsx(styles.error)} role="alert">
-							{change.error.message}
-						</p>
+						{change.error === null ? null : (
+							<p className={clsx(styles.error)} role="alert">
+								{change.error.message}
+							</p>
+						)}
+					</section>
+					{answer === null ? null : (
+						<Results answer={answer} view={view} onView={setView} />
 					)}
-					{answer === null ? null : <Result answer={answer} view={view} />}
-				</section>
+				</div>
 			</div>
 			<ConfirmDialog
 				id="insight-name-dialog"
-				open={dialog === "save" || dialog === "rename"}
-				title={
-					dialog === "rename"
-						? insightsCopy.renameTitle
-						: insightsCopy.saveTitle
-				}
-				body={
-					dialog === "rename" ? insightsCopy.renameBody : insightsCopy.saveBody
-				}
-				confirmLabel={
-					dialog === "rename" ? insightsCopy.rename : insightsCopy.save
-				}
+				open={dialog === "save"}
+				title={insightsCopy.saveTitle}
+				body={insightsCopy.saveBody}
+				confirmLabel={insightsCopy.save}
 				confirmDisabled={name.trim() === ""}
 				onCancel={closeDialog}
 				onConfirm={() => {
-					if (dialog === "rename" && open !== null) {
-						change.mutate({ kind: "change", id: open.id, name });
-					} else {
-						change.mutate(
-							{ kind: "create", name, sql },
-							{
-								onSuccess: (created) => {
-									if (created !== null) {
-										setOpenId(created.id);
-										setOpenTable(null);
-									}
-								},
+					change.mutate(
+						{ kind: "create", name, sql },
+						{
+							onSuccess: (created) => {
+								if (created !== null) {
+									setOpenId(created.id);
+									setOpenTable(null);
+									setDraft(created.name);
+								}
 							},
-						);
-					}
+						},
+					);
 					closeDialog();
 				}}
 			>
@@ -719,6 +488,7 @@ export function Page() {
 					if (open !== null) {
 						change.mutate({ kind: "delete", id: open.id });
 						setOpenId(null);
+						setDraft("");
 					}
 					closeDialog();
 				}}

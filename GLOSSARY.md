@@ -317,7 +317,7 @@ A memory that evidence supports. A vote for a memory is evidence. "Verified" is 
 _Avoid_: confirmed, approved
 
 **Conflicting memory**:
-A verified memory that a newer memory supersedes, while that newer memory is not yet verified. The Memories tab lists the conflicting memories of each repo first.
+A verified memory that a newer memory supersedes, while that newer memory is not yet verified. The Memories tab shows the conflicting memories of a repo under their own state tab.
 _Avoid_: contested, disputed
 
 **Supersede**:
@@ -337,7 +337,7 @@ A person replaces two or more duplicate memories with one new memory. The new me
 _Avoid_: dedupe, combine
 
 **Memories tab**:
-The page that shows the memories of each repo that a factory run names: its conflicting memories first, then its newest memories. A person picks a memory to see its history, and votes for or against it as Lev. The history of a memory also supersedes, undoes, suppresses and restores it. A person selects duplicate memories in the list to merge them. Each correction asks for confirmation, and a refusal of the daemon shows its reason. A factory that does not serve memories shows as such, and the other repos keep working.
+The page that shows the memories of each repo that a factory run names, in three panes. The left pane lists the repos, with a filter and a sort. The middle pane shows the memories of the picked repo, with one tab for each state. The configuration file keeps the last tab. A person picks a memory to see its history in the right pane, and votes for or against it as Lev. The history of a memory also supersedes, undoes, suppresses and restores it. A person selects duplicate memories in the list to merge them, with a Ctrl click or a Shift click. Each correction asks for confirmation, and a refusal of the daemon shows its reason. A factory that does not serve memories shows as such, and the other repos keep working.
 _Avoid_: Memory page, review screen
 
 **Factories tab**:
@@ -349,7 +349,7 @@ One workflow package at one content hash. The `workflow.started` event of a run 
 _Avoid_: Package release, workflow version
 
 **Workflows tab**:
-The page that shows one card for each package version, with its run count, merge rate, median duration, cost per run and last run. A factory that serves its package list also adds a card for each package version with no run. A picked card opens the diagram, the stage statistics, the roles and the runs of that package version. The run history gives all its numbers. The diagram shows the entry graph and each child graph, with the border colour of each stage from its agent role. The graphs come from the factory that lists the package version, else from the latest run. The roles show only when a factory lists the package version: each role with its harness, model, stages and share of the turn cost.
+The page that shows one table row for each package version, with its run count, merge rate, median duration, cost per run and last run. A search and filters narrow the rows. A factory that serves its package list also adds a row for each package version with no run. A picked row opens, under the table, the diagram, the stage statistics, the roles and the runs of that package version. The run history gives all its numbers. The diagram shows the entry graph and each child graph, with the border colour of each stage from its agent role. The graphs come from the factory that lists the package version, else from the latest run. The roles show only when a factory lists the package version: each role with its harness, model, stages and share of the turn cost.
 _Avoid_: Packages page, workflow list
 
 **Needs attention**:
