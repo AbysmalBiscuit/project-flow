@@ -23,7 +23,7 @@ export const defaultFactoryMintCommand = [
 
 import { z } from "zod";
 
-import { forgeKinds } from "./domain.ts";
+import { forgeKinds, trackerKinds } from "./domain.ts";
 import {
 	defaultPageSize,
 	factoriesViewDefaults,
@@ -274,6 +274,16 @@ const configurationSchema = z
 				blockerCleared: z.boolean().default(true),
 			})
 			.default({ needsYou: true, comment: true, blockerCleared: true }),
+		dopplerTokens: z
+			.partialRecord(
+				z.enum(trackerKinds),
+				z.strictObject({
+					project: z.string().min(1),
+					config: z.string().min(1),
+					secret: z.string().min(1),
+				}),
+			)
+			.default({}),
 		factoryGithubTokens: z.boolean().default(false),
 		factoryGithubTokenDir: z.string().default(defaultFactoryGithubTokenDir),
 		factoryMintCommand: z

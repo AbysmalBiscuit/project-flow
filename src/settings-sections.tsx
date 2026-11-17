@@ -1,4 +1,3 @@
-import { backendRows } from "./backend-labels.ts";
 import { Button } from "./button.tsx";
 import type { Configuration, UserState } from "./configuration.ts";
 import { control } from "./control-styles.ts";
@@ -12,7 +11,6 @@ import {
 	ageLabel,
 	AutoMergeEditor,
 	Chips,
-	Credential,
 	MappingEditor,
 	openViewLabel,
 	Row,
@@ -430,34 +428,6 @@ export function NotificationsSection({
 							: settingsCopy.asking}
 				</span>
 			</Row>
-		</section>
-	);
-}
-
-export function TrackersSection({
-	backends,
-	discoveryErrors,
-}: {
-	backends: BackendViews;
-	discoveryErrors: string[];
-}) {
-	return (
-		<section id="trackers" className={clsx(fields.card)}>
-			<h2 className={clsx(fields.cardTitle)}>{settingsSection.trackers}</h2>
-			<p className={clsx(fields.hint)}>{settingsCopy.trackersLead}</p>
-			{discoveryErrors.map((error) => (
-				<p key={error} className={clsx(fields.warning)}>
-					{error}
-				</p>
-			))}
-			{backendRows(backends).map((backend) => (
-				<Row key={backend.kind} title={backend.label} hint={backend.hint}>
-					<Credential
-						id={`${backend.kind}-status`}
-						present={backend.credential === "present"}
-					/>
-				</Row>
-			))}
 		</section>
 	);
 }

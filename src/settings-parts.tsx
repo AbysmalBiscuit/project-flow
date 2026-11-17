@@ -35,6 +35,7 @@ const sectionOfKey: Partial<Record<keyof Configuration, SectionId>> = {
 	pmBot: "projects",
 	expectedBots: "projects",
 	states: "states",
+	dopplerTokens: "trackers",
 	stateMappings: "projects",
 	needsYouLabels: "review",
 	viewerLogins: "review",

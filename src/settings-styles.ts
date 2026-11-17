@@ -196,6 +196,21 @@ export const settings = stylex.create({
 		color: colours.inkMuted,
 		fontSize: type.meta,
 	},
+	trackerRow: {
+		display: "flex",
+		flexDirection: "column",
+	},
+	dopplerFields: {
+		display: "grid",
+		gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+		gap: space.md,
+		paddingBottom: space.md,
+	},
+	dopplerField: {
+		display: "flex",
+		flexDirection: "column",
+		gap: space.twoXs,
+	},
 	stateName: {
 		width: measure.picker,
 	},

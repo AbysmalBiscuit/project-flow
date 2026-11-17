@@ -88,7 +88,26 @@ export const settingsCopy = {
 	allowed: "Allowed",
 	blocked: "Blocked",
 	asking: "Not asked",
-	trackersLead: "Project Flow never stores a token.",
+	trackersLead:
+		"Project Flow never stores a token. It reads each token once at the start, from the environment or from Doppler.",
+	nextStart: "A change to where a token comes from applies at the next start.",
+	tokenFrom: { environment: "Environment", doppler: "Doppler" },
+	tokenFromOf: (tracker: string) => `Read the ${tracker} token from`,
+	fromDoppler: ({
+		project,
+		config,
+		secret,
+	}: {
+		project: string;
+		config: string;
+		secret: string;
+	}) =>
+		`Token from Doppler secret ${secret || "?"} in ${project || "?"}/${config || "?"}`,
+	dopplerField: {
+		project: "Doppler project",
+		config: "Config",
+		secret: "Secret name",
+	},
 	connected: "Connected",
 	missing: "Missing",
 	discard: "Discard",

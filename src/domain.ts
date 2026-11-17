@@ -41,6 +41,8 @@ export type BackendView<Kind extends TrackerKind | ForgeKind> = {
 	/** Where the token comes from. */
 	hint: string;
 	credential: "present" | "missing";
+	/** The env var of the home token, absent for a backend without a home. */
+	tokenEnv?: string;
 };
 
 /** A setting of one backend, which Settings shows as a switch. */

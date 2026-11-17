@@ -20,11 +20,11 @@ import {
 	ProjectViewsSection,
 	ReviewSection,
 	SettingsBar,
-	TrackersSection,
 } from "./settings-sections.tsx";
 import { StatesSection } from "./settings-states.tsx";
 import { settings as fields } from "./settings-styles.ts";
 import { settingsCopy } from "./settings-terms.ts";
+import { TrackersSection } from "./settings-trackers.tsx";
 import type { StateSource } from "./settings-write.ts";
 import { PageFrame, PollStatus } from "./shell.tsx";
 import { shippedStates } from "./state-colours.ts";
@@ -255,6 +255,9 @@ function Menu({
 						<TrackersSection
 							backends={backends}
 							discoveryErrors={discoveryErrors}
+							draft={draft.dopplerTokens}
+							saved={saved.dopplerTokens}
+							onChange={patch}
 						/>
 					) : (
 						<FactoriesSection
