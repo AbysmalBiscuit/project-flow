@@ -103,7 +103,7 @@ export function useCancelRun(run: string) {
 	});
 }
 
-/** Resume or restart a blocked or failed run. A restart opens the run page of the new run. */
+/** Resume or restart a blocked or failed run. The page stays where it is. */
 export function useStartAgain(run: string) {
 	const queries = useQueryClient();
 	return useMutation({
@@ -121,13 +121,10 @@ export function useStartAgain(run: string) {
 			}
 			return answer.id;
 		},
-		onSuccess: (id) => {
+		onSuccess: () => {
 			void queries.invalidateQueries(pageQuery.run(run));
 			void queries.invalidateQueries(pageQuery.needsYou);
 			void queries.invalidateQueries({ queryKey: ["project"] });
-			if (id !== run) {
-				openPage(runPagePath(id));
-			}
 		},
 	});
 }
