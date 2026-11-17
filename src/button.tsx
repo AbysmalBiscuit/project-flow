@@ -111,7 +111,7 @@ type ButtonProps = Content &
 	(Link | Native) & {
 		iconSide?: "left" | "right";
 		/** `quiet` drops the border and the fill at rest, for a button inside another surface. */
-		tone?: "primary" | "danger" | "quiet";
+		tone?: "primary" | "strong" | "danger" | "quiet";
 		/** Marks a toggle button and shows its on state. */
 		pressed?: boolean;
 		/** A count badge after the label. */
@@ -149,6 +149,7 @@ export function Button(props: ButtonProps) {
 		control.press,
 		styles.button,
 		tone === "primary" && control.primary,
+		tone === "strong" && control.strong,
 		tone === "danger" && control.danger,
 		tone === "quiet" && control.clear,
 		tone === "quiet" && styles.quiet,

@@ -178,6 +178,14 @@ export const control = stylex.create({
 		fontWeight: type.weight,
 		backgroundImage: filledPress,
 	},
+	/** The dark fill of the main action of a card, in both themes. */
+	strong: {
+		borderColor: colours.strongLine,
+		backgroundColor: colours.strong,
+		color: colours.strongInk,
+		fontWeight: type.weight,
+		backgroundImage: filledPress,
+	},
 	danger: {
 		borderColor: colours.danger,
 		backgroundColor: colours.danger,

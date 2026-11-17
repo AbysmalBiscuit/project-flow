@@ -74,6 +74,36 @@ export const shortcuts = {
 		label: "Copy PR URL",
 		combo: { code: "Comma", ctrl: true, shift: true },
 	},
+	pickPrevious: {
+		group: "Lists",
+		label: "Pick the previous row",
+		combo: { code: "ArrowUp" },
+	},
+	pickNext: {
+		group: "Lists",
+		label: "Pick the next row",
+		combo: { code: "ArrowDown" },
+	},
+	closeDetail: {
+		group: "Lists",
+		label: "Close the detail",
+		combo: { code: "Escape" },
+	},
+	selectMemory: {
+		group: "Memories",
+		label: "Add or remove a memory from the selection",
+		keys: ["Ctrl", "Click"],
+	},
+	selectMemoryRange: {
+		group: "Memories",
+		label: "Select the memories between the last pick and this one",
+		keys: ["Shift", "Click"],
+	},
+	clearMemorySelection: {
+		group: "Memories",
+		label: "Clear the memory selection",
+		combo: { code: "Escape" },
+	},
 } as const satisfies Record<string, Shortcut>;
 
 export type ShortcutId = keyof typeof shortcuts;
@@ -83,6 +113,8 @@ const codeLabel: Record<string, string> = {
 	Period: ".",
 	Comma: ",",
 	Escape: "Esc",
+	ArrowUp: "Up",
+	ArrowDown: "Down",
 };
 
 function keyLabel(code: string): string {

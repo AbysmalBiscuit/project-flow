@@ -94,7 +94,7 @@ function FactoriesBody({ view }: { view: FactoriesView }) {
 							stretch
 							tools={
 								<PageSizePicker
-									list="running"
+									id="factories-running"
 									title={factoriesCopy.running}
 									{...sizeOf("running")}
 								/>
@@ -116,7 +116,7 @@ function FactoriesBody({ view }: { view: FactoriesView }) {
 							stretch
 							tools={
 								<PageSizePicker
-									list="attention"
+									id="factories-attention"
 									title={factoriesCopy.attention}
 									{...sizeOf("attention")}
 								/>
@@ -167,7 +167,7 @@ function FactoriesBody({ view }: { view: FactoriesView }) {
 							source={factoriesCopy.sources.queue}
 							tools={
 								<PageSizePicker
-									list="queue"
+									id="factories-queue"
 									title={factoriesCopy.queue}
 									{...sizeOf("queue")}
 								/>

@@ -51,6 +51,10 @@ export const lightValues = {
 	needsInk: "#ffffff",
 	needsPill: "#ffffff",
 	needsPillInk: "#18181b",
+	strong: "#18181b",
+	strongInk: "#ffffff",
+	strongLine: "#18181b",
+	strongPress: "#34343b",
 	segment: "#f3f3f1",
 	controlLine: "#e7e7e4",
 	controlInk: "#18181b",
@@ -106,6 +110,10 @@ export const darkValues = {
 	needsInk: "#0e0e10",
 	needsPill: "#ffffff",
 	needsPillInk: "#18181b",
+	strong: "#18181b",
+	strongInk: "#ffffff",
+	strongLine: "#4d4d4d",
+	strongPress: "#26262b",
 	segment: "#1d1d22",
 	controlLine: "#26262c",
 	controlInk: "#ededef",
@@ -184,6 +192,16 @@ export const colours = stylex.defineVars({
 	needsPillInk: {
 		default: lightValues.needsPillInk,
 		[dark]: darkValues.needsPillInk,
+	},
+	strong: { default: lightValues.strong, [dark]: darkValues.strong },
+	strongInk: { default: lightValues.strongInk, [dark]: darkValues.strongInk },
+	strongLine: {
+		default: lightValues.strongLine,
+		[dark]: darkValues.strongLine,
+	},
+	strongPress: {
+		default: lightValues.strongPress,
+		[dark]: darkValues.strongPress,
 	},
 	segment: { default: lightValues.segment, [dark]: darkValues.segment },
 	controlLine: {
@@ -314,6 +332,7 @@ export const type = stylex.defineVars({
 	pill: "0.75rem",
 	meter: "0.82rem",
 	meterSmall: "0.75rem",
+	bigValue: "3rem",
 });
 
 export const scheme = stylex.defineVars({
@@ -364,6 +383,11 @@ export const measure = stylex.defineVars({
 	spin: "1s",
 	pageSpinner: "2.5rem",
 	pageLoading: "calc(100dvh - 16rem)",
+	memoryRepos: "15rem",
+	// The chart fills the screen below the editor.
+	insightResults: "max(16rem, calc(100dvh - 26rem))",
+	// The screen less the shell (3.5rem) and the page's top and bottom gap.
+	stickyPane: "calc(100dvh - 3.5rem - 2rem)",
 	dotsCycle: "1.2s",
 	beat: "0.6s",
 	mark: "1.15rem",
